@@ -133,7 +133,7 @@ export default function CoursesManagement() {
 
       if (editingCourse) {
         // Update existing course
-        const { error } = await supabase
+        const { error: courseError } = await supabase
           .from('courses')
           .update({
             title: data.title,
@@ -145,9 +145,11 @@ export default function CoursesManagement() {
           })
           .eq('id', editingCourse.id)
 
-        if (error) throw error
+        if (courseError) throw courseError
+
+        // Update modules and lessons
+        await updateModulesAndLessons(editingCourse.id, data.modules)
         
-        // TODO: Update modules and lessons
         toast.success('Curso actualizado correctamente')
       } else {
         // Create new course
@@ -235,13 +237,213 @@ export default function CoursesManagement() {
     }
   }
 
+  const updateModulesAndLessons = async (courseId: string, modules: Module[]) => {
+    try {
+      // Get existing modules to compare
+      const { data: existingModules } = await supabase
+        .from('modules')
+        .select('id, lessons(id)')
+        .eq('course_id', courseId)
+
+      const existingModuleIds = new Set((existingModules || []).map(m => m.id))
+      const currentModuleIds = new Set()
+
+      // Process each module
+      for (const [moduleIndex, moduleData] of modules.entries()) {
+        let moduleId = (moduleData as any).id
+
+        if (moduleId && existingModuleIds.has(moduleId)) {
+          // Update existing module
+          const { error: moduleError } = await supabase
+            .from('modules')
+            .update({
+              title: moduleData.title,
+              description: moduleData.description,
+              order_index: moduleIndex
+            })
+            .eq('id', moduleId)
+
+          if (moduleError) throw moduleError
+          currentModuleIds.add(moduleId)
+        } else {
+          // Create new module
+          const { data: newModule, error: moduleError } = await supabase
+            .from('modules')
+            .insert([
+              {
+                title: moduleData.title,
+                description: moduleData.description,
+                course_id: courseId,
+                order_index: moduleIndex
+              }
+            ])
+            .select()
+            .single()
+
+          if (moduleError) throw moduleError
+          moduleId = newModule.id
+          currentModuleIds.add(moduleId)
+        }
+
+        // Get existing lessons for this module
+        const existingModule = existingModules?.find(m => m.id === moduleId)
+        const existingLessonIds = new Set((existingModule?.lessons || []).map((l: any) => l.id))
+        const currentLessonIds = new Set()
+
+        // Process lessons for this module
+        for (const [lessonIndex, lessonData] of moduleData.lessons.entries()) {
+          let lessonId = (lessonData as any).id
+          let videoUrl = (lessonData as any).video_url || ''
+
+          // Upload new video if provided
+          if (lessonData.video && lessonData.video.length > 0) {
+            const file = lessonData.video[0]
+            const fileName = `lesson_${Date.now()}_${file.name}`
+            
+            const { url, error } = await StorageService.uploadFile(
+              'lesson-videos',
+              fileName,
+              file
+            )
+            
+            if (error) throw error
+            videoUrl = url || ''
+          }
+
+          if (lessonId && existingLessonIds.has(lessonId)) {
+            // Update existing lesson
+            const updateData: any = {
+              title: lessonData.title,
+              content: lessonData.content,
+              order_index: lessonIndex,
+              duration_minutes: lessonData.duration_minutes
+            }
+
+            // Only update video_url if new video was uploaded
+            if (lessonData.video && lessonData.video.length > 0) {
+              updateData.video_url = videoUrl
+            }
+
+            const { error: lessonError } = await supabase
+              .from('lessons')
+              .update(updateData)
+              .eq('id', lessonId)
+
+            if (lessonError) throw lessonError
+            currentLessonIds.add(lessonId)
+          } else {
+            // Create new lesson
+            const { data: newLesson, error: lessonError } = await supabase
+              .from('lessons')
+              .insert([
+                {
+                  title: lessonData.title,
+                  content: lessonData.content,
+                  video_url: videoUrl,
+                  module_id: moduleId,
+                  order_index: lessonIndex,
+                  duration_minutes: lessonData.duration_minutes
+                }
+              ])
+              .select()
+              .single()
+
+            if (lessonError) throw lessonError
+            currentLessonIds.add(newLesson.id)
+          }
+        }
+
+        // Delete removed lessons
+        const lessonsToDelete = [...existingLessonIds].filter(id => !currentLessonIds.has(id))
+        if (lessonsToDelete.length > 0) {
+          const { error: deleteLessonsError } = await supabase
+            .from('lessons')
+            .delete()
+            .in('id', lessonsToDelete)
+
+          if (deleteLessonsError) throw deleteLessonsError
+        }
+      }
+
+      // Delete removed modules
+      const modulesToDelete = [...existingModuleIds].filter(id => !currentModuleIds.has(id))
+      if (modulesToDelete.length > 0) {
+        const { error: deleteModulesError } = await supabase
+          .from('modules')
+          .delete()
+          .in('id', modulesToDelete)
+
+        if (deleteModulesError) throw deleteModulesError
+      }
+    } catch (error) {
+      console.error('Error updating modules and lessons:', error)
+      throw error
+    }
+  }
+
   const handleEdit = (course: Course) => {
     setEditingCourse(course)
     setValue('title', course.title)
     setValue('description', course.description || '')
     setValue('instructor_id', course.instructor_id || '')
     setValue('is_active', course.is_active)
+    loadCourseModulesAndLessons(course.id)
     setIsModalOpen(true)
+  }
+
+  const loadCourseModulesAndLessons = async (courseId: string) => {
+    try {
+      const { data: modulesData, error } = await supabase
+        .from('modules')
+        .select(`
+          *,
+          lessons (*)
+        `)
+        .eq('course_id', courseId)
+        .order('order_index')
+
+      if (error) throw error
+
+      // Transform data to match form structure
+      const formModules = (modulesData || []).map((module: any) => ({
+        id: module.id, // Keep ID for updates
+        title: module.title,
+        description: module.description || '',
+        lessons: module.lessons
+          .sort((a: any, b: any) => a.order_index - b.order_index)
+          .map((lesson: any) => ({
+            id: lesson.id, // Keep ID for updates
+            title: lesson.title,
+            content: lesson.content,
+            video: null, // File input will be empty
+            video_url: lesson.video_url, // Keep existing URL
+            duration_minutes: lesson.duration_minutes
+          }))
+      }))
+
+      // Reset form with existing data
+      reset({
+        title: '',
+        description: '',
+        instructor_id: '',
+        is_active: true,
+        image: [] as any,
+        modules: formModules.length > 0 ? formModules : [{ 
+          title: '', 
+          description: '', 
+          lessons: [{ title: '', content: '', video: null, duration_minutes: 0 }] 
+        }]
+      })
+
+      // Set basic course fields after reset
+      setValue('title', editingCourse?.title || '')
+      setValue('description', editingCourse?.description || '')
+      setValue('instructor_id', editingCourse?.instructor_id || '')
+      setValue('is_active', editingCourse?.is_active || true)
+    } catch (error) {
+      console.error('Error loading course modules:', error)
+      toast.error('Error al cargar módulos del curso')
+    }
   }
 
   const handleDelete = async (course: Course) => {
@@ -469,11 +671,13 @@ export default function CoursesManagement() {
               </div>
 
               {/* Modules and Lessons */}
-              {!editingCourse && (
+              <div className="space-y-6">
                 <div className="space-y-6">
-                  <div className="border-t pt-6">
+                  <div className={editingCourse ? 'pt-6' : 'border-t pt-6'}>
                     <div className="flex justify-between items-center mb-4">
-                      <h3 className="text-lg font-semibold text-slate-800">Módulos y Lecciones</h3>
+                      <h3 className="text-lg font-semibold text-slate-800">
+                        {editingCourse ? 'Editar Módulos y Lecciones' : 'Módulos y Lecciones'}
+                      </h3>
                       <button
                         type="button"
                         onClick={() => appendModule({ 
@@ -500,7 +704,7 @@ export default function CoursesManagement() {
                     ))}
                   </div>
                 </div>
-              )}
+              </div>
 
               {/* Buttons */}
               <div className="flex space-x-3 pt-6 border-t">
@@ -550,6 +754,11 @@ function ModuleForm({ moduleIndex, register, control, errors, onRemove, canRemov
     control,
     name: `modules.${moduleIndex}.lessons`
   })
+
+  const watchModule = control._formValues?.modules?.[moduleIndex]
+  const isEditingLesson = (lessonIndex: number) => {
+    return watchModule?.lessons?.[lessonIndex]?.video_url ? true : false
+  }
 
   return (
     <div className="border rounded-lg p-4 mb-4 bg-slate-50">
@@ -659,14 +868,29 @@ function ModuleForm({ moduleIndex, register, control, errors, onRemove, canRemov
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1">
-                    Video de la Lección
+                    Video de la Lección {isEditingLesson(lessonIndex) ? '(opcional - subir nuevo)' : ''}
                   </label>
+                  
+                  {/* Show current video info if editing */}
+                  {isEditingLesson(lessonIndex) && watchModule?.lessons?.[lessonIndex]?.video_url && (
+                    <div className="mb-2 p-2 bg-blue-50 rounded text-xs text-blue-800">
+                      📹 Video actual disponible - sube un nuevo archivo solo si quieres reemplazarlo
+                    </div>
+                  )}
+                  
                   <input
-                    {...register(`modules.${moduleIndex}.lessons.${lessonIndex}.video`)}
+                    {...register(`modules.${moduleIndex}.lessons.${lessonIndex}.video`, {
+                      required: isEditingLesson(lessonIndex) ? false : 'El video es requerido para nuevas lecciones'
+                    })}
                     type="file"
                     accept="video/*"
                     className="w-full text-xs border border-slate-300 rounded p-1"
                   />
+                  {errors.modules?.[moduleIndex]?.lessons?.[lessonIndex]?.video && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {errors.modules[moduleIndex].lessons[lessonIndex].video.message}
+                    </p>
+                  )}
                 </div>
 
                 <div>
