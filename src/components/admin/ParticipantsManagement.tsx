@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import { Plus, Edit2, Trash2, Phone, Mail, User } from 'lucide-react'
+import { Plus, Edit2, Trash2, Phone, Mail, User, Eye, EyeOff } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useForm } from 'react-hook-form'
 
@@ -29,6 +29,7 @@ export default function ParticipantsManagement() {
   const [isLoading, setIsLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingParticipant, setEditingParticipant] = useState<Participant | null>(null)
+  const [showPassword, setShowPassword] = useState(false)
 
   const {
     register,
@@ -373,24 +374,37 @@ export default function ParticipantsManagement() {
               </div>
 
               {/* Password - only for new participants */}
-              {!editingParticipant && (
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Contraseña
-                  </label>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  {editingParticipant ? 'Nueva Contraseña (opcional)' : 'Contraseña'}
+                </label>
+                <div className="relative">
                   <input
                     {...register('password', {
                       required: !editingParticipant ? 'La contraseña es requerida' : false,
                       minLength: { value: 6, message: 'Mínimo 6 caracteres' }
                     })}
-                    type="password"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                    type={showPassword ? 'text' : 'password'}
+                    className="w-full px-3 py-2 pr-10 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                    placeholder={editingParticipant ? 'Dejar vacío para mantener actual' : 'Contraseña'}
                   />
-                  {errors.password && (
-                    <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>
-                  )}
+                  <button
+                    type="button"
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
-              )}
+                {errors.password && (
+                  <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>
+                )}
+                {editingParticipant && (
+                  <p className="text-slate-500 text-xs mt-1">
+                    * Solo ingresa una contraseña si quieres cambiarla
+                  </p>
+                )}
+              </div>
 
               {/* Buttons */}
               <div className="flex space-x-3 pt-4">
