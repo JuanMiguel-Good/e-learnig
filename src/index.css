@@ -1,0 +1,161 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Prevent horizontal overflow */
+html, body {
+  overflow-x: hidden;
+}
+
+/* Base responsive typography using clamp */
+@layer base {
+  h1 {
+    font-size: clamp(20px, 4.5vw, 28px);
+  }
+  
+  body {
+    font-size: clamp(14px, 3.5vw, 16px);
+  }
+}
+
+/* Hide scrollbars but keep functionality */
+.no-scrollbar {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* Internet Explorer 10+ */
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none; /* WebKit */
+}
+
+/* Mobile specific scrollbar hiding */
+@media (max-width: 768px) {
+  /* Hide all scrollbars on mobile */
+  * {
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+  }
+  
+  *::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+  
+  /* Ensure touch scrolling works smoothly */
+  .mobile-scroll-container {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    scroll-behavior: smooth;
+  }
+  
+  /* Hide scrollbars in modals and containers */
+  .modal-content,
+  .mobile-no-overflow,
+  .overflow-y-auto,
+  .overflow-auto {
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+  }
+  
+  .modal-content::-webkit-scrollbar,
+  .mobile-no-overflow::-webkit-scrollbar,
+  .overflow-y-auto::-webkit-scrollbar,
+  .overflow-auto::-webkit-scrollbar {
+    display: none !important;
+  }
+}
+
+/* Responsive utilities */
+@layer utilities {
+  .container-responsive {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding-inline: 1rem;
+  }
+  
+  @media (min-width: 1024px) {
+    .container-responsive {
+      padding-inline: 2rem;
+    }
+  }
+  
+  /* Video responsive */
+  .video-responsive {
+    aspect-ratio: 16/9;
+    width: 100%;
+    height: auto;
+  }
+  
+  /* Sticky button for mobile */
+  .btn-sticky-mobile {
+    position: sticky;
+    bottom: 0;
+    width: 100%;
+    box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.1);
+    z-index: 10;
+  }
+  
+  @media (min-width: 768px) {
+    .btn-sticky-mobile {
+      position: static;
+      width: auto;
+      box-shadow: none;
+    }
+  }
+}
+
+/* Mobile-specific overrides */
+@media (max-width: 768px) {
+  /* Mobile single scroll container */
+  .mobile-scroll-container {
+    height: 100dvh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+  }
+  
+  /* Remove overflow from inner containers in mobile */
+  .mobile-no-overflow {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+  
+  .layout-grid {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+  
+  .sidebar-desktop {
+    display: none;
+  }
+  
+  .cards-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .modal-content {
+    margin: 0;
+    max-height: 100vh;
+    border-radius: 0;
+    width: 100vw;
+    height: 100vh;
+  }
+}
+
+@media (max-width: 480px) {
+  h1 {
+    font-size: clamp(20px, 5vw, 24px) !important;
+  }
+  
+  body {
+    font-size: clamp(14px, 4vw, 16px) !important;
+  }
+  
+  .text-xs { font-size: clamp(10px, 3vw, 12px); }
+  .text-sm { font-size: clamp(12px, 3.5vw, 14px); }
+  .text-base { font-size: clamp(14px, 4vw, 16px); }
+  .text-lg { font-size: clamp(16px, 4.5vw, 18px); }
+  .text-xl { font-size: clamp(18px, 5vw, 20px); }
+  .text-2xl { font-size: clamp(20px, 5.5vw, 24px); }
+}

@@ -1,0 +1,426 @@
+import React, { useEffect, useState } from 'react'
+import { supabase } from '../../lib/supabase'
+import { Plus, Edit2, Trash2, Phone, Mail, User } from 'lucide-react'
+import toast from 'react-hot-toast'
+import { useForm } from 'react-hook-form'
+
+interface Participant {
+  id: string
+  email: string
+  first_name: string
+  last_name: string
+  phone: string | null
+  country_code: string
+  created_at: string
+}
+
+interface ParticipantFormData {
+  email: string
+  first_name: string
+  last_name: string
+  phone: string
+  country_code: string
+  password?: string
+  role: string
+}
+
+export default function ParticipantsManagement() {
+  const [participants, setParticipants] = useState<Participant[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [editingParticipant, setEditingParticipant] = useState<Participant | null>(null)
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+    reset,
+    setValue
+  } = useForm<ParticipantFormData>({
+    defaultValues: {
+      country_code: '+52',
+      role: 'participant'
+    }
+  })
+
+  useEffect(() => {
+    loadParticipants()
+  }, [])
+
+  const loadParticipants = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('role', 'participant')
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+      setParticipants(data || [])
+    } catch (error) {
+      console.error('Error loading participants:', error)
+      toast.error('Error al cargar participantes')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleCreateOrUpdate = async (data: ParticipantFormData) => {
+    try {
+      if (editingParticipant) {
+        // Update existing participant
+        const updateData: any = {
+          email: data.email,
+          first_name: data.first_name,
+          last_name: data.last_name,
+          phone: data.phone || null,
+          country_code: data.country_code,
+          role: data.role,
+          updated_at: new Date().toISOString()
+        }
+
+        if (data.password) {
+          const bcrypt = await import('bcryptjs')
+          updateData.password_hash = await bcrypt.hash(data.password, 10)
+        }
+
+        const { error } = await supabase
+          .from('users')
+          .update(updateData)
+          .eq('id', editingParticipant.id)
+
+        if (error) throw error
+        toast.success('Participante actualizado correctamente')
+      } else {
+        // Create new participant
+        if (!data.password) {
+          toast.error('La contraseña es requerida para nuevos participantes')
+          return
+        }
+
+        const bcrypt = await import('bcryptjs')
+        const passwordHash = await bcrypt.hash(data.password, 10)
+
+        const { error } = await supabase
+          .from('users')
+          .insert([
+            {
+              email: data.email,
+              password_hash: passwordHash,
+              first_name: data.first_name,
+              last_name: data.last_name,
+              phone: data.phone || null,
+              country_code: data.country_code,
+              role: data.role
+            }
+          ])
+
+        if (error) throw error
+        toast.success('Participante creado correctamente')
+      }
+
+      await loadParticipants()
+      setIsModalOpen(false)
+      setEditingParticipant(null)
+      reset()
+    } catch (error: any) {
+      console.error('Error saving participant:', error)
+      toast.error(error.message || 'Error al guardar participante')
+    }
+  }
+
+  const handleEdit = (participant: Participant) => {
+    setEditingParticipant(participant)
+    setValue('email', participant.email)
+    setValue('first_name', participant.first_name)
+    setValue('last_name', participant.last_name)
+    setValue('phone', participant.phone || '')
+    setValue('country_code', participant.country_code)
+    setIsModalOpen(true)
+  }
+
+  const handleDelete = async (participant: Participant) => {
+    if (!confirm(`¿Estás seguro de eliminar a ${participant.first_name} ${participant.last_name}?`)) {
+      return
+    }
+
+    try {
+      const { error } = await supabase
+        .from('users')
+        .delete()
+        .eq('id', participant.id)
+
+      if (error) throw error
+      
+      toast.success('Participante eliminado correctamente')
+      await loadParticipants()
+    } catch (error) {
+      console.error('Error deleting participant:', error)
+      toast.error('Error al eliminar participante')
+    }
+  }
+
+  const countryCodes = [
+    { code: '+1', country: 'Estados Unidos/Canadá' },
+    { code: '+52', country: 'México' },
+    { code: '+34', country: 'España' },
+    { code: '+54', country: 'Argentina' },
+    { code: '+57', country: 'Colombia' },
+    { code: '+51', country: 'Perú' },
+    { code: '+56', country: 'Chile' },
+    { code: '+58', country: 'Venezuela' },
+    { code: '+593', country: 'Ecuador' },
+    { code: '+591', country: 'Bolivia' },
+  ]
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-800"></div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800">Participantes</h1>
+          <p className="text-slate-600">Gestiona los participantes de la plataforma</p>
+        </div>
+        <button
+          onClick={() => {
+            setEditingParticipant(null)
+            reset()
+            setIsModalOpen(true)
+          }}
+          className="inline-flex items-center px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-medium transition-colors"
+        >
+          <Plus className="w-5 h-5 mr-2" />
+          Agregar Participante
+        </button>
+      </div>
+
+      {/* Table */}
+      <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-slate-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                  Participante
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                  Contacto
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                  Fecha de Registro
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
+                  Acciones
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-slate-200">
+              {participants.map((participant) => (
+                <tr key={participant.id} className="hover:bg-slate-50">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center">
+                      <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center">
+                        <User className="w-5 h-5 text-slate-600" />
+                      </div>
+                      <div className="ml-4">
+                        <div className="text-sm font-medium text-slate-900">
+                          {participant.first_name} {participant.last_name}
+                        </div>
+                        <div className="text-sm text-slate-500">{participant.email}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="space-y-1">
+                      <div className="flex items-center text-sm text-slate-600">
+                        <Mail className="w-4 h-4 mr-2" />
+                        {participant.email}
+                      </div>
+                      {participant.phone && (
+                        <div className="flex items-center text-sm text-slate-600">
+                          <Phone className="w-4 h-4 mr-2" />
+                          {participant.country_code} {participant.phone}
+                        </div>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
+                    {new Date(participant.created_at).toLocaleDateString()}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                    <button
+                      onClick={() => handleEdit(participant)}
+                      className="text-slate-600 hover:text-slate-900 mr-3"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(participant)}
+                      className="text-red-600 hover:text-red-900"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        
+        {participants.length === 0 && (
+          <div className="text-center py-12">
+            <User className="mx-auto h-12 w-12 text-slate-400" />
+            <h3 className="mt-2 text-sm font-medium text-slate-900">No hay participantes</h3>
+            <p className="mt-1 text-sm text-slate-500">Comienza agregando tu primer participante.</p>
+          </div>
+        )}
+      </div>
+
+      {/* Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-0 md:p-4 z-50">
+          <div className="bg-white md:rounded-xl shadow-xl max-w-md w-full h-full md:h-auto p-6 mobile-scroll-container md:mobile-no-overflow no-scrollbar">
+            <h2 className="text-xl font-bold text-slate-800 mb-6">
+              {editingParticipant ? 'Editar Participante' : 'Agregar Participante'}
+            </h2>
+
+            <form onSubmit={handleSubmit(handleCreateOrUpdate)} className="space-y-4">
+              {/* Nombres */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Nombre
+                  </label>
+                  <input
+                    {...register('first_name', { required: 'El nombre es requerido' })}
+                    type="text"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                  />
+                  {errors.first_name && (
+                    <p className="text-red-500 text-xs mt-1">{errors.first_name.message}</p>
+                  )}
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Apellido
+                  </label>
+                  <input
+                    {...register('last_name', { required: 'El apellido es requerido' })}
+                    type="text"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                  />
+                  {errors.last_name && (
+                    <p className="text-red-500 text-xs mt-1">{errors.last_name.message}</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Email */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Email
+                </label>
+                <input
+                  {...register('email', {
+                    required: 'El email es requerido',
+                    pattern: {
+                      value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+                      message: 'Email inválido'
+                    }
+                  })}
+                  type="email"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                />
+                {errors.email && (
+                  <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>
+                )}
+              </div>
+
+              {/* Teléfono */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Teléfono
+                </label>
+                <div className="flex space-x-2">
+                  <select
+                    {...register('country_code')}
+                    className="w-24 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                  >
+                    {countryCodes.map((item) => (
+                      <option key={item.code} value={item.code}>
+                        {item.code}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    {...register('phone', { required: 'El teléfono es requerido' })}
+                    type="tel"
+                    className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                  />
+                </div>
+                {errors.phone && (
+                  <p className="text-red-500 text-xs mt-1">{errors.phone.message}</p>
+                )}
+              </div>
+
+              {/* Password - only for new participants */}
+              {!editingParticipant && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Contraseña
+                  </label>
+                  <input
+                    {...register('password', {
+                      required: !editingParticipant ? 'La contraseña es requerida' : false,
+                      minLength: { value: 6, message: 'Mínimo 6 caracteres' }
+                    })}
+                    type="password"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                  />
+                  {errors.password && (
+                    <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>
+                  )}
+                </div>
+              )}
+
+              {/* Buttons */}
+              <div className="flex space-x-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsModalOpen(false)
+                    setEditingParticipant(null)
+                    reset()
+                  }}
+                  className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-medium transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+                >
+                  {isSubmitting ? (
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mx-auto"></div>
+                  ) : (
+                    editingParticipant ? 'Actualizar' : 'Crear'
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

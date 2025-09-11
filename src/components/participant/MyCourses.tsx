@@ -1,0 +1,634 @@
+import React, { useEffect, useState } from 'react'
+import { supabase } from '../../lib/supabase'
+import { useAuth } from '../../contexts/AuthContext'
+import { BookOpen, Play, FileText, CheckCircle, Clock, X, Award, ChevronDown, ChevronRight, PlayCircle, Star } from 'lucide-react'
+import { CertificateGenerator } from '../../lib/certificateGenerator'
+import toast from 'react-hot-toast'
+
+interface Course {
+  id: string
+  title: string
+  description: string | null
+  image_url: string | null
+  progress: number
+  modules: Module[]
+}
+
+interface Module {
+  id: string
+  title: string
+  description: string | null
+  order_index: number
+  lessons: Lesson[]
+}
+
+interface Lesson {
+  id: string
+  title: string
+  content: string
+  video_url: string
+  order_index: number
+  duration_minutes: number
+  completed: boolean
+  can_access: boolean
+}
+
+export default function MyCourses() {
+  const { user } = useAuth()
+  const [courses, setCourses] = useState<Course[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null)
+  const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null)
+  const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set())
+  const [generatingCertificate, setGeneratingCertificate] = useState(false)
+
+  useEffect(() => {
+    if (user) {
+      loadCourses()
+    }
+  }, [user])
+
+  const loadCourses = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('course_assignments')
+        .select(`
+          course_id,
+          courses!inner (
+            id,
+            title,
+            description,
+            image_url,
+            modules (
+              id,
+              title,
+              description,
+              order_index,
+              lessons (
+                id,
+                title,
+                content,
+                video_url,
+                order_index,
+                duration_minutes
+              )
+            )
+          )
+        `)
+        .eq('user_id', user?.id)
+
+      if (error) throw error
+
+      // Process courses with progress calculation
+      const processedCourses = await Promise.all(
+        (data || []).map(async (assignment: any) => {
+          const course = assignment.courses
+          
+          // Get lesson progress for this user
+          const { data: progressData } = await supabase
+            .from('lesson_progress')
+            .select('lesson_id, completed')
+            .eq('user_id', user?.id)
+
+          const completedLessons = new Set(
+            (progressData || [])
+              .filter(p => p.completed)
+              .map(p => p.lesson_id)
+          )
+
+          // Calculate progress and determine accessibility
+          let totalLessons = 0
+          let completedCount = 0
+          let previousLessonCompleted = true
+
+          // Sort modules and lessons
+          const sortedModules = course.modules
+            .sort((a: any, b: any) => a.order_index - b.order_index)
+            .map((module: any) => {
+              const sortedLessons = module.lessons
+                .sort((a: any, b: any) => a.order_index - b.order_index)
+                .map((lesson: any) => {
+                  totalLessons++
+                  const isCompleted = completedLessons.has(lesson.id)
+                  if (isCompleted) completedCount++
+
+                  const canAccess = previousLessonCompleted
+                  if (!isCompleted) previousLessonCompleted = false
+
+                  return {
+                    ...lesson,
+                    completed: isCompleted,
+                    can_access: canAccess
+                  }
+                })
+
+              return {
+                ...module,
+                lessons: sortedLessons
+              }
+            })
+
+          const progress = totalLessons > 0 ? Math.round((completedCount / totalLessons) * 100) : 0
+
+          return {
+            ...course,
+            progress,
+            modules: sortedModules
+          }
+        })
+      )
+
+      setCourses(processedCourses)
+    } catch (error) {
+      console.error('Error loading courses:', error)
+      toast.error('Error al cargar cursos')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const markLessonComplete = async (lessonId: string, courseId: string) => {
+    try {
+      // Mark lesson as completed
+      const { error } = await supabase
+        .from('lesson_progress')
+        .upsert([
+          {
+            user_id: user?.id,
+            lesson_id: lessonId,
+            completed: true,
+            completed_at: new Date().toISOString()
+          }
+        ], {
+          onConflict: 'user_id,lesson_id'
+        })
+
+      if (error) {
+        throw error
+      }
+
+      toast.success('¡Lección completada!')
+      // Update selectedLesson if it's the current one
+      if (selectedLesson && selectedLesson.id === lessonId) {
+        setSelectedLesson({
+          ...selectedLesson,
+          completed: true
+        })
+      }
+      
+      // Update courses state immediately
+      setCourses(prevCourses => {
+        return prevCourses.map(course => {
+          if (course.id !== courseId) return course
+          
+          let totalLessons = 0
+          let completedCount = 0
+          let previousLessonCompleted = true
+          
+          const updatedModules = course.modules.map(module => {
+            const updatedLessons = module.lessons.map(lesson => {
+              totalLessons++
+              const isCompleted = lesson.id === lessonId ? true : lesson.completed
+              if (isCompleted) completedCount++
+              
+              const canAccess = previousLessonCompleted
+              if (!isCompleted) previousLessonCompleted = false
+              
+              return {
+                ...lesson,
+                completed: isCompleted,
+                can_access: canAccess
+              }
+            })
+            
+            return {
+              ...module,
+              lessons: updatedLessons
+            }
+          })
+          
+          const progress = totalLessons > 0 ? Math.round((completedCount / totalLessons) * 100) : 0
+          
+          return {
+            ...course,
+            progress,
+            modules: updatedModules
+          }
+        })
+      })
+      
+      // Update selectedCourse if it's the current one
+      if (selectedCourse && selectedCourse.id === courseId) {
+        const updatedCourse = courses.find(c => c.id === courseId)
+        if (updatedCourse) {
+          // Calculate new progress for the selected course
+          let totalLessons = 0
+          let completedCount = 0
+          let previousLessonCompleted = true
+          
+          const updatedModules = selectedCourse.modules.map(module => {
+            const updatedLessons = module.lessons.map(lesson => {
+              totalLessons++
+              const isCompleted = lesson.id === lessonId ? true : lesson.completed
+              if (isCompleted) completedCount++
+              
+              const canAccess = previousLessonCompleted
+              if (!isCompleted) previousLessonCompleted = false
+              
+              return {
+                ...lesson,
+                completed: isCompleted,
+                can_access: canAccess
+              }
+            })
+            
+            return {
+              ...module,
+              lessons: updatedLessons
+            }
+          })
+          
+          const progress = totalLessons > 0 ? Math.round((completedCount / totalLessons) * 100) : 0
+          
+          setSelectedCourse({
+            ...selectedCourse,
+            progress,
+            modules: updatedModules
+          })
+        }
+      }
+      
+    } catch (error) {
+      console.error('Error completing lesson:', error)
+      toast.error('Error al completar lección')
+    }
+  }
+
+  const generateCertificate = async (course: Course) => {
+    if (!user) return
+    
+    try {
+      setGeneratingCertificate(true)
+      
+      // Get course with instructor info
+      const { data: courseData, error } = await supabase
+        .from('courses')
+        .select(`
+          *,
+          instructor:instructors(name, signature_url)
+        `)
+        .eq('id', course.id)
+        .single()
+
+      if (error) throw error
+
+      const certificateData = {
+        userName: `${user.first_name} ${user.last_name}`,
+        courseName: courseData.title,
+        instructorName: courseData.instructor?.name || 'Instructor',
+        instructorSignature: courseData.instructor?.signature_url,
+        completionDate: new Date().toISOString()
+      }
+
+      // Generate PDF
+      const certificateBase64 = await CertificateGenerator.generateCertificate(certificateData)
+      
+      // Save certificate
+      const certificateUrl = await CertificateGenerator.saveCertificate(
+        user.id,
+        course.id,
+        certificateBase64
+      )
+
+      if (certificateUrl) {
+        toast.success('¡Certificado generado exitosamente!')
+        
+        // Download the certificate
+        window.open(certificateUrl, '_blank')
+      }
+    } catch (error) {
+      console.error('Error generating certificate:', error)
+      toast.error('Error al generar certificado')
+    } finally {
+      setGeneratingCertificate(false)
+    }
+  }
+
+  const toggleModule = (moduleId: string) => {
+    setExpandedModules(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(moduleId)) {
+        newSet.delete(moduleId)
+      } else {
+        newSet.add(moduleId)
+      }
+      return newSet
+    })
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-800"></div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-xl md:text-2xl font-bold text-slate-800">Mis Cursos</h1>
+        <p className="text-sm md:text-base text-slate-600">Continúa con tu aprendizaje</p>
+      </div>
+
+      {/* Courses Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 cards-grid">
+        {courses.map((course) => (
+          <div key={course.id} className={`bg-white rounded-xl shadow-sm border overflow-hidden hover:shadow-md transition-all cursor-pointer ${
+            course.progress === 100 
+              ? 'ring-2 ring-green-200 border-green-300' 
+              : course.progress > 0 
+              ? 'ring-2 ring-blue-200 border-blue-300' 
+              : 'hover:border-slate-400'
+          }`}>
+            <div onClick={() => setSelectedCourse(course)}>
+
+              {course.image_url && (
+                <img 
+                  src={course.image_url} 
+                  alt={course.title}
+                  className="w-full h-32 md:h-48 object-cover relative"
+                />
+              )}
+              <div className="p-4 md:p-6">
+                <h3 className="text-base md:text-lg font-semibold text-slate-800 mb-2">
+                  {course.title}
+                </h3>
+                
+                {course.description && (
+                  <p className="text-slate-600 text-xs md:text-sm mb-4 line-clamp-2">
+                    {course.description}
+                  </p>
+                )}
+
+                {/* Progress Bar */}
+                <div className="mb-4">
+                  <div className="flex justify-between text-xs md:text-sm text-slate-600 mb-1">
+                    <span>Progreso</span>
+                    <span>{course.progress}%</span>
+                  </div>
+                  <div className={`w-full rounded-full h-2 ${
+                    course.progress === 100 
+                      ? 'bg-green-100' 
+                      : course.progress > 0 
+                      ? 'bg-blue-100' 
+                      : 'bg-slate-200'
+                  }`}>
+                    <div 
+                      className={`h-2 rounded-full transition-all ${
+                        course.progress === 100 
+                          ? 'bg-green-500' 
+                          : course.progress > 0 
+                          ? 'bg-blue-500' 
+                          : 'bg-slate-400'
+                      }`}
+                      style={{ width: `${course.progress}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center text-xs md:text-sm text-slate-500">
+                  <BookOpen className="w-4 h-4 mr-1" />
+                  {course.modules.length} módulo{course.modules.length !== 1 ? 's' : ''}
+                  {course.progress === 100 && (
+                    <div className="ml-auto flex items-center text-green-600 text-xs">
+                      <Star className="w-4 h-4 mr-1 fill-current" />
+                      <span className="font-medium">Finalizado</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {courses.length === 0 && (
+        <div className="text-center py-8 md:py-12">
+          <BookOpen className="mx-auto h-12 w-12 text-slate-400" />
+          <h3 className="mt-2 text-sm md:text-base font-medium text-slate-900">No tienes cursos asignados</h3>
+          <p className="mt-1 text-xs md:text-sm text-slate-500">Contacta al administrador para que te asigne cursos.</p>
+        </div>
+      )}
+
+      {/* Course Detail Modal */}
+      {selectedCourse && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-0 md:p-4 z-50 overflow-y-auto no-scrollbar">
+          <div className="bg-white md:rounded-xl shadow-xl w-full md:max-w-6xl max-h-screen overflow-y-auto md:my-8 modal-content">
+            <div className="p-4 md:p-6 border-b">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h2 className="text-lg md:text-xl font-bold text-slate-800 pr-8">{selectedCourse.title}</h2>
+                  <div className="flex flex-col md:flex-row md:items-center mt-2 space-y-2 md:space-y-0 md:space-x-4">
+                    <div className="flex items-center">
+                      <div className="w-24 md:w-32 bg-slate-200 rounded-full h-2 mr-3">
+                        <div 
+                          className="bg-slate-800 h-2 rounded-full transition-all duration-500"
+                          style={{ width: `${selectedCourse.progress}%` }}
+                        />
+                      </div>
+                      <span className="text-slate-600 text-xs md:text-sm font-medium">{selectedCourse.progress}%</span>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedCourse(null)}
+                  className="text-slate-400 hover:text-slate-600 absolute top-4 right-4 md:static"
+                >
+                  <X className="w-5 h-5 md:w-6 md:h-6" />
+                </button>
+              </div>
+            </div>
+
+            {/* Certificate Generation Banner */}
+            {selectedCourse.progress === 100 && (
+              <div className="bg-gradient-to-r from-yellow-50 to-yellow-100 border-b border-yellow-200 p-4 md:p-6">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-3 md:space-y-0">
+                  <div className="flex items-center">
+                    <Award className="w-6 h-6 md:w-8 md:h-8 text-yellow-600 mr-3 flex-shrink-0" />
+                    <div>
+                      <h3 className="text-base md:text-lg font-bold text-yellow-800">
+                        ¡Felicitaciones!
+                      </h3>
+                      <p className="text-sm md:text-base text-yellow-700">
+                        Has completado el curso "{selectedCourse.title}"
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => generateCertificate(selectedCourse)}
+                    disabled={generatingCertificate}
+                    className="px-4 md:px-6 py-2 md:py-3 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-sm md:text-base"
+                  >
+                    {generatingCertificate ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 md:h-5 md:w-5 border-b-2 border-white mr-2"></div>
+                        Generando...
+                      </>
+                    ) : (
+                      <>
+                        <Award className="w-4 h-4 md:w-5 md:h-5 mr-1 md:mr-2" />
+                        <span className="hidden sm:inline">Generar </span>Certificado
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+            
+            {/* Course Content */}
+            <div className="flex flex-col md:flex-row">
+              {/* Modules Sidebar */}
+              <div className="w-full md:w-1/3 border-b md:border-b-0 md:border-r bg-slate-50 p-4 md:p-6 mobile-no-overflow md:max-h-96 md:overflow-y-auto no-scrollbar">
+                <h3 className="text-base md:text-lg font-semibold text-slate-800 mb-3 md:mb-4">Contenido del Curso</h3>
+                <div className="space-y-1 md:space-y-2">
+                  {selectedCourse.modules.map((module, moduleIndex) => (
+                    <div key={module.id} className="border-b border-slate-200 pb-1 md:pb-2">
+                      <button
+                        onClick={() => toggleModule(module.id)}
+                        className="w-full text-left p-1 md:p-2 hover:bg-slate-100 rounded-lg transition-colors flex items-center justify-between"
+                      >
+                        <div className="flex items-center">
+                          {expandedModules.has(module.id) ? (
+                            <ChevronDown className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2 text-slate-600 flex-shrink-0" />
+                          ) : (
+                            <ChevronRight className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2 text-slate-600 flex-shrink-0" />
+                          )}
+                          <span className="text-sm md:text-base font-medium text-slate-800 line-clamp-2">
+                            Módulo {moduleIndex + 1}: {module.title}
+                          </span>
+                        </div>
+                      </button>
+                      
+                      {expandedModules.has(module.id) && (
+                        <div className="ml-4 md:ml-6 space-y-1 mt-1 md:mt-2">
+                          {module.lessons.map((lesson, lessonIndex) => (
+                            <button
+                              key={lesson.id}
+                              onClick={() => lesson.can_access && setSelectedLesson(lesson)}
+                              disabled={!lesson.can_access}
+                              className={`w-full text-left p-1 md:p-2 rounded text-sm transition-colors flex items-start ${
+                                lesson.can_access
+                                  ? selectedLesson?.id === lesson.id
+                                    ? 'bg-slate-200 text-slate-900'
+                                    : 'hover:bg-slate-100 text-slate-700'
+                                  : 'text-slate-400 cursor-not-allowed'
+                              }`}
+                            >
+                              <div className={`w-4 h-4 md:w-5 md:h-5 rounded-full flex items-center justify-center mr-1 md:mr-2 flex-shrink-0 mt-0.5 ${
+                                lesson.completed 
+                                  ? 'bg-green-100 text-green-600'
+                                  : lesson.can_access
+                                  ? 'bg-blue-100 text-blue-600'
+                                  : 'bg-slate-100 text-slate-400'
+                              }`}>
+                                {lesson.completed ? (
+                                  <CheckCircle className="w-2 h-2 md:w-3 md:h-3" />
+                                ) : lesson.can_access ? (
+                                  <Play className="w-2 h-2 md:w-3 md:h-3" />
+                                ) : (
+                                  <Clock className="w-2 h-2 md:w-3 md:h-3" />
+                                )}
+                              </div>
+                              <div className="flex-1">
+                                <div className="font-medium line-clamp-2">
+                                  Lección {lessonIndex + 1}: {lesson.title}
+                                </div>
+                                <div className="text-slate-500 text-xs md:text-sm">
+                                  {lesson.duration_minutes} min
+                                  {!lesson.can_access && ' (Bloqueada)'}
+                                </div>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              {/* Lesson Content */}
+              <div className="flex-1 p-4 md:p-6">
+                {selectedLesson ? (
+                  <div className="space-y-4 md:space-y-6">
+                    <div>
+                      <h3 className="text-lg md:text-xl font-bold text-slate-800 mb-2 line-clamp-2">{selectedLesson.title}</h3>
+                      <p className="text-sm md:text-base text-slate-600">Duración: {selectedLesson.duration_minutes} minutos</p>
+                    </div>
+
+                    {/* Video */}
+                    {selectedLesson.video_url && (
+                      <div className="video-responsive">
+                        <video 
+                          controls 
+                          className="w-full h-full rounded-lg video-responsive"
+                          key={selectedLesson.video_url}
+                        >
+                          <source src={selectedLesson.video_url} type="video/mp4" />
+                          <source src={selectedLesson.video_url} type="video/webm" />
+                          <source src={selectedLesson.video_url} type="video/ogg" />
+                          Tu navegador no soporta video HTML5.
+                        </video>
+                      </div>
+                    )}
+
+                    {/* Content */}
+                    <div className="bg-slate-50 rounded-lg p-3 md:p-4">
+                      <div className="flex items-center mb-3">
+                        <FileText className="w-4 h-4 md:w-5 md:h-5 text-slate-600 mr-2" />
+                        <h4 className="text-sm md:text-base font-medium text-slate-800">Contenido de la Lección</h4>
+                      </div>
+                      <div className="prose prose-slate max-w-none text-sm md:text-base">
+                        <p className="whitespace-pre-wrap leading-relaxed">{selectedLesson.content}</p>
+                      </div>
+                    </div>
+
+                    {/* Complete Lesson Button */}
+                    <div className="flex justify-center pt-4 md:pt-6">
+                      {!selectedLesson.completed ? (
+                        <button
+                          onClick={() => markLessonComplete(selectedLesson.id, selectedCourse.id)}
+                          className="btn-sticky-mobile px-4 md:px-6 py-2 md:py-3 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-medium transition-colors text-sm md:text-base"
+                        >
+                          Marcar como Completada
+                        </button>
+                      ) : (
+                        <div className="btn-sticky-mobile px-4 md:px-6 py-2 md:py-3 bg-green-100 text-green-800 rounded-lg font-medium flex items-center justify-center text-sm md:text-base">
+                          <CheckCircle className="w-4 h-4 md:w-5 md:h-5 mr-2" />
+                          Lección Completada
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="text-center">
+                      <BookOpen className="w-10 h-10 md:w-12 md:h-12 text-slate-400 mx-auto mb-4" />
+                      <h3 className="text-base md:text-lg font-medium text-slate-800 mb-2">
+                        Selecciona una lección
+                      </h3>
+                      <p className="text-sm md:text-base text-slate-600">
+                        Elige una lección del menú lateral para comenzar a estudiar
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
