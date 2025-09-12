@@ -761,6 +761,8 @@ export default function CoursesManagement() {
                         register={register}
                         control={control}
                         errors={errors}
+                        editingCourse={editingCourse}
+                        uploadProgress={uploadProgress}
                         onRemove={() => removeModule(moduleIndex)}
                         canRemove={moduleFields.length > 1}
                       />
@@ -809,11 +811,13 @@ interface ModuleFormProps {
   register: any
   control: any
   errors: any
+  editingCourse: Course | null
+  uploadProgress: { [key: string]: number }
   onRemove: () => void
   canRemove: boolean
 }
 
-function ModuleForm({ moduleIndex, register, control, errors, onRemove, canRemove }: ModuleFormProps) {
+function ModuleForm({ moduleIndex, register, control, errors, editingCourse, uploadProgress, onRemove, canRemove }: ModuleFormProps) {
   const { fields: lessonFields, append: appendLesson, remove: removeLesson } = useFieldArray({
     control,
     name: `modules.${moduleIndex}.lessons`
