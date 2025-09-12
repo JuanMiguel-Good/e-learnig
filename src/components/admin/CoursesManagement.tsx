@@ -52,6 +52,8 @@ export default function CoursesManagement() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingCourse, setEditingCourse] = useState<Course | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState<{ [key: string]: number }>({})
+  const [loadingCourseData, setLoadingCourseData] = useState(false)
 
   const {
     register,
@@ -114,13 +116,16 @@ export default function CoursesManagement() {
   const handleCreateOrUpdate = async (data: CourseFormData) => {
     try {
       setUploading(true)
+      setUploadProgress({})
       let imageUrl = editingCourse?.image_url || null
 
       // Upload image if provided
       if (data.image && data.image.length > 0) {
+        setUploadProgress(prev => ({ ...prev, courseImage: 0 }))
         const file = data.image[0]
         const fileName = `course_${Date.now()}_${file.name}`
         
+        setUploadProgress(prev => ({ ...prev, courseImage: 50 }))
         const { url, error } = await StorageService.uploadFile(
           'course-images',
           fileName,
@@ -128,6 +133,7 @@ export default function CoursesManagement() {
         )
         
         if (error) throw error
+        setUploadProgress(prev => ({ ...prev, courseImage: 100 }))
         imageUrl = url
       }
 
@@ -192,9 +198,17 @@ export default function CoursesManagement() {
             
             // Upload video if provided
             if (lessonData.video && lessonData.video.length > 0) {
+              const progressKey = `video-${moduleIndex}-${lessonIndex}`
+              setUploadProgress(prev => ({ ...prev, [progressKey]: 0 }))
+              
+              const progressKey = `video-edit-${moduleIndex}-${lessonIndex}`
+              setUploadProgress(prev => ({ ...prev, [progressKey]: 0 }))
+              
               const file = lessonData.video[0]
               const fileName = `lesson_${Date.now()}_${file.name}`
               
+              setUploadProgress(prev => ({ ...prev, [progressKey]: 50 }))
+              setUploadProgress(prev => ({ ...prev, [progressKey]: 50 }))
               const { url, error } = await StorageService.uploadFile(
                 'lesson-videos',
                 fileName,
@@ -202,6 +216,8 @@ export default function CoursesManagement() {
               )
               
               if (error) throw error
+              setUploadProgress(prev => ({ ...prev, [progressKey]: 100 }))
+              setUploadProgress(prev => ({ ...prev, [progressKey]: 100 }))
               videoUrl = url || ''
             }
 
@@ -228,12 +244,14 @@ export default function CoursesManagement() {
       await loadData()
       setIsModalOpen(false)
       setEditingCourse(null)
+      setUploadProgress({})
       reset()
     } catch (error: any) {
       console.error('Error saving course:', error)
       toast.error(error.message || 'Error al guardar curso')
     } finally {
       setUploading(false)
+      setUploadProgress({})
     }
   }
 
@@ -383,16 +401,23 @@ export default function CoursesManagement() {
 
   const handleEdit = (course: Course) => {
     setEditingCourse(course)
-    setValue('title', course.title)
-    setValue('description', course.description || '')
-    setValue('instructor_id', course.instructor_id || '')
-    setValue('is_active', course.is_active)
     loadCourseModulesAndLessons(course.id)
     setIsModalOpen(true)
   }
 
   const loadCourseModulesAndLessons = async (courseId: string) => {
     try {
+      setLoadingCourseData(true)
+      
+      // Get course data first
+      const { data: courseData, error: courseError } = await supabase
+        .from('courses')
+        .select('*')
+        .eq('id', courseId)
+        .single()
+
+      if (courseError) throw courseError
+
       const { data: modulesData, error } = await supabase
         .from('modules')
         .select(`
@@ -421,28 +446,24 @@ export default function CoursesManagement() {
           }))
       }))
 
-      // Reset form with existing data
+      // Reset form with complete course data
       reset({
-        title: '',
-        description: '',
-        instructor_id: '',
-        is_active: true,
-        image: [] as any,
+        title: courseData.title,
+        description: courseData.description || '',
+        instructor_id: courseData.instructor_id || '',
+        is_active: courseData.is_active,
+        image: undefined as any,
         modules: formModules.length > 0 ? formModules : [{ 
           title: '', 
           description: '', 
           lessons: [{ title: '', content: '', video: null, duration_minutes: 0 }] 
         }]
       })
-
-      // Set basic course fields after reset
-      setValue('title', editingCourse?.title || '')
-      setValue('description', editingCourse?.description || '')
-      setValue('instructor_id', editingCourse?.instructor_id || '')
-      setValue('is_active', editingCourse?.is_active || true)
     } catch (error) {
       console.error('Error loading course modules:', error)
       toast.error('Error al cargar módulos del curso')
+    } finally {
+      setLoadingCourseData(false)
     }
   }
 
@@ -573,10 +594,23 @@ export default function CoursesManagement() {
       {isModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
           <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6 my-4">
-            <h2 className="text-xl font-bold text-slate-800 mb-6">
-              {editingCourse ? 'Editar Curso' : 'Crear Curso'}
-            </h2>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-slate-800">
+                {editingCourse ? 'Editar Curso' : 'Crear Curso'}
+              </h2>
+              {loadingCourseData && (
+                <div className="flex items-center text-slate-600">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-slate-600 mr-2"></div>
+                  Cargando datos...
+                </div>
+              )}
+            </div>
 
+            {loadingCourseData ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-800"></div>
+              </div>
+            ) : (
             <form onSubmit={handleSubmit(handleCreateOrUpdate)} className="space-y-6">
               {/* Basic Course Info */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -631,16 +665,50 @@ export default function CoursesManagement() {
               {/* Course Image */}
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Imagen del Curso {editingCourse ? '(opcional)' : ''}
+                  Imagen del Curso {editingCourse ? '(opcional - subir nueva para cambiar)' : ''}
                 </label>
+                
+                {/* Show current image if editing */}
+                {editingCourse?.image_url && (
+                  <div className="mb-3 p-3 bg-blue-50 rounded-lg">
+                    <p className="text-sm text-blue-800 mb-2">📷 Imagen actual:</p>
+                    <img 
+                      src={editingCourse.image_url} 
+                      alt="Imagen actual del curso"
+                      className="h-20 w-auto border rounded"
+                    />
+                  </div>
+                )}
+                
                 <div className="flex items-center justify-center w-full">
                   <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-slate-300 border-dashed rounded-lg cursor-pointer bg-slate-50 hover:bg-slate-100">
                     <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                      <Upload className="w-8 h-8 mb-2 text-slate-400" />
-                      <p className="mb-2 text-sm text-slate-500">
-                        <span className="font-semibold">Haz clic para subir</span> imagen
-                      </p>
-                      <p className="text-xs text-slate-500">PNG, JPG (recomendado: 1200x600)</p>
+                      {uploadProgress.courseImage !== undefined ? (
+                        <div className="flex flex-col items-center">
+                          <div className="w-16 h-16 border-4 border-slate-200 rounded-full flex items-center justify-center mb-2">
+                            <div className="text-slate-600 font-medium">
+                              {uploadProgress.courseImage}%
+                            </div>
+                          </div>
+                          <div className="w-32 bg-slate-200 rounded-full h-2 mb-2">
+                            <div 
+                              className="bg-slate-600 h-2 rounded-full transition-all duration-300" 
+                              style={{ width: `${uploadProgress.courseImage}%` }}
+                            />
+                          </div>
+                          <p className="text-sm text-slate-600">
+                            {uploadProgress.courseImage === 100 ? '✅ Imagen subida' : 'Subiendo imagen...'}
+                          </p>
+                        </div>
+                      ) : (
+                        <>
+                          <Upload className="w-8 h-8 mb-2 text-slate-400" />
+                          <p className="mb-2 text-sm text-slate-500">
+                            <span className="font-semibold">Haz clic para subir</span> {editingCourse ? 'nueva ' : ''}imagen
+                          </p>
+                          <p className="text-xs text-slate-500">PNG, JPG (recomendado: 1200x600)</p>
+                        </>
+                      )}
                     </div>
                     <input
                       {...register('image', { 
@@ -732,6 +800,7 @@ export default function CoursesManagement() {
                 </button>
               </div>
             </form>
+            )}
           </div>
         </div>
       )}
@@ -878,14 +947,43 @@ function ModuleForm({ moduleIndex, register, control, errors, onRemove, canRemov
                     </div>
                   )}
                   
-                  <input
-                    {...register(`modules.${moduleIndex}.lessons.${lessonIndex}.video`, {
-                      required: isEditingLesson(lessonIndex) ? false : 'El video es requerido para nuevas lecciones'
-                    })}
-                    type="file"
-                    accept="video/*"
-                    className="w-full text-xs border border-slate-300 rounded p-1"
-                  />
+                  {/* Upload progress or file input */}
+                  {(() => {
+                    const progressKey = editingCourse 
+                      ? `video-edit-${moduleIndex}-${lessonIndex}`
+                      : `video-${moduleIndex}-${lessonIndex}`
+                    const progress = uploadProgress[progressKey]
+                    
+                    return progress !== undefined ? (
+                      <div className="border border-slate-300 rounded p-3 bg-slate-50">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs text-slate-600">Subiendo video...</span>
+                          <span className="text-xs font-medium text-slate-800">{progress}%</span>
+                        </div>
+                        <div className="w-full bg-slate-200 rounded-full h-2">
+                          <div 
+                            className="bg-slate-600 h-2 rounded-full transition-all duration-300" 
+                            style={{ width: `${progress}%` }}
+                          />
+                        </div>
+                        {progress === 100 && (
+                          <div className="text-xs text-green-600 mt-1">
+                            ✅ Video subido correctamente
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <input
+                        {...register(`modules.${moduleIndex}.lessons.${lessonIndex}.video`, {
+                          required: isEditingLesson(lessonIndex) ? false : 'El video es requerido para nuevas lecciones'
+                        })}
+                        type="file"
+                        accept="video/*"
+                        className="w-full text-xs border border-slate-300 rounded p-1"
+                      />
+                    )
+                  })()}
+                  
                   {errors.modules?.[moduleIndex]?.lessons?.[lessonIndex]?.video && (
                     <p className="text-red-500 text-xs mt-1">
                       {errors.modules[moduleIndex].lessons[lessonIndex].video.message}
