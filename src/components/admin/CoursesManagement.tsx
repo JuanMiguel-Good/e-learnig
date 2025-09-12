@@ -201,13 +201,9 @@ export default function CoursesManagement() {
               const progressKey = `video-${moduleIndex}-${lessonIndex}`
               setUploadProgress(prev => ({ ...prev, [progressKey]: 0 }))
               
-              const progressKey = `video-edit-${moduleIndex}-${lessonIndex}`
-              setUploadProgress(prev => ({ ...prev, [progressKey]: 0 }))
-              
               const file = lessonData.video[0]
               const fileName = `lesson_${Date.now()}_${file.name}`
               
-              setUploadProgress(prev => ({ ...prev, [progressKey]: 50 }))
               setUploadProgress(prev => ({ ...prev, [progressKey]: 50 }))
               const { url, error } = await StorageService.uploadFile(
                 'lesson-videos',
@@ -216,7 +212,6 @@ export default function CoursesManagement() {
               )
               
               if (error) throw error
-              setUploadProgress(prev => ({ ...prev, [progressKey]: 100 }))
               setUploadProgress(prev => ({ ...prev, [progressKey]: 100 }))
               videoUrl = url || ''
             }
