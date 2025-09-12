@@ -925,7 +925,7 @@ function ModuleForm({ moduleIndex, register, control, errors, editingCourse, upl
                 </label>
                 <textarea
                   {...register(`modules.${moduleIndex}.lessons.${lessonIndex}.content`, { 
-                    required: 'El contenido es requerido' 
+                    required: false
                   })}
                   rows={3}
                   className="w-full px-2 py-1 border border-slate-300 rounded text-sm focus:ring-1 focus:ring-slate-500 focus:border-slate-500"
@@ -974,7 +974,7 @@ function ModuleForm({ moduleIndex, register, control, errors, editingCourse, upl
                     ) : (
                       <input
                         {...register(`modules.${moduleIndex}.lessons.${lessonIndex}.video`, {
-                          required: isEditingLesson(lessonIndex) ? false : 'El video es requerido para nuevas lecciones'
+                          required: false
                         })}
                         type="file"
                         accept="video/*"
