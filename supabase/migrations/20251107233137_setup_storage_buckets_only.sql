@@ -1,15 +1,13 @@
 /*
-  # Create Storage Buckets
-
+  # Setup Storage Buckets Only
+  
   1. Storage Buckets
-    - Create all required buckets for file uploads
-    - Set public access for viewing files
-    - Configure proper security policies
-
-  2. Security
-    - Public read access for all buckets
-    - Authenticated write access
-    - Users can manage their own files
+    - Create all required storage buckets
+    - Configure buckets as public for read access
+  
+  Note: This migration ONLY creates buckets. It does NOT create any policies
+  on storage.objects as that requires special permissions. Storage policies
+  should be configured through the Supabase Dashboard.
 */
 
 -- Create storage buckets with safe error handling
@@ -51,52 +49,5 @@ BEGIN
     SELECT EXISTS(SELECT 1 FROM storage.buckets WHERE id = 'certificates') INTO bucket_exists;
     IF NOT bucket_exists THEN
         INSERT INTO storage.buckets (id, name, public) VALUES ('certificates', 'certificates', true);
-    END IF;
-END $$;
-
--- Create storage policies (only if they don't exist)
-DO $$
-BEGIN
-    -- Public read policy for all buckets
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_policies 
-        WHERE schemaname = 'storage' 
-        AND tablename = 'objects' 
-        AND policyname = 'Public read access'
-    ) THEN
-        CREATE POLICY "Public read access" ON storage.objects FOR SELECT USING (true);
-    END IF;
-
-    -- Authenticated users can upload
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_policies 
-        WHERE schemaname = 'storage' 
-        AND tablename = 'objects' 
-        AND policyname = 'Authenticated users can upload'
-    ) THEN
-        CREATE POLICY "Authenticated users can upload" ON storage.objects FOR INSERT 
-        TO authenticated WITH CHECK (true);
-    END IF;
-
-    -- Users can update their own files
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_policies 
-        WHERE schemaname = 'storage' 
-        AND tablename = 'objects' 
-        AND policyname = 'Users can update own files'
-    ) THEN
-        CREATE POLICY "Users can update own files" ON storage.objects FOR UPDATE 
-        TO authenticated USING (auth.uid()::text = (storage.foldername(name))[1]);
-    END IF;
-
-    -- Users can delete their own files
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_policies 
-        WHERE schemaname = 'storage' 
-        AND tablename = 'objects' 
-        AND policyname = 'Users can delete own files'
-    ) THEN
-        CREATE POLICY "Users can delete own files" ON storage.objects FOR DELETE 
-        TO authenticated USING (auth.uid()::text = (storage.foldername(name))[1]);
     END IF;
 END $$;
