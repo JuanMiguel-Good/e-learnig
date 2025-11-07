@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { BookOpen, Play, FileText, CheckCircle, Clock, X, Award, ChevronDown, ChevronRight, PlayCircle, Star } from 'lucide-react'
 import { CertificateGenerator } from '../../lib/certificateGenerator'
 import TakeEvaluation from './TakeEvaluation'
+import SignAttendance from './SignAttendance'
 import toast from 'react-hot-toast'
 
 interface Course {
@@ -43,6 +44,7 @@ export default function MyCourses() {
   const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set())
   const [generatingCertificate, setGeneratingCertificate] = useState(false)
   const [showEvaluation, setShowEvaluation] = useState<string | null>(null)
+  const [showSignature, setShowSignature] = useState<string | null>(null)
 
   useEffect(() => {
     if (user) {
@@ -387,6 +389,43 @@ export default function MyCourses() {
     })
   }
 
+  const checkSignatureRequired = async (courseId: string) => {
+    if (!user) return
+
+    try {
+      // Check if there's an attendance list for this course and user's company
+      const { data: attendanceList, error } = await supabase
+        .from('attendance_lists')
+        .select('id')
+        .eq('course_id', courseId)
+        .eq('company_id', user.company_id)
+        .maybeSingle()
+
+      if (error) throw error
+
+      if (attendanceList) {
+        // Check if user has already signed
+        const { data: existingSignature } = await supabase
+          .from('attendance_signatures')
+          .select('id')
+          .eq('attendance_list_id', attendanceList.id)
+          .eq('user_id', user.id)
+          .maybeSingle()
+
+        if (!existingSignature) {
+          setShowSignature(courseId)
+          return
+        }
+      }
+
+      // If no signature needed, allow certificate generation directly
+      toast.success('¡Curso completado! Puedes generar tu certificado.')
+    } catch (error) {
+      console.error('Error checking signature requirement:', error)
+      toast.error('Error al verificar firma requerida')
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-64">
@@ -402,9 +441,27 @@ export default function MyCourses() {
         courseId={showEvaluation}
         onComplete={() => {
           setShowEvaluation(null)
+          // After evaluation, check if signature is needed
+          checkSignatureRequired(showEvaluation)
           loadCourses() // Reload to update progress
         }}
         onBack={() => setShowEvaluation(null)}
+      />
+    )
+  }
+
+  // Show signature if requested
+  if (showSignature) {
+    return (
+      <SignAttendance
+        courseId={showSignature}
+        onComplete={() => {
+          setShowSignature(null)
+          // After signature, course is ready for certificate
+          toast.success('¡Lista de asistencia firmada! Ahora puedes generar tu certificado.')
+          loadCourses()
+        }}
+        onCancel={() => setShowSignature(null)}
       />
     )
   }
