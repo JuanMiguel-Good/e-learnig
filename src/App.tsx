@@ -17,6 +17,7 @@ import MyCertificates from './components/participant/MyCertificates';
 import CompaniesManagement from './components/admin/CompaniesManagement'
 import CompanyResponsiblesManagement from './components/admin/CompanyResponsiblesManagement'
 import EvaluationsManagement from './components/admin/EvaluationsManagement'
+import AttendanceManagement from './components/admin/AttendanceManagement'
 
 function AuthWrapper() {
   const { user, isLoading } = useAuth();
@@ -49,6 +50,7 @@ function AuthWrapper() {
             <Route path="evaluations" element={<EvaluationsManagement />} />
             <Route path="companies" element={<CompaniesManagement />} />
             <Route path="company-responsibles" element={<CompanyResponsiblesManagement />} />
+            <Route path="attendance" element={<AttendanceManagement />} />
           </Route>
         )}
         

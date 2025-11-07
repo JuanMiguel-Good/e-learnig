@@ -1,6 +1,6 @@
 import React from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
-import { Users, BookOpen, GraduationCap, BarChart3, UserCheck, Building2, UserCog, HelpCircle } from 'lucide-react'
+import { Users, BookOpen, GraduationCap, BarChart3, UserCheck, Building2, UserCog, HelpCircle, FileText } from 'lucide-react'
 
 export default function AdminLayout() {
   const navItems = [
@@ -44,6 +44,11 @@ export default function AdminLayout() {
       to: '/admin/company-responsibles',
       icon: UserCog,
       label: 'Responsables'
+    },
+    {
+      to: '/admin/attendance',
+      icon: FileText,
+      label: 'Asistencia'
     }
   ]
 
