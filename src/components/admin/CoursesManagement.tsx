@@ -13,6 +13,8 @@ interface Course {
   instructor_id: string | null
   is_active: boolean
   created_at: string
+  requires_evaluation: boolean
+  hours: number
   instructor?: {
     name: string
   }
@@ -41,6 +43,8 @@ interface CourseFormData {
   description: string
   instructor_id: string
   is_active: boolean
+  requires_evaluation: boolean
+  hours: number
   image: FileList
   modules: Module[]
 }
@@ -146,6 +150,8 @@ export default function CoursesManagement() {
             description: data.description,
             instructor_id: data.instructor_id,
             is_active: data.is_active,
+            requires_evaluation: data.requires_evaluation,
+            hours: data.hours,
             image_url: imageUrl,
             updated_at: new Date().toISOString()
           })
@@ -167,6 +173,8 @@ export default function CoursesManagement() {
               description: data.description,
               instructor_id: data.instructor_id,
               is_active: data.is_active,
+              requires_evaluation: data.requires_evaluation,
+              hours: data.hours,
               image_url: imageUrl
             }
           ])
@@ -447,6 +455,8 @@ export default function CoursesManagement() {
         description: courseData.description || '',
         instructor_id: courseData.instructor_id || '',
         is_active: courseData.is_active,
+       requires_evaluation: courseData.requires_evaluation || false,
+       hours: courseData.hours || 1,
         image: undefined as any,
         modules: formModules.length > 0 ? formModules : [{ 
           title: '', 
@@ -626,6 +636,27 @@ export default function CoursesManagement() {
 
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Nº de Horas
+                  </label>
+                  <input
+                    {...register('hours', { 
+                      required: 'Las horas son requeridas',
+                      min: { value: 1, message: 'Debe ser mayor a 0' }
+                    })}
+                    type="number"
+                    min="1"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                    placeholder="8"
+                  />
+                  {errors.hours && (
+                    <p className="text-red-500 text-xs mt-1">{errors.hours.message}</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
                     Instructor
                   </label>
                   <select
@@ -644,6 +675,7 @@ export default function CoursesManagement() {
                   )}
                 </div>
               </div>
+            </div>
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -721,16 +753,29 @@ export default function CoursesManagement() {
               </div>
 
               {/* Status */}
-              <div className="flex items-center">
-                <input
-                  {...register('is_active')}
-                  type="checkbox"
-                  className="h-4 w-4 text-slate-600 focus:ring-slate-500 border-slate-300 rounded"
-                  defaultChecked={true}
-                />
-                <label className="ml-2 block text-sm text-slate-900">
-                  Curso activo
-                </label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="flex items-center">
+                  <input
+                    {...register('is_active')}
+                    type="checkbox"
+                    className="h-4 w-4 text-slate-600 focus:ring-slate-500 border-slate-300 rounded"
+                    defaultChecked={true}
+                  />
+                  <label className="ml-2 block text-sm text-slate-900">
+                    Curso activo
+                  </label>
+                </div>
+
+                <div className="flex items-center">
+                  <input
+                    {...register('requires_evaluation')}
+                    type="checkbox"
+                    className="h-4 w-4 text-slate-600 focus:ring-slate-500 border-slate-300 rounded"
+                  />
+                  <label className="ml-2 block text-sm text-slate-900">
+                    Requiere evaluación
+                  </label>
+                </div>
               </div>
 
               {/* Modules and Lessons */}

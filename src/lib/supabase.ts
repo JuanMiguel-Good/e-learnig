@@ -21,6 +21,8 @@ export type Database = {
           last_name: string
           phone: string | null
           country_code: string
+          company_id: string | null
+          dni: string | null
           role: 'admin' | 'participant'
           created_at: string
           updated_at: string
@@ -33,6 +35,8 @@ export type Database = {
           last_name: string
           phone?: string | null
           country_code?: string
+          company_id?: string | null
+          dni?: string | null
           role?: 'admin' | 'participant'
           created_at?: string
           updated_at?: string
@@ -45,6 +49,8 @@ export type Database = {
           last_name?: string
           phone?: string | null
           country_code?: string
+          company_id?: string | null
+          dni?: string | null
           role?: 'admin' | 'participant'
           created_at?: string
           updated_at?: string
@@ -81,6 +87,8 @@ export type Database = {
           image_url: string | null
           instructor_id: string | null
           is_active: boolean
+          requires_evaluation: boolean
+          hours: number
           created_at: string
           updated_at: string
         }
@@ -91,6 +99,8 @@ export type Database = {
           image_url?: string | null
           instructor_id?: string | null
           is_active?: boolean
+          requires_evaluation?: boolean
+          hours?: number
           created_at?: string
           updated_at?: string
         }
@@ -101,6 +111,8 @@ export type Database = {
           image_url?: string | null
           instructor_id?: string | null
           is_active?: boolean
+          requires_evaluation?: boolean
+          hours?: number
           created_at?: string
           updated_at?: string
         }
@@ -239,6 +251,85 @@ export type Database = {
           completion_date?: string
           certificate_url?: string | null
           created_at?: string
+        }
+      }
+      companies: {
+        Row: {
+          id: string
+          razon_social: string
+          ruc: string
+          direccion: string
+          distrito: string
+          departamento: string
+          provincia: string
+          actividad_economica: string
+          num_trabajadores: number
+          logo_url: string | null
+          codigo: string | null
+          version: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          razon_social: string
+          ruc: string
+          direccion: string
+          distrito: string
+          departamento: string
+          provincia: string
+          actividad_economica: string
+          num_trabajadores: number
+          logo_url?: string | null
+          codigo?: string | null
+          version?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          razon_social?: string
+          ruc?: string
+          direccion?: string
+          distrito?: string
+          departamento?: string
+          provincia?: string
+          actividad_economica?: string
+          num_trabajadores?: number
+          logo_url?: string | null
+          codigo?: string | null
+          version?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      company_responsibles: {
+        Row: {
+          id: string
+          company_id: string
+          nombre: string
+          cargo: string
+          signature_url: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          nombre: string
+          cargo: string
+          signature_url?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          company_id?: string
+          nombre?: string
+          cargo?: string
+          signature_url?: string | null
+          created_at?: string
+          updated_at?: string
         }
       }
     }
