@@ -520,7 +520,7 @@ export default function CompaniesManagement() {
                         <p className="text-sm text-slate-500">
                           <span className="font-semibold">Subir logo</span>
                         </p>
-                        <p className="text-xs text-slate-500">PNG, JPG (recomendado: 200x200)</p>
+                        <p className="text-xs text-slate-500">PNG, JPG (recomendado: 500x500)</p>
                       </div>
                       <input
                         {...register('logo', { 
