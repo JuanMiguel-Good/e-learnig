@@ -446,6 +446,19 @@ export default function MyCourses() {
     )
   }
 
+  // Show signature if requested
+  if (showSignature) {
+    return (
+      <SignAttendance
+        courseId={showSignature}
+        onComplete={() => {
+          setShowSignature(null)
+          toast.success('Firma completada correctamente')
+        }}
+        onCancel={() => setShowSignature(null)}
+      />
+    )
+  }
   return (
     <div className="space-y-6">
       <div>

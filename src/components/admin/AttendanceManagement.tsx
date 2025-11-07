@@ -913,7 +913,7 @@ function AttendanceListView({ attendance, onClose }: AttendanceListViewProps) {
               <div className="bg-slate-100 p-2 text-center font-bold text-sm">
                 DATOS DE LOS PARTICIPANTES
               </div>
-              <div className="grid grid-cols-4 text-xs bg-slate-50">
+              <div className="grid grid-cols-5 text-xs bg-slate-50">
                 <div className="border-r border-slate-400 p-2 text-center font-medium">
                   APELLIDOS Y NOMBRES DE LOS CAPACITADOS
                 </div>
@@ -922,6 +922,9 @@ function AttendanceListView({ attendance, onClose }: AttendanceListViewProps) {
                 </div>
                 <div className="border-r border-slate-400 p-2 text-center font-medium">
                   ÁREA
+                </div>
+                <div className="border-r border-slate-400 p-2 text-center font-medium">
+                  FECHA
                 </div>
                 <div className="p-2 text-center font-medium">
                   FIRMA
