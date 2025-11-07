@@ -443,43 +443,7 @@ export default function AttendanceManagement() {
                   </div>
                 </div>
 
-                {/* Responsable del Registro */}
-                <div className="border-t pt-6">
-                  <h3 className="text-lg font-semibold text-slate-800 mb-4">
-                    Responsable del Registro
-                  </h3>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">
-                        Nombre del Responsable *
-                      </label>
-                      <input
-                        {...register('responsible_name', { required: 'El nombre del responsable es requerido' })}
-                        type="text"
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm"
-                        placeholder="Nombre completo"
-                      />
-                      {errors.responsible_name && (
-                        <p className="text-red-500 text-xs mt-1">{errors.responsible_name.message}</p>
-                      )}
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">
-                        Cargo del Responsable *
-                      </label>
-                      <input
-                        {...register('responsible_position', { required: 'El cargo del responsable es requerido' })}
-                        type="text"
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm"
-                        placeholder="Cargo o posición"
-                      />
-                      {errors.responsible_position && (
-                        <p className="text-red-500 text-xs mt-1">{errors.responsible_position.message}</p>
-                      )}
-                    </div>
-                {/* Course Type */}
+                {/* Tipo de Curso - 8 opciones */}
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">
                     Tipo de Curso *
@@ -542,37 +506,81 @@ export default function AttendanceManagement() {
                   </div>
                 )}
 
-                {/* Eliminar las opciones de checkbox separadas */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                      Fecha *
-                    </label>
-                    <input
-                      {...register('fecha', { required: 'La fecha es requerida' })}
-                      type="date"
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm"
-                    />
-                    {errors.fecha && (
-                      <p className="text-red-500 text-xs mt-1">{errors.fecha.message}</p>
-                    )}
-                  </div>
-                </div>
-                      <label key={type} className="flex items-center">
-                        <input
-                          {...register('course_type', { required: 'Selecciona un tipo' })}
-                          type="radio"
-                          value={type}
-                          className="h-4 w-4 text-slate-600 focus:ring-slate-500 border-gray-300"
-                        />
-                        <span className="ml-2 text-sm text-slate-700">{type}</span>
+                {/* Rango de fechas para filtrar participantes */}
+                <div className="border-t pt-6">
+                  <h3 className="text-lg font-semibold text-slate-800 mb-4">
+                    Filtro de Participantes por Fecha de Aprobación
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                        Desde *
                       </label>
-                    ))}
+                      <input
+                        {...register('fecha_inicio', { required: 'La fecha de inicio es requerida' })}
+                        type="date"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm"
+                      />
+                      {errors.fecha_inicio && (
+                        <p className="text-red-500 text-xs mt-1">{errors.fecha_inicio.message}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                        Hasta *
+                      </label>
+                      <input
+                        {...register('fecha_fin', { required: 'La fecha de fin es requerida' })}
+                        type="date"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm"
+                      />
+                      {errors.fecha_fin && (
+                        <p className="text-red-500 text-xs mt-1">{errors.fecha_fin.message}</p>
+                      )}
+                    </div>
                   </div>
-                  {errors.course_type && (
-                    <p className="text-red-500 text-xs mt-1">{errors.course_type.message}</p>
-                  )}
+                  <p className="text-xs text-slate-500 mt-2">
+                    Solo se incluirán participantes que aprobaron la evaluación en este rango de fechas
+                  </p>
                 </div>
+
+                {/* Responsable del Registro */}
+                <div className="border-t pt-6">
+                  <h3 className="text-lg font-semibold text-slate-800 mb-4">
+                    Responsable del Registro
+                  </h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                        Nombre del Responsable *
+                      </label>
+                      <input
+                        {...register('responsible_name', { required: 'El nombre del responsable es requerido' })}
+                        type="text"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm"
+                        placeholder="Nombre completo"
+                      />
+                      {errors.responsible_name && (
+                        <p className="text-red-500 text-xs mt-1">{errors.responsible_name.message}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                        Cargo del Responsable *
+                      </label>
+                      <input
+                        {...register('responsible_position', { required: 'El cargo del responsable es requerido' })}
+                        type="text"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm"
+                        placeholder="Cargo o posición"
+                      />
+                      {errors.responsible_position && (
+                        <p className="text-red-500 text-xs mt-1">{errors.responsible_position.message}</p>
+                      )}
+                    </div>
 
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -588,6 +596,21 @@ export default function AttendanceManagement() {
                       )}
                     </div>
                   </div>
+                </div>
+
+                {/* Fecha del Documento */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Fecha del Documento *
+                  </label>
+                  <input
+                    {...register('fecha', { required: 'La fecha es requerida' })}
+                    type="date"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm"
+                  />
+                  {errors.fecha && (
+                    <p className="text-red-500 text-xs mt-1">{errors.fecha.message}</p>
+                  )}
                 </div>
 
                 {/* Custom Topic */}
