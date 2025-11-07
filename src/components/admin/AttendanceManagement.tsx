@@ -443,13 +443,121 @@ export default function AttendanceManagement() {
                   </div>
                 </div>
 
+                {/* Responsable del Registro */}
+                <div className="border-t pt-6">
+                  <h3 className="text-lg font-semibold text-slate-800 mb-4">
+                    Responsable del Registro
+                  </h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                        Nombre del Responsable *
+                      </label>
+                      <input
+                        {...register('responsible_name', { required: 'El nombre del responsable es requerido' })}
+                        type="text"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm"
+                        placeholder="Nombre completo"
+                      />
+                      {errors.responsible_name && (
+                        <p className="text-red-500 text-xs mt-1">{errors.responsible_name.message}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                        Cargo del Responsable *
+                      </label>
+                      <input
+                        {...register('responsible_position', { required: 'El cargo del responsable es requerido' })}
+                        type="text"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm"
+                        placeholder="Cargo o posición"
+                      />
+                      {errors.responsible_position && (
+                        <p className="text-red-500 text-xs mt-1">{errors.responsible_position.message}</p>
+                      )}
+                    </div>
                 {/* Course Type */}
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">
                     Tipo de Curso *
                   </label>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                    {['INDUCCIÓN', 'CAPACITACIÓN', 'ENTRENAMIENTO', 'SIMULACRO DE EMERGENCIA'].map((type) => (
+                  <div className="space-y-3">
+                    {/* Primera fila */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                      {['INDUCCIÓN', 'CAPACITACIÓN', 'ENTRENAMIENTO', 'SIMULACRO DE EMERGENCIA'].map((type) => (
+                        <label key={type} className="flex items-center">
+                          <input
+                            {...register('attendance_type', { required: 'Selecciona un tipo' })}
+                            type="radio"
+                            value={type}
+                            className="h-4 w-4 text-slate-600 focus:ring-slate-500 border-gray-300"
+                          />
+                          <span className="ml-2 text-sm text-slate-700">{type}</span>
+                        </label>
+                      ))}
+                    </div>
+                    
+                    {/* Segunda fila */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                      {['CHARLA 5 MINUTOS', 'REUNIÓN', 'CARGO', 'OTRO'].map((type) => (
+                        <label key={type} className="flex items-center">
+                          <input
+                            {...register('attendance_type', { required: 'Selecciona un tipo' })}
+                            type="radio"
+                            value={type}
+                            className="h-4 w-4 text-slate-600 focus:ring-slate-500 border-gray-300"
+                          />
+                          <span className="ml-2 text-sm text-slate-700">{type}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  {errors.attendance_type && (
+                    <p className="text-red-500 text-xs mt-1">{errors.attendance_type.message}</p>
+                  )}
+                </div>
+
+                {/* Campo de especificación para CARGO u OTRO */}
+                {(watch('attendance_type') === 'CARGO' || watch('attendance_type') === 'OTRO') && (
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      {watch('attendance_type') === 'CARGO' ? 'Especificar Cargo' : 'Especificar Otro'}
+                    </label>
+                    <input
+                      {...register('cargo_otro', { 
+                        required: (watch('attendance_type') === 'CARGO' || watch('attendance_type') === 'OTRO') 
+                          ? 'Este campo es requerido' 
+                          : false 
+                      })}
+                      type="text"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm"
+                      placeholder={watch('attendance_type') === 'CARGO' ? 'Especificar cargo' : 'Especificar otro'}
+                    />
+                    {errors.cargo_otro && (
+                      <p className="text-red-500 text-xs mt-1">{errors.cargo_otro.message}</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Eliminar las opciones de checkbox separadas */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Fecha *
+                    </label>
+                    <input
+                      {...register('fecha', { required: 'La fecha es requerida' })}
+                      type="date"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm"
+                    />
+                    {errors.fecha && (
+                      <p className="text-red-500 text-xs mt-1">{errors.fecha.message}</p>
+                    )}
+                  </div>
+                </div>
                       <label key={type} className="flex items-center">
                         <input
                           {...register('course_type', { required: 'Selecciona un tipo' })}
@@ -466,57 +574,19 @@ export default function AttendanceManagement() {
                   )}
                 </div>
 
-                {/* Additional Options */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="flex items-center">
-                    <input
-                      {...register('charla_5_minutos')}
-                      type="checkbox"
-                      className="h-4 w-4 text-slate-600 focus:ring-slate-500 border-gray-300 rounded"
-                    />
-                    <label className="ml-2 text-sm text-slate-700">
-                      Charla 5 minutos
-                    </label>
-                  </div>
-
-                  <div className="flex items-center">
-                    <input
-                      {...register('reunion')}
-                      type="checkbox"
-                      className="h-4 w-4 text-slate-600 focus:ring-slate-500 border-gray-300 rounded"
-                    />
-                    <label className="ml-2 text-sm text-slate-700">
-                      Reunión
-                    </label>
-                  </div>
-                </div>
-
-                {/* Additional Fields */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                      Cargo (Otro)
-                    </label>
-                    <input
-                      {...register('cargo_otro')}
-                      type="text"
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm"
-                      placeholder="Especificar cargo"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                      Fecha *
-                    </label>
-                    <input
-                      {...register('fecha', { required: 'La fecha es requerida' })}
-                      type="date"
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm"
-                    />
-                    {errors.fecha && (
-                      <p className="text-red-500 text-xs mt-1">{errors.fecha.message}</p>
-                    )}
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                        Fecha del Responsable *
+                      </label>
+                      <input
+                        {...register('responsible_date', { required: 'La fecha del responsable es requerida' })}
+                        type="date"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm"
+                      />
+                      {errors.responsible_date && (
+                        <p className="text-red-500 text-xs mt-1">{errors.responsible_date.message}</p>
+                      )}
+                    </div>
                   </div>
                 </div>
 
