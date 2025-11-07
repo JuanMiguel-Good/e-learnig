@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import { Plus, Edit2, Trash2, BookOpen, Search, HelpCircle, CheckCircle, X, Eye } from 'lucide-react'
+import { Plus, CreditCard as Edit2, Trash2, BookOpen, Search, HelpCircle, CheckCircle, X, Eye } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useForm, useFieldArray } from 'react-hook-form'
 
