@@ -29,6 +29,7 @@ interface Company {
   codigo: string | null
   version: string | null
   responsibles: {
+    id: string
     nombre: string
     cargo: string
     signature_url: string | null
@@ -64,6 +65,7 @@ interface AttendanceFormData {
   fecha: string
   fecha_inicio: string
   fecha_fin: string
+  responsible_id: string
   responsible_name: string
   responsible_position: string
   responsible_date: string
@@ -138,7 +140,7 @@ export default function AttendanceManagement() {
         .from('companies')
         .select(`
           *,
-          responsibles:company_responsibles(nombre, cargo, signature_url)
+          responsibles:company_responsibles(id, nombre, cargo, signature_url)
         `)
         .order('razon_social')
 
@@ -554,32 +556,53 @@ export default function AttendanceManagement() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">
-                        Nombre del Responsable *
+                        Responsable *
                       </label>
-                      <input
-                        {...register('responsible_name', { required: 'El nombre del responsable es requerido' })}
-                        type="text"
+                      <select
+                        {...register('responsible_id', { required: 'Selecciona un responsable' })}
                         className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm"
-                        placeholder="Nombre completo"
-                      />
-                      {errors.responsible_name && (
-                        <p className="text-red-500 text-xs mt-1">{errors.responsible_name.message}</p>
+                        onChange={(e) => {
+                          const selectedCompany = companies.find(c => c.id === selectedCompanyId)
+                          const selectedResponsible = selectedCompany?.responsibles?.find(r => r.id === e.target.value)
+                          if (selectedResponsible) {
+                            setValue('responsible_name', selectedResponsible.nombre)
+                            setValue('responsible_position', selectedResponsible.cargo)
+                          }
+                        }}
+                      >
+                        <option value="">Seleccionar responsable</option>
+                        {selectedCompanyId && 
+                          companies
+                            .find(c => c.id === selectedCompanyId)
+                            ?.responsibles?.map((responsible) => (
+                              <option key={responsible.id} value={responsible.id}>
+                                {responsible.nombre} - {responsible.cargo}
+                              </option>
+                            ))
+                        }
+                      </select>
+                      {errors.responsible_id && (
+                        <p className="text-red-500 text-xs mt-1">{errors.responsible_id.message}</p>
+                      )}
+                      {!selectedCompanyId && (
+                        <p className="text-slate-500 text-xs mt-1">Primero selecciona una empresa</p>
                       )}
                     </div>
 
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">
-                        Cargo del Responsable *
+                        Vista previa
                       </label>
-                      <input
-                        {...register('responsible_position', { required: 'El cargo del responsable es requerido' })}
-                        type="text"
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm"
-                        placeholder="Cargo o posición"
-                      />
-                      {errors.responsible_position && (
-                        <p className="text-red-500 text-xs mt-1">{errors.responsible_position.message}</p>
-                      )}
+                      <div className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-600">
+                        {watch('responsible_name') && watch('responsible_position') ? (
+                          <div>
+                            <div><strong>Nombre:</strong> {watch('responsible_name')}</div>
+                            <div><strong>Cargo:</strong> {watch('responsible_position')}</div>
+                          </div>
+                        ) : (
+                          'Selecciona un responsable para ver los datos'
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -596,6 +619,10 @@ export default function AttendanceManagement() {
                       <p className="text-red-500 text-xs mt-1">{errors.fecha.message}</p>
                     )}
                   </div>
+
+                  {/* Hidden fields to store the actual name and position */}
+                  <input type="hidden" {...register('responsible_name')} />
+                  <input type="hidden" {...register('responsible_position')} />
                 </div>
 
 
