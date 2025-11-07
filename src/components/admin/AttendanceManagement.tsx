@@ -138,7 +138,7 @@ export default function AttendanceManagement() {
         .from('companies')
         .select(`
           *,
-          responsibles:company_responsibles(nome, cargo, signature_url)
+          responsibles:company_responsibles(nombre, cargo, signature_url)
         `)
         .order('razon_social')
 
