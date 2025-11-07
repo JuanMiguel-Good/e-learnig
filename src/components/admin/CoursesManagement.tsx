@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { StorageService } from '../../lib/storage'
-import { Plus, Edit2, Trash2, Upload, BookOpen, User, Video, FileText } from 'lucide-react'
+import { Plus, CreditCard as Edit2, Trash2, Upload, BookOpen, User, Video, FileText } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useForm, useFieldArray } from 'react-hook-form'
 
