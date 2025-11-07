@@ -39,6 +39,7 @@ export default function CompanyResponsiblesManagement() {
   const [editingResponsible, setEditingResponsible] = useState<CompanyResponsible | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [uploading, setUploading] = useState(false)
+  const [selectedSignature, setSelectedSignature] = useState<File | null>(null)
 
   const {
     register,
@@ -133,6 +134,7 @@ export default function CompanyResponsiblesManagement() {
       await loadData()
       setIsModalOpen(false)
       setEditingResponsible(null)
+      setSelectedSignature(null)
       reset()
     } catch (error: any) {
       console.error('Error saving responsible:', error)
@@ -396,13 +398,22 @@ export default function CompanyResponsiblesManagement() {
                       <div className="flex flex-col items-center justify-center pt-2 pb-3">
                         <Upload className="w-6 h-6 mb-1 text-slate-400" />
                         <p className="text-sm text-slate-500">
-                          <span className="font-semibold">Subir firma</span>
+                          <span className="font-semibold">{selectedSignature ? selectedSignature.name : 'Subir firma'}</span>
                         </p>
-                        <p className="text-xs text-slate-500">PNG, JPG (fondo transparente recomendado)</p>
+                        <p className="text-xs text-slate-500">
+                          {selectedSignature ? `${(selectedSignature.size / 1024).toFixed(2)} KB` : 'PNG, JPG (fondo transparente recomendado)'}
+                        </p>
                       </div>
                       <input
-                        {...register('signature', { 
-                          required: editingResponsible ? false : 'La firma es requerida'
+                        {...register('signature', {
+                          required: editingResponsible ? false : 'La firma es requerida',
+                          onChange: (e) => {
+                            const file = e.target.files?.[0]
+                            if (file) {
+                              setSelectedSignature(file)
+                              toast.success(`Firma "${file.name}" cargada`)
+                            }
+                          }
                         })}
                         type="file"
                         className="hidden"
@@ -422,6 +433,7 @@ export default function CompanyResponsiblesManagement() {
                     onClick={() => {
                       setIsModalOpen(false)
                       setEditingResponsible(null)
+                      setSelectedSignature(null)
                       reset()
                     }}
                     className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-medium transition-colors text-sm"
