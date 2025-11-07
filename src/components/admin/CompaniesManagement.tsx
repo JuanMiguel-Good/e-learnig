@@ -42,6 +42,7 @@ export default function CompaniesManagement() {
   const [editingCompany, setEditingCompany] = useState<Company | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [uploading, setUploading] = useState(false)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
 
   const {
     register,
@@ -129,6 +130,7 @@ export default function CompaniesManagement() {
       await loadCompanies()
       setIsModalOpen(false)
       setEditingCompany(null)
+      setSelectedFile(null)
       reset()
     } catch (error: any) {
       console.error('Error saving company:', error)
@@ -518,13 +520,22 @@ export default function CompaniesManagement() {
                       <div className="flex flex-col items-center justify-center pt-2 pb-3">
                         <Upload className="w-6 h-6 mb-1 text-slate-400" />
                         <p className="text-sm text-slate-500">
-                          <span className="font-semibold">Subir logo</span>
+                          <span className="font-semibold">{selectedFile ? selectedFile.name : 'Subir logo'}</span>
                         </p>
-                        <p className="text-xs text-slate-500">PNG, JPG (recomendado: 500x500)</p>
+                        <p className="text-xs text-slate-500">
+                          {selectedFile ? `${(selectedFile.size / 1024).toFixed(2)} KB` : 'PNG, JPG (recomendado: 500x500)'}
+                        </p>
                       </div>
                       <input
-                        {...register('logo', { 
-                          required: editingCompany ? false : false // Logo is optional
+                        {...register('logo', {
+                          required: editingCompany ? false : false,
+                          onChange: (e) => {
+                            const file = e.target.files?.[0]
+                            if (file) {
+                              setSelectedFile(file)
+                              toast.success(`Logo "${file.name}" cargado`)
+                            }
+                          }
                         })}
                         type="file"
                         className="hidden"
@@ -568,6 +579,7 @@ export default function CompaniesManagement() {
                     onClick={() => {
                       setIsModalOpen(false)
                       setEditingCompany(null)
+                      setSelectedFile(null)
                       reset()
                     }}
                     className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-medium transition-colors text-sm"
