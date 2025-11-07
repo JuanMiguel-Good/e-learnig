@@ -1,3 +1,5 @@
+import { AttendancePDFGenerator } from '../../lib/attendancePDFGenerator'
+import { ExcelExporter } from '../../lib/excelExporter'
 import React, { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { Plus, FileText, Users, Building2, Download, Eye, Trash2, Search } from 'lucide-react'
@@ -256,9 +258,87 @@ export default function AttendanceManagement() {
     }
   }
 
-  const exportToPDF = (attendance: AttendanceList) => {
-    // TODO: Implement PDF export using jsPDF
-    toast.info('Exportación a PDF próximamente')
+  const exportToPDF = async (attendance: AttendanceList) => {
+    try {
+      // Load full attendance data with signatures
+      const { data: fullData, error } = await supabase
+        .from('attendance_lists')
+        .select(`
+          *,
+          course:courses!inner(title, hours),
+          company:companies!inner(*),
+          signatures:attendance_signatures(
+            *,
+            user:users!inner(first_name, last_name, dni)
+          )
+        `)
+        .eq('id', attendance.id)
+        .single()
+
+      if (error) throw error
+
+      toast.loading('Generando PDF...', { id: 'pdf-generation' })
+      
+      await AttendancePDFGenerator.generatePDF(fullData)
+      
+      toast.success('PDF generado y descargado', { id: 'pdf-generation' })
+    } catch (error) {
+      console.error('Error generating PDF:', error)
+      toast.error('Error al generar PDF', { id: 'pdf-generation' })
+    }
+  }
+
+  const exportToExcel = async (attendance: AttendanceList) => {
+    try {
+      // Load full attendance data with signatures
+      const { data: fullData, error } = await supabase
+        .from('attendance_lists')
+        .select(`
+          *,
+          course:courses!inner(title, hours),
+          company:companies!inner(*),
+          signatures:attendance_signatures(
+            *,
+            user:users!inner(first_name, last_name, dni)
+          )
+        `)
+        .eq('id', attendance.id)
+        .single()
+
+      if (error) throw error
+
+      ExcelExporter.exportAttendanceToExcel(fullData)
+      toast.success('Excel generado y descargado')
+    } catch (error) {
+      console.error('Error generating Excel:', error)
+      toast.error('Error al generar Excel')
+    }
+  }
+
+  const exportAllToExcel = async () => {
+    try {
+      // Load all attendance data
+      const { data: allData, error } = await supabase
+        .from('attendance_lists')
+        .select(`
+          *,
+          course:courses!inner(title, hours),
+          company:companies!inner(razon_social),
+          signatures:attendance_signatures(
+            *,
+            user:users!inner(first_name, last_name, dni)
+          )
+        `)
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+
+      ExcelExporter.exportParticipantsSummary(allData || [])
+      toast.success('Resumen completo exportado a Excel')
+    } catch (error) {
+      console.error('Error exporting summary:', error)
+      toast.error('Error al exportar resumen')
+    }
   }
 
   const filteredLists = attendanceLists.filter(list => 
@@ -283,16 +363,25 @@ export default function AttendanceManagement() {
           <h1 className="text-xl md:text-2xl font-bold text-slate-800">Listas de Asistencia</h1>
           <p className="text-sm md:text-base text-slate-600">Gestiona las listas de asistencia por curso y empresa</p>
         </div>
-        <button
-          onClick={() => {
-            reset()
-            setIsModalOpen(true)
-          }}
-          className="inline-flex items-center px-3 md:px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-medium transition-colors text-sm md:text-base"
-        >
-          <Plus className="w-4 h-4 md:w-5 md:h-5 mr-2" />
-          Nueva Lista
-        </button>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <button
+            onClick={exportAllToExcel}
+            className="inline-flex items-center px-3 md:px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors text-sm md:text-base"
+          >
+            <Download className="w-4 h-4 md:w-5 md:h-5 mr-2" />
+            Exportar Todo
+          </button>
+          <button
+            onClick={() => {
+              reset()
+              setIsModalOpen(true)
+            }}
+            className="inline-flex items-center px-3 md:px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-medium transition-colors text-sm md:text-base"
+          >
+            <Plus className="w-4 h-4 md:w-5 md:h-5 mr-2" />
+            Nueva Lista
+          </button>
+        </div>
       </div>
 
       {/* Search */}
@@ -349,26 +438,33 @@ export default function AttendanceManagement() {
               </div>
 
               {/* Actions */}
-              <div className="flex space-x-2 lg:flex-col lg:space-x-0 lg:space-y-2">
+              <div className="flex flex-wrap gap-2 lg:flex-col lg:gap-2">
                 <button
                   onClick={() => viewAttendanceList(attendance)}
-                  className="flex-1 lg:flex-none px-3 py-2 text-blue-600 hover:text-blue-900 hover:bg-blue-100 rounded-lg transition-colors text-sm"
+                  className="flex-1 lg:flex-none px-3 py-2 text-blue-600 hover:text-blue-900 hover:bg-blue-100 rounded-lg transition-colors text-sm min-w-0"
                 >
-                  <Eye className="w-4 h-4 mx-auto lg:mr-2" />
+                  <Eye className="w-4 h-4 mx-auto lg:mx-0 lg:mr-2" />
                   <span className="hidden lg:inline">Ver Lista</span>
                 </button>
                 <button
                   onClick={() => exportToPDF(attendance)}
-                  className="flex-1 lg:flex-none px-3 py-2 text-green-600 hover:text-green-900 hover:bg-green-100 rounded-lg transition-colors text-sm"
+                  className="flex-1 lg:flex-none px-3 py-2 text-red-600 hover:text-red-900 hover:bg-red-100 rounded-lg transition-colors text-sm min-w-0"
                 >
-                  <Download className="w-4 h-4 mx-auto lg:mr-2" />
+                  <FileText className="w-4 h-4 mx-auto lg:mx-0 lg:mr-2" />
                   <span className="hidden lg:inline">PDF</span>
                 </button>
                 <button
-                  onClick={() => handleDelete(attendance)}
-                  className="flex-1 lg:flex-none px-3 py-2 text-red-600 hover:text-red-900 hover:bg-red-100 rounded-lg transition-colors text-sm"
+                  onClick={() => exportToExcel(attendance)}
+                  className="flex-1 lg:flex-none px-3 py-2 text-green-600 hover:text-green-900 hover:bg-green-100 rounded-lg transition-colors text-sm min-w-0"
                 >
-                  <Trash2 className="w-4 h-4 mx-auto lg:mr-2" />
+                  <Download className="w-4 h-4 mx-auto lg:mx-0 lg:mr-2" />
+                  <span className="hidden lg:inline">Excel</span>
+                </button>
+                <button
+                  onClick={() => handleDelete(attendance)}
+                  className="flex-1 lg:flex-none px-3 py-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors text-sm min-w-0"
+                >
+                  <Trash2 className="w-4 h-4 mx-auto lg:mx-0 lg:mr-2" />
                   <span className="hidden lg:inline">Eliminar</span>
                 </button>
               </div>
