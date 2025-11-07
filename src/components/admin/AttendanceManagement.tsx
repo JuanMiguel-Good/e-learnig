@@ -189,7 +189,7 @@ export default function AttendanceManagement() {
             fecha: new Date(data.fecha).toISOString(),
             responsible_name: data.responsible_name,
             responsible_position: data.responsible_position,
-            responsible_date: new Date(data.responsible_date).toISOString(),
+            responsible_date: new Date(data.fecha).toISOString(),
             date_range_start: new Date(data.fecha_inicio).toISOString(),
             date_range_end: new Date(data.fecha_fin).toISOString()
           }
@@ -551,7 +551,7 @@ export default function AttendanceManagement() {
                     Responsable del Registro
                   </h3>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">
                         Nombre del Responsable *
@@ -581,37 +581,23 @@ export default function AttendanceManagement() {
                         <p className="text-red-500 text-xs mt-1">{errors.responsible_position.message}</p>
                       )}
                     </div>
+                  </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">
-                        Fecha del Responsable *
-                      </label>
-                      <input
-                        {...register('responsible_date', { required: 'La fecha del responsable es requerida' })}
-                        type="date"
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm"
-                      />
-                      {errors.responsible_date && (
-                        <p className="text-red-500 text-xs mt-1">{errors.responsible_date.message}</p>
-                      )}
-                    </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Fecha de la Lista de Asistencia *
+                    </label>
+                    <input
+                      {...register('fecha', { required: 'La fecha es requerida' })}
+                      type="date"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm"
+                    />
+                    {errors.fecha && (
+                      <p className="text-red-500 text-xs mt-1">{errors.fecha.message}</p>
+                    )}
                   </div>
                 </div>
 
-                {/* Fecha del Documento */}
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Fecha del Documento *
-                  </label>
-                  <input
-                    {...register('fecha', { required: 'La fecha es requerida' })}
-                    type="date"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm"
-                  />
-                  {errors.fecha && (
-                    <p className="text-red-500 text-xs mt-1">{errors.fecha.message}</p>
-                  )}
-                </div>
 
                 {/* Custom Topic */}
                 <div>
