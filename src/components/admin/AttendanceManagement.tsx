@@ -770,12 +770,18 @@ function AttendanceListView({ attendance, onClose }: AttendanceListViewProps) {
               <div className="grid grid-cols-3 text-xs min-h-16">
                 <div className="border-r border-slate-400 p-2">
                   <div className="font-medium">NOMBRE:</div>
+                   <div className="mt-1">{attendance.responsible_name || ''}</div>
                 </div>
                 <div className="border-r border-slate-400 p-2">
                   <div className="font-medium">CARGO:</div>
+                   <div className="mt-1">{attendance.responsible_position || ''}</div>
                 </div>
-                <div className="p-2 text-right">
-                  <div className="font-medium">FIRMA:</div>
+                <div className="p-2">
+                  <div className="font-medium">FECHA:</div>
+                  <div className="mt-1">{attendance.responsible_date ? new Date(attendance.responsible_date).toLocaleDateString('es-ES') : ''}</div>
+                  <div className="text-right mt-2">
+                    <div className="font-medium">FIRMA:</div>
+                  </div>
                 </div>
               </div>
             </div>
