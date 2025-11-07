@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { BookOpen, Play, FileText, CheckCircle, Clock, X, Award, ChevronDown, ChevronRight, PlayCircle, Star } from 'lucide-react'
 import { CertificateGenerator } from '../../lib/certificateGenerator'
+import TakeEvaluation from './TakeEvaluation'
 import toast from 'react-hot-toast'
 
 interface Course {
@@ -41,6 +42,7 @@ export default function MyCourses() {
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null)
   const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set())
   const [generatingCertificate, setGeneratingCertificate] = useState(false)
+  const [showEvaluation, setShowEvaluation] = useState<string | null>(null)
 
   useEffect(() => {
     if (user) {
@@ -264,12 +266,71 @@ export default function MyCourses() {
     }
   }
 
-  const generateCertificate = async (course: Course) => {
-    if (!user) return
+  const checkEvaluationStatus = async (courseId: string) => {
+    if (!user) return { canTakeEvaluation: false, hasPassedEvaluation: false, requiresEvaluation: false }
     
     try {
-      setGeneratingCertificate(true)
+      // Check if course requires evaluation
+      const { data: courseData } = await supabase
+        .from('courses')
+        .select('requires_evaluation')
+        .eq('id', courseId)
+        .single()
       
+      if (!courseData?.requires_evaluation) {
+        return { canTakeEvaluation: false, hasPassedEvaluation: false, requiresEvaluation: false }
+      }
+      
+      // Get evaluation for this course
+      const { data: evaluationData } = await supabase
+        .from('evaluations')
+        .select('id, max_attempts')
+        .eq('course_id', courseId)
+        .eq('is_active', true)
+        .single()
+      
+      if (!evaluationData) {
+        return { canTakeEvaluation: false, hasPassedEvaluation: false, requiresEvaluation: true }
+      }
+      
+      // Check user attempts
+      const { data: attemptsData } = await supabase
+        .from('evaluation_attempts')
+        .select('passed, attempt_number')
+        .eq('user_id', user.id)
+        .eq('evaluation_id', evaluationData.id)
+      
+      const hasPassedEvaluation = attemptsData?.some(attempt => attempt.passed) || false
+      const canTakeEvaluation = !hasPassedEvaluation && 
+        (attemptsData?.length || 0) < evaluationData.max_attempts
+      
+      return { canTakeEvaluation, hasPassedEvaluation, requiresEvaluation: true }
+    } catch (error) {
+      console.error('Error checking evaluation status:', error)
+      return { canTakeEvaluation: false, hasPassedEvaluation: false, requiresEvaluation: false }
+    }
+  }
+
+  const generateCertificate = async (course: Course) => {
+    if (!user) return;
+
+    try {
+      setGeneratingCertificate(true);
+
+      // Check evaluation status first
+      const evaluationStatus = await checkEvaluationStatus(course.id);
+      
+      if (evaluationStatus.requiresEvaluation && !evaluationStatus.hasPassedEvaluation) {
+        if (evaluationStatus.canTakeEvaluation) {
+          toast.error('Debes aprobar la evaluación antes de generar el certificado');
+          setShowEvaluation(course.id);
+          return;
+        } else {
+          toast.error('No puedes generar el certificado sin aprobar la evaluación');
+          return;
+        }
+      }
+
       // Get course with instructor info
       const { data: courseData, error } = await supabase
         .from('courses')
@@ -278,9 +339,9 @@ export default function MyCourses() {
           instructor:instructors(name, signature_url)
         `)
         .eq('id', course.id)
-        .single()
+        .single();
 
-      if (error) throw error
+      if (error) throw error;
 
       const certificateData = {
         userName: `${user.first_name} ${user.last_name}`,
@@ -288,9 +349,9 @@ export default function MyCourses() {
         instructorName: courseData.instructor?.name || 'Instructor',
         instructorSignature: courseData.instructor?.signature_url,
         completionDate: new Date().toISOString()
-      }
+      };
 
-      // Generate PDF
+      // Generate certificate
       const certificateBase64 = await CertificateGenerator.generateCertificate(certificateData)
       
       // Save certificate
@@ -305,7 +366,7 @@ export default function MyCourses() {
         
         // Download the certificate
         window.open(certificateUrl, '_blank')
-      }
+      };
     } catch (error) {
       console.error('Error generating certificate:', error)
       toast.error('Error al generar certificado')
@@ -331,6 +392,20 @@ export default function MyCourses() {
       <div className="flex items-center justify-center min-h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-800"></div>
       </div>
+    )
+  }
+
+  // Show evaluation if requested
+  if (showEvaluation) {
+    return (
+      <TakeEvaluation
+        courseId={showEvaluation}
+        onComplete={() => {
+          setShowEvaluation(null)
+          loadCourses() // Reload to update progress
+        }}
+        onBack={() => setShowEvaluation(null)}
+      />
     )
   }
 
@@ -481,6 +556,39 @@ export default function MyCourses() {
                         <span className="hidden sm:inline">Generar </span>Certificado
                       </>
                     )}
+                  </button>
+                </div>
+              </div>
+            )}
+            
+            {/* Evaluation Button for courses requiring evaluation */}
+            {selectedCourse.progress === 100 && (
+              <div className="bg-gradient-to-r from-blue-50 to-blue-100 border-b border-blue-200 p-4 md:p-6">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-3 md:space-y-0">
+                  <div>
+                    <h3 className="text-base md:text-lg font-bold text-blue-800">
+                      Evaluación Requerida
+                    </h3>
+                    <p className="text-sm md:text-base text-blue-700">
+                      Este curso requiere aprobar una evaluación antes de obtener el certificado
+                    </p>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      const evaluationStatus = await checkEvaluationStatus(selectedCourse.id);
+                      if (evaluationStatus.requiresEvaluation) {
+                        if (evaluationStatus.hasPassedEvaluation) {
+                          toast.success('Ya aprobaste la evaluación de este curso');
+                        } else if (evaluationStatus.canTakeEvaluation) {
+                          setShowEvaluation(selectedCourse.id);
+                        } else {
+                          toast.error('No tienes más intentos disponibles para esta evaluación');
+                        }
+                      }
+                    }}
+                    className="px-4 md:px-6 py-2 md:py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center text-sm md:text-base"
+                  >
+                    Tomar Evaluación
                   </button>
                 </div>
               </div>

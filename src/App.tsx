@@ -16,6 +16,7 @@ import MyCourses from './components/participant/MyCourses';
 import MyCertificates from './components/participant/MyCertificates';
 import CompaniesManagement from './components/admin/CompaniesManagement'
 import CompanyResponsiblesManagement from './components/admin/CompanyResponsiblesManagement'
+import EvaluationsManagement from './components/admin/EvaluationsManagement'
 
 function AuthWrapper() {
   const { user, isLoading } = useAuth();
@@ -45,6 +46,7 @@ function AuthWrapper() {
             <Route path="instructors" element={<InstructorsManagement />} />
             <Route path="courses" element={<CoursesManagement />} />
             <Route path="assignments" element={<AssignmentsManagement />} />
+            <Route path="evaluations" element={<EvaluationsManagement />} />
             <Route path="companies" element={<CompaniesManagement />} />
             <Route path="company-responsibles" element={<CompanyResponsiblesManagement />} />
           </Route>
