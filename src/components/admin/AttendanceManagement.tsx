@@ -58,12 +58,15 @@ interface AttendanceList {
 interface AttendanceFormData {
   course_id: string
   company_id: string
-  course_type: 'INDUCCIÓN' | 'CAPACITACIÓN' | 'ENTRENAMIENTO' | 'SIMULACRO DE EMERGENCIA'
-  charla_5_minutos: boolean
-  reunion: boolean
+  attendance_type: 'INDUCCIÓN' | 'CAPACITACIÓN' | 'ENTRENAMIENTO' | 'SIMULACRO DE EMERGENCIA' | 'CHARLA 5 MINUTOS' | 'REUNIÓN' | 'CARGO' | 'OTRO'
   cargo_otro: string
   tema: string
   fecha: string
+  fecha_inicio: string
+  fecha_fin: string
+  responsible_name: string
+  responsible_position: string
+  responsible_date: string
 }
 
 export default function AttendanceManagement() {
@@ -83,10 +86,11 @@ export default function AttendanceManagement() {
     watch
   } = useForm<AttendanceFormData>({
     defaultValues: {
-      course_type: 'CAPACITACIÓN',
-      charla_5_minutos: false,
-      reunion: false,
-      fecha: new Date().toISOString().split('T')[0]
+      attendance_type: 'CAPACITACIÓN',
+      fecha: new Date().toISOString().split('T')[0],
+      responsible_date: new Date().toISOString().split('T')[0],
+      fecha_inicio: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 días atrás
+      fecha_fin: new Date().toISOString().split('T')[0] // Hoy
     }
   })
 
@@ -105,7 +109,11 @@ export default function AttendanceManagement() {
         .select(`
           *,
           course:courses!inner(title, hours),
-          company:companies!inner(razon_social)
+          company:companies!inner(razon_social),
+          signatures:attendance_signatures(
+            user:users!inner(first_name, last_name, dni),
+            signed_at
+          )
         `)
         .order('created_at', { ascending: false })
 
@@ -152,19 +160,38 @@ export default function AttendanceManagement() {
       const selectedCourse = courses.find(c => c.id === data.course_id)
       if (!selectedCourse) throw new Error('Curso no encontrado')
 
+      // Get participants who passed evaluation in the date range
+      const { data: participantsData, error: participantsError } = await supabase
+        .from('evaluation_attempts')
+        .select(`
+          user_id,
+          completed_at,
+          users!inner(first_name, last_name, dni, company_id)
+        `)
+        .eq('passed', true)
+        .eq('users.company_id', data.company_id)
+        .gte('completed_at', data.fecha_inicio)
+        .lte('completed_at', data.fecha_fin)
+        .eq('evaluations.course_id', data.course_id)
+
+      if (participantsError) throw participantsError
+
       const { error } = await supabase
         .from('attendance_lists')
         .insert([
           {
             course_id: data.course_id,
             company_id: data.company_id,
-            course_type: data.course_type,
-            charla_5_minutos: data.charla_5_minutos,
-            reunion: data.reunion,
+            attendance_type: data.attendance_type,
             cargo_otro: data.cargo_otro || null,
             tema: data.tema || selectedCourse.title,
             instructor_name: selectedCourse.instructor.name,
-            fecha: new Date(data.fecha).toISOString()
+            fecha: new Date(data.fecha).toISOString(),
+            responsible_name: data.responsible_name,
+            responsible_position: data.responsible_position,
+            responsible_date: new Date(data.responsible_date).toISOString(),
+            date_range_start: new Date(data.fecha_inicio).toISOString(),
+            date_range_end: new Date(data.fecha_fin).toISOString()
           }
         ])
 
@@ -301,21 +328,14 @@ export default function AttendanceManagement() {
                   
                   <div className="flex flex-wrap gap-2 text-xs mb-2">
                     <span className="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-800 rounded-full">
-                      {attendance.course_type}
+                      {attendance.attendance_type}
                     </span>
                     <span className="inline-flex items-center px-2 py-1 bg-green-100 text-green-800 rounded-full">
                       {attendance.course.hours} horas
                     </span>
-                    {attendance.charla_5_minutos && (
-                      <span className="inline-flex items-center px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full">
-                        Charla 5 min
-                      </span>
-                    )}
-                    {attendance.reunion && (
-                      <span className="inline-flex items-center px-2 py-1 bg-purple-100 text-purple-800 rounded-full">
-                        Reunión
-                      </span>
-                    )}
+                    <span className="inline-flex items-center px-2 py-1 bg-purple-100 text-purple-800 rounded-full">
+                      {attendance.signatures?.length || 0} participantes
+                    </span>
                   </div>
                   
                   <div className="text-sm text-slate-500">
