@@ -455,8 +455,8 @@ export default function CoursesManagement() {
         description: courseData.description || '',
         instructor_id: courseData.instructor_id || '',
         is_active: courseData.is_active,
-       requires_evaluation: courseData.requires_evaluation || false,
-       hours: courseData.hours || 1,
+        requires_evaluation: courseData.requires_evaluation || false,
+        hours: courseData.hours || 1,
         image: undefined as any,
         modules: formModules.length > 0 ? formModules : [{ 
           title: '', 
@@ -561,12 +561,22 @@ export default function CoursesManagement() {
                 </p>
               )}
 
-              {course.instructor && (
-                <p className="text-slate-500 text-sm mb-4 flex items-center">
-                  <User className="w-4 h-4 mr-1" />
-                  {course.instructor.name}
+              <div className="space-y-2 mb-4">
+                {course.instructor && (
+                  <p className="text-slate-500 text-sm flex items-center">
+                    <User className="w-4 h-4 mr-1" />
+                    {course.instructor.name}
+                  </p>
+                )}
+                <p className="text-slate-500 text-sm">
+                  <span className="font-medium">Duración:</span> {course.hours} horas
                 </p>
-              )}
+                {course.requires_evaluation && (
+                  <p className="text-blue-600 text-sm font-medium">
+                    ✓ Requiere evaluación
+                  </p>
+                )}
+              </div>
 
               <div className="flex justify-end space-x-2">
                 <button
@@ -616,45 +626,44 @@ export default function CoursesManagement() {
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-800"></div>
               </div>
             ) : (
-            <form onSubmit={handleSubmit(handleCreateOrUpdate)} className="space-y-6">
-              {/* Basic Course Info */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Título del Curso
-                  </label>
-                  <input
-                    {...register('title', { required: 'El título es requerido' })}
-                    type="text"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
-                    placeholder="Título del curso"
-                  />
-                  {errors.title && (
-                    <p className="text-red-500 text-xs mt-1">{errors.title.message}</p>
-                  )}
+              <form onSubmit={handleSubmit(handleCreateOrUpdate)} className="space-y-6">
+                {/* Basic Course Info */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Título del Curso
+                    </label>
+                    <input
+                      {...register('title', { required: 'El título es requerido' })}
+                      type="text"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                      placeholder="Título del curso"
+                    />
+                    {errors.title && (
+                      <p className="text-red-500 text-xs mt-1">{errors.title.message}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Nº de Horas
+                    </label>
+                    <input
+                      {...register('hours', { 
+                        required: 'Las horas son requeridas',
+                        min: { value: 1, message: 'Debe ser mayor a 0' }
+                      })}
+                      type="number"
+                      min="1"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                      placeholder="8"
+                    />
+                    {errors.hours && (
+                      <p className="text-red-500 text-xs mt-1">{errors.hours.message}</p>
+                    )}
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Nº de Horas
-                  </label>
-                  <input
-                    {...register('hours', { 
-                      required: 'Las horas son requeridas',
-                      min: { value: 1, message: 'Debe ser mayor a 0' }
-                    })}
-                    type="number"
-                    min="1"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
-                    placeholder="8"
-                  />
-                  {errors.hours && (
-                    <p className="text-red-500 text-xs mt-1">{errors.hours.message}</p>
-                  )}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">
                     Instructor
@@ -674,174 +683,168 @@ export default function CoursesManagement() {
                     <p className="text-red-500 text-xs mt-1">{errors.instructor_id.message}</p>
                   )}
                 </div>
-              </div>
-            </div>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Descripción
-                </label>
-                <textarea
-                  {...register('description')}
-                  rows={3}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
-                  placeholder="Descripción del curso"
-                />
-              </div>
-
-              {/* Course Image */}
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Imagen del Curso {editingCourse ? '(opcional - subir nueva para cambiar)' : ''}
-                </label>
-                
-                {/* Show current image if editing */}
-                {editingCourse?.image_url && (
-                  <div className="mb-3 p-3 bg-blue-50 rounded-lg">
-                    <p className="text-sm text-blue-800 mb-2">📷 Imagen actual:</p>
-                    <img 
-                      src={editingCourse.image_url} 
-                      alt="Imagen actual del curso"
-                      className="h-20 w-auto border rounded"
-                    />
-                  </div>
-                )}
-                
-                <div className="flex items-center justify-center w-full">
-                  <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-slate-300 border-dashed rounded-lg cursor-pointer bg-slate-50 hover:bg-slate-100">
-                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                      {uploadProgress.courseImage !== undefined ? (
-                        <div className="flex flex-col items-center">
-                          <div className="w-16 h-16 border-4 border-slate-200 rounded-full flex items-center justify-center mb-2">
-                            <div className="text-slate-600 font-medium">
-                              {uploadProgress.courseImage}%
-                            </div>
-                          </div>
-                          <div className="w-32 bg-slate-200 rounded-full h-2 mb-2">
-                            <div 
-                              className="bg-slate-600 h-2 rounded-full transition-all duration-300" 
-                              style={{ width: `${uploadProgress.courseImage}%` }}
-                            />
-                          </div>
-                          <p className="text-sm text-slate-600">
-                            {uploadProgress.courseImage === 100 ? '✅ Imagen subida' : 'Subiendo imagen...'}
-                          </p>
-                        </div>
-                      ) : (
-                        <>
-                          <Upload className="w-8 h-8 mb-2 text-slate-400" />
-                          <p className="mb-2 text-sm text-slate-500">
-                            <span className="font-semibold">Haz clic para subir</span> {editingCourse ? 'nueva ' : ''}imagen
-                          </p>
-                          <p className="text-xs text-slate-500">PNG, JPG (recomendado: 1200x600)</p>
-                        </>
-                      )}
-                    </div>
-                    <input
-                      {...register('image', { 
-                        required: editingCourse ? false : 'La imagen es requerida'
-                      })}
-                      type="file"
-                      className="hidden"
-                      accept="image/*"
-                    />
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Descripción
                   </label>
-                </div>
-                {errors.image && (
-                  <p className="text-red-500 text-xs mt-1">{errors.image.message}</p>
-                )}
-              </div>
-
-              {/* Status */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="flex items-center">
-                  <input
-                    {...register('is_active')}
-                    type="checkbox"
-                    className="h-4 w-4 text-slate-600 focus:ring-slate-500 border-slate-300 rounded"
-                    defaultChecked={true}
+                  <textarea
+                    {...register('description')}
+                    rows={3}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                    placeholder="Descripción del curso"
                   />
-                  <label className="ml-2 block text-sm text-slate-900">
-                    Curso activo
-                  </label>
                 </div>
 
-                <div className="flex items-center">
-                  <input
-                    {...register('requires_evaluation')}
-                    type="checkbox"
-                    className="h-4 w-4 text-slate-600 focus:ring-slate-500 border-slate-300 rounded"
-                  />
-                  <label className="ml-2 block text-sm text-slate-900">
-                    Requiere evaluación
+                {/* Course Image */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Imagen del Curso {editingCourse ? '(opcional - subir nueva para cambiar)' : ''}
                   </label>
-                </div>
-              </div>
-
-              {/* Modules and Lessons */}
-              <div className="space-y-6">
-                <div className="space-y-6">
-                  <div className={editingCourse ? 'pt-6' : 'border-t pt-6'}>
-                    <div className="flex justify-between items-center mb-4">
-                      <h3 className="text-lg font-semibold text-slate-800">
-                        {editingCourse ? 'Editar Módulos y Lecciones' : 'Módulos y Lecciones'}
-                      </h3>
-                      <button
-                        type="button"
-                        onClick={() => appendModule({ 
-                          title: '', 
-                          description: '', 
-                          lessons: [{ title: '', content: '', video: null, duration_minutes: 0 }] 
-                        })}
-                        className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm"
-                      >
-                        + Agregar Módulo
-                      </button>
-                    </div>
-
-                    {moduleFields.map((module, moduleIndex) => (
-                      <ModuleForm
-                        key={module.id}
-                        moduleIndex={moduleIndex}
-                        register={register}
-                        control={control}
-                        errors={errors}
-                        editingCourse={editingCourse}
-                        uploadProgress={uploadProgress}
-                        onRemove={() => removeModule(moduleIndex)}
-                        canRemove={moduleFields.length > 1}
+                  
+                  {/* Show current image if editing */}
+                  {editingCourse?.image_url && (
+                    <div className="mb-3 p-3 bg-blue-50 rounded-lg">
+                      <p className="text-sm text-blue-800 mb-2">📷 Imagen actual:</p>
+                      <img 
+                        src={editingCourse.image_url} 
+                        alt="Imagen actual del curso"
+                        className="h-20 w-auto border rounded"
                       />
-                    ))}
+                    </div>
+                  )}
+                  
+                  <div className="flex items-center justify-center w-full">
+                    <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-slate-300 border-dashed rounded-lg cursor-pointer bg-slate-50 hover:bg-slate-100">
+                      <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                        {uploadProgress.courseImage !== undefined ? (
+                          <div className="flex flex-col items-center">
+                            <div className="w-16 h-16 border-4 border-slate-200 rounded-full flex items-center justify-center mb-2">
+                              <div className="text-slate-600 font-medium">
+                                {uploadProgress.courseImage}%
+                              </div>
+                            </div>
+                            <div className="w-32 bg-slate-200 rounded-full h-2 mb-2">
+                              <div 
+                                className="bg-slate-600 h-2 rounded-full transition-all duration-300" 
+                                style={{ width: `${uploadProgress.courseImage}%` }}
+                              />
+                            </div>
+                            <p className="text-sm text-slate-600">
+                              {uploadProgress.courseImage === 100 ? '✅ Imagen subida' : 'Subiendo imagen...'}
+                            </p>
+                          </div>
+                        ) : (
+                          <>
+                            <Upload className="w-8 h-8 mb-2 text-slate-400" />
+                            <p className="mb-2 text-sm text-slate-500">
+                              <span className="font-semibold">Haz clic para subir</span> {editingCourse ? 'nueva ' : ''}imagen
+                            </p>
+                            <p className="text-xs text-slate-500">PNG, JPG (recomendado: 1200x600)</p>
+                          </>
+                        )}
+                      </div>
+                      <input
+                        {...register('image', { 
+                          required: editingCourse ? false : 'La imagen es requerida'
+                        })}
+                        type="file"
+                        className="hidden"
+                        accept="image/*"
+                      />
+                    </label>
+                  </div>
+                  {errors.image && (
+                    <p className="text-red-500 text-xs mt-1">{errors.image.message}</p>
+                  )}
+                </div>
+
+                {/* Status and Evaluation */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex items-center">
+                    <input
+                      {...register('is_active')}
+                      type="checkbox"
+                      className="h-4 w-4 text-slate-600 focus:ring-slate-500 border-slate-300 rounded"
+                      defaultChecked={true}
+                    />
+                    <label className="ml-2 block text-sm text-slate-900">
+                      Curso activo
+                    </label>
+                  </div>
+
+                  <div className="flex items-center">
+                    <input
+                      {...register('requires_evaluation')}
+                      type="checkbox"
+                      className="h-4 w-4 text-slate-600 focus:ring-slate-500 border-slate-300 rounded"
+                    />
+                    <label className="ml-2 block text-sm text-slate-900">
+                      Requiere evaluación
+                    </label>
                   </div>
                 </div>
-              </div>
 
-              {/* Buttons */}
-              <div className="flex space-x-3 pt-6 border-t">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsModalOpen(false)
-                    setEditingCourse(null)
-                    reset()
-                  }}
-                  className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-medium transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting || uploading}
-                  className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
-                >
-                  {isSubmitting || uploading ? (
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mx-auto"></div>
-                  ) : (
-                    editingCourse ? 'Actualizar' : 'Crear Curso'
-                  )}
-                </button>
-              </div>
-            </form>
+                {/* Modules and Lessons */}
+                <div className="border-t pt-6">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-semibold text-slate-800">
+                      {editingCourse ? 'Editar Módulos y Lecciones' : 'Módulos y Lecciones'}
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => appendModule({ 
+                        title: '', 
+                        description: '', 
+                        lessons: [{ title: '', content: '', video: null, duration_minutes: 0 }] 
+                      })}
+                      className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm"
+                    >
+                      + Agregar Módulo
+                    </button>
+                  </div>
+
+                  {moduleFields.map((module, moduleIndex) => (
+                    <ModuleForm
+                      key={module.id}
+                      moduleIndex={moduleIndex}
+                      register={register}
+                      control={control}
+                      errors={errors}
+                      editingCourse={editingCourse}
+                      uploadProgress={uploadProgress}
+                      onRemove={() => removeModule(moduleIndex)}
+                      canRemove={moduleFields.length > 1}
+                    />
+                  ))}
+                </div>
+
+                {/* Buttons */}
+                <div className="flex space-x-3 pt-6 border-t">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsModalOpen(false)
+                      setEditingCourse(null)
+                      reset()
+                    }}
+                    className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-medium transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting || uploading}
+                    className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+                  >
+                    {isSubmitting || uploading ? (
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mx-auto"></div>
+                    ) : (
+                      editingCourse ? 'Actualizar' : 'Crear Curso'
+                    )}
+                  </button>
+                </div>
+              </form>
             )}
           </div>
         </div>
@@ -966,12 +969,10 @@ function ModuleForm({ moduleIndex, register, control, errors, editingCourse, upl
 
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">
-                  Contenido de la Lección
+                  Contenido de la Lección (opcional)
                 </label>
                 <textarea
-                  {...register(`modules.${moduleIndex}.lessons.${lessonIndex}.content`, { 
-                    required: false
-                  })}
+                  {...register(`modules.${moduleIndex}.lessons.${lessonIndex}.content`)}
                   rows={3}
                   className="w-full px-2 py-1 border border-slate-300 rounded text-sm focus:ring-1 focus:ring-slate-500 focus:border-slate-500"
                   placeholder="Contenido de la lección"
@@ -981,7 +982,7 @@ function ModuleForm({ moduleIndex, register, control, errors, editingCourse, upl
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1">
-                    Video de la Lección {isEditingLesson(lessonIndex) ? '(opcional - subir nuevo)' : ''}
+                    Video de la Lección (opcional) {isEditingLesson(lessonIndex) ? '- subir nuevo para cambiar' : ''}
                   </label>
                   
                   {/* Show current video info if editing */}
@@ -1018,9 +1019,7 @@ function ModuleForm({ moduleIndex, register, control, errors, editingCourse, upl
                       </div>
                     ) : (
                       <input
-                        {...register(`modules.${moduleIndex}.lessons.${lessonIndex}.video`, {
-                          required: false
-                        })}
+                        {...register(`modules.${moduleIndex}.lessons.${lessonIndex}.video`)}
                         type="file"
                         accept="video/*"
                         className="w-full text-xs border border-slate-300 rounded p-1"
