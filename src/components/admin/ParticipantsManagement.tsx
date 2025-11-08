@@ -11,6 +11,8 @@ interface Participant {
   last_name: string
   phone: string | null
   country_code: string
+  dni: string | null
+  area: string | null
   created_at: string
 }
 
@@ -20,6 +22,8 @@ interface ParticipantFormData {
   last_name: string
   phone: string
   country_code: string
+  dni: string
+  area: string
   password?: string
   role: string
 }
@@ -76,6 +80,8 @@ export default function ParticipantsManagement() {
           last_name: data.last_name,
           phone: data.phone || null,
           country_code: data.country_code,
+          dni: data.dni || null,
+          area: data.area || null,
           role: data.role,
           updated_at: new Date().toISOString()
         }
@@ -112,6 +118,8 @@ export default function ParticipantsManagement() {
               last_name: data.last_name,
               phone: data.phone || null,
               country_code: data.country_code,
+              dni: data.dni || null,
+              area: data.area || null,
               role: data.role
             }
           ])
@@ -137,6 +145,8 @@ export default function ParticipantsManagement() {
     setValue('last_name', participant.last_name)
     setValue('phone', participant.phone || '')
     setValue('country_code', participant.country_code)
+    setValue('dni', participant.dni || '')
+    setValue('area', participant.area || '')
     setIsModalOpen(true)
   }
 
@@ -344,6 +354,34 @@ export default function ParticipantsManagement() {
                 {errors.email && (
                   <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>
                 )}
+              </div>
+
+              {/* DNI y Área */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    DNI
+                  </label>
+                  <input
+                    {...register('dni')}
+                    type="text"
+                    maxLength={8}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                    placeholder="12345678"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Área
+                  </label>
+                  <input
+                    {...register('area')}
+                    type="text"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                    placeholder="Operaciones"
+                  />
+                </div>
               </div>
 
               {/* Teléfono */}

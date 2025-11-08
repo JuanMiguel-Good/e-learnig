@@ -246,7 +246,7 @@ export default function AttendanceManagement() {
         .from('attendance_signatures')
         .select(`
           *,
-          user:users!inner(first_name, last_name, dni, company:companies(razon_social))
+          user:users!inner(first_name, last_name, dni, area, company:companies(razon_social))
         `)
         .eq('attendance_list_id', attendance.id)
         .order('signed_at')
@@ -270,11 +270,11 @@ export default function AttendanceManagement() {
         .from('attendance_lists')
         .select(`
           *,
-          course:courses!inner(title, hours),
+          course:courses!inner(title, hours, instructor:instructors(name, signature_url)),
           company:companies!inner(*),
           signatures:attendance_signatures(
             *,
-            user:users!inner(first_name, last_name, dni)
+            user:users!inner(first_name, last_name, dni, area)
           )
         `)
         .eq('id', attendance.id)
@@ -282,10 +282,24 @@ export default function AttendanceManagement() {
 
       if (error) throw error
 
+      // Get responsible signature
+      const { data: responsibleData } = await supabase
+        .from('company_responsibles')
+        .select('signature_url')
+        .eq('nombre', fullData.responsible_name)
+        .eq('company_id', fullData.company_id)
+        .maybeSingle()
+
+      const dataWithSignatures = {
+        ...fullData,
+        responsible_signature_url: responsibleData?.signature_url || null,
+        instructor_signature_url: fullData.course?.instructor?.signature_url || null
+      }
+
       toast.loading('Generando PDF...', { id: 'pdf-generation' })
-      
-      await AttendancePDFGenerator.generatePDF(fullData)
-      
+
+      await AttendancePDFGenerator.generatePDF(dataWithSignatures)
+
       toast.success('PDF generado y descargado', { id: 'pdf-generation' })
     } catch (error) {
       console.error('Error generating PDF:', error)
@@ -300,11 +314,11 @@ export default function AttendanceManagement() {
         .from('attendance_lists')
         .select(`
           *,
-          course:courses!inner(title, hours),
+          course:courses!inner(title, hours, instructor:instructors(name)),
           company:companies!inner(*),
           signatures:attendance_signatures(
             *,
-            user:users!inner(first_name, last_name, dni)
+            user:users!inner(first_name, last_name, dni, area)
           )
         `)
         .eq('id', attendance.id)

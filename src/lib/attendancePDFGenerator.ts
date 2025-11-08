@@ -16,11 +16,14 @@ interface AttendanceData {
     actividad_economica: string
     num_trabajadores: number
     logo_url?: string | null
+    codigo?: string | null
+    version?: string | null
   }
   course_type: string
   cargo_otro?: string | null
   tema: string | null
   instructor_name: string
+  instructor_signature_url?: string | null
   fecha: string
   responsible_name: string
   responsible_position: string
@@ -71,8 +74,14 @@ export class AttendancePDFGenerator {
               <div style="border-bottom: 1px solid black; padding: 3px; font-size: 9px; font-weight: bold;">
                 CÓDIGO:
               </div>
-              <div style="border-bottom: 1px solid black; padding: 3px; font-size: 9px; font-weight: bold; height: 20px;">
+              <div style="border-bottom: 1px solid black; padding: 3px; font-size: 8px; height: 18px;">
+                ${data.company.codigo || ''}
+              </div>
+              <div style="padding: 3px; font-size: 9px; font-weight: bold;">
                 VERSIÓN:
+              </div>
+              <div style="padding: 3px; font-size: 8px; height: 18px;">
+                ${data.company.version || ''}
               </div>
             </td>
           </tr>
@@ -219,8 +228,12 @@ export class AttendancePDFGenerator {
                   <div style="min-height: 30px; margin-bottom: 5px;">
                     <span style="font-size: 8px;">${data.instructor_name}</span>
                   </div>
-                  <div style="text-align: right; margin-top: 10px;">
-                    <span style="font-weight: bold;">FIRMA:</span>
+                  <div style="text-align: center; margin-top: 10px;">
+                    ${data.instructor_signature_url ?
+                      `<img src="${data.instructor_signature_url}" style="max-height: 30px; max-width: 70px;" />` :
+                      ''
+                    }
+                    <div style="font-weight: bold; font-size: 8px; margin-top: 5px;">FIRMA</div>
                   </div>
                 </div>
               </td>
