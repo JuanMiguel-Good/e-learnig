@@ -45,6 +45,7 @@ export default function MyCourses() {
   const [showEvaluation, setShowEvaluation] = useState<string | null>(null)
   const [showSignature, setShowSignature] = useState<string | null>(null)
   const [evaluationAttemptId, setEvaluationAttemptId] = useState<string | null>(null)
+  const [evaluationStatuses, setEvaluationStatuses] = useState<{ [key: string]: { canTake: boolean, hasPassed: boolean, required: boolean } }>({})
 
   useEffect(() => {
     if (user) {
@@ -143,6 +144,18 @@ export default function MyCourses() {
       )
 
       setCourses(processedCourses)
+
+      // Load evaluation statuses for all courses
+      const statuses: { [key: string]: { canTake: boolean, hasPassed: boolean, required: boolean } } = {}
+      for (const course of processedCourses) {
+        const evalStatus = await checkEvaluationStatus(course.id)
+        statuses[course.id] = {
+          canTake: evalStatus.canTakeEvaluation,
+          hasPassed: evalStatus.hasPassedEvaluation,
+          required: evalStatus.requiresEvaluation
+        }
+      }
+      setEvaluationStatuses(statuses)
     } catch (error) {
       console.error('Error loading courses:', error)
       toast.error('Error al cargar cursos')
@@ -591,7 +604,8 @@ export default function MyCourses() {
             </div>
 
             {/* Certificate Generation Banner */}
-            {selectedCourse.progress === 100 && (
+            {selectedCourse.progress === 100 &&
+             (!evaluationStatuses[selectedCourse.id]?.required || evaluationStatuses[selectedCourse.id]?.hasPassed) && (
               <div className="bg-gradient-to-r from-yellow-50 to-yellow-100 border-b border-yellow-200 p-4 md:p-6">
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-3 md:space-y-0">
                   <div className="flex items-center">
@@ -627,7 +641,9 @@ export default function MyCourses() {
             )}
             
             {/* Evaluation Button for courses requiring evaluation */}
-            {selectedCourse.progress === 100 && (
+            {selectedCourse.progress === 100 &&
+             evaluationStatuses[selectedCourse.id]?.required &&
+             !evaluationStatuses[selectedCourse.id]?.hasPassed && (
               <div className="bg-gradient-to-r from-blue-50 to-blue-100 border-b border-blue-200 p-4 md:p-6">
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-3 md:space-y-0">
                   <div>
