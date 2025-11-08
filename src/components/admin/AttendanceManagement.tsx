@@ -169,6 +169,7 @@ export default function AttendanceManagement() {
       const { data: participantsData, error: participantsError } = await supabase
         .from('evaluation_attempts')
         .select(`
+          id,
           user_id,
           completed_at,
           users!inner(first_name, last_name, dni, company_id),
@@ -182,7 +183,8 @@ export default function AttendanceManagement() {
 
       if (participantsError) throw participantsError
 
-      const { error } = await supabase
+      // Create attendance list
+      const { data: newList, error: insertError } = await supabase
         .from('attendance_lists')
         .insert([
           {
@@ -203,10 +205,30 @@ export default function AttendanceManagement() {
             date_range_end: new Date(data.fecha_fin).toISOString()
           }
         ])
+        .select()
+        .single()
 
-      if (error) throw error
-      
-      toast.success('Lista de asistencia creada correctamente')
+      if (insertError) throw insertError
+      if (!newList) throw new Error('No se pudo crear la lista')
+
+      // Link existing signatures to this attendance list
+      if (participantsData && participantsData.length > 0) {
+        const evaluationAttemptIds = participantsData.map((p: any) => p.id)
+
+        // Update signatures that match these evaluation attempts
+        const { error: updateError } = await supabase
+          .from('attendance_signatures')
+          .update({ attendance_list_id: newList.id })
+          .in('evaluation_attempt_id', evaluationAttemptIds)
+          .is('attendance_list_id', null)
+
+        if (updateError) {
+          console.error('Error linking signatures:', updateError)
+          toast.error('Lista creada pero hubo un error al vincular las firmas')
+        }
+      }
+
+      toast.success(`Lista de asistencia creada con ${participantsData?.length || 0} participantes`)
       await loadData()
       setIsModalOpen(false)
       reset()
@@ -971,7 +993,7 @@ function AttendanceListView({ attendance, onClose }: AttendanceListViewProps) {
               {/* Participant Rows */}
               {attendance.signatures?.length > 0 ? (
                 attendance.signatures.map((signature: any, index: number) => (
-                  <div key={signature.id} className="grid grid-cols-4 text-xs border-t border-slate-400 min-h-12">
+                  <div key={signature.id} className="grid grid-cols-5 text-xs border-t border-slate-400 min-h-12">
                     <div className="border-r border-slate-400 p-2 flex items-center">
                       {signature.user.first_name} {signature.user.last_name}
                     </div>
@@ -979,11 +1001,14 @@ function AttendanceListView({ attendance, onClose }: AttendanceListViewProps) {
                       {signature.user.dni}
                     </div>
                     <div className="border-r border-slate-400 p-2 flex items-center justify-center">
-                      {signature.user.company?.razon_social}
+                      {signature.user.area || '-'}
+                    </div>
+                    <div className="border-r border-slate-400 p-2 flex items-center justify-center">
+                      {new Date(signature.signed_at).toLocaleDateString('es-ES')}
                     </div>
                     <div className="p-2 flex items-center justify-center">
                       {signature.signature_data && (
-                        <img 
+                        <img
                           src={`data:image/png;base64,${signature.signature_data}`}
                           alt="Firma"
                           className="max-h-8 max-w-24"
@@ -993,10 +1018,11 @@ function AttendanceListView({ attendance, onClose }: AttendanceListViewProps) {
                   </div>
                 ))
               ) : (
-                <div className="grid grid-cols-4 text-xs border-t border-slate-400 min-h-12">
+                <div className="grid grid-cols-5 text-xs border-t border-slate-400 min-h-12">
                   <div className="border-r border-slate-400 p-2 flex items-center justify-center text-slate-400">
                     No hay participantes registrados
                   </div>
+                  <div className="border-r border-slate-400 p-2"></div>
                   <div className="border-r border-slate-400 p-2"></div>
                   <div className="border-r border-slate-400 p-2"></div>
                   <div className="p-2"></div>
