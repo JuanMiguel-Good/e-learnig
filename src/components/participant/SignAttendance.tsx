@@ -51,7 +51,7 @@ export default function SignAttendance({ courseId, evaluationAttemptId, onComple
   const loadAttendanceList = async () => {
     try {
       // Get attendance list for this course and user's company
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('attendance_lists')
         .select(`
           *,
@@ -62,14 +62,47 @@ export default function SignAttendance({ courseId, evaluationAttemptId, onComple
         .eq('company_id', user?.company_id)
         .single()
 
-      if (error) {
-        if (error.code === 'PGRST116') {
-          toast.error('No hay lista de asistencia disponible para este curso')
-        } else {
-          throw error
+      // If no attendance list exists, create one automatically
+      if (error && error.code === 'PGRST116') {
+        // Get course and company data
+        const { data: courseData } = await supabase
+          .from('courses')
+          .select('title, hours, instructor:instructors(id, name)')
+          .eq('id', courseId)
+          .single()
+
+        if (!courseData) {
+          toast.error('No se pudo obtener información del curso')
+          onCancel()
+          return
         }
-        onCancel()
-        return
+
+        // Create new attendance list
+        const { data: newList, error: createError } = await supabase
+          .from('attendance_lists')
+          .insert({
+            course_id: courseId,
+            company_id: user?.company_id,
+            course_type: 'CAPACITACIÓN',
+            tema: courseData.title,
+            instructor_name: courseData.instructor?.name || 'Instructor',
+            fecha: new Date().toISOString().split('T')[0],
+            responsible_name: '',
+            responsible_position: '',
+            responsible_date: new Date().toISOString().split('T')[0]
+          })
+          .select(`
+            *,
+            course:courses!inner(title, hours),
+            company:companies!inner(*)
+          `)
+          .single()
+
+        if (createError) throw createError
+
+        data = newList
+      } else if (error) {
+        throw error
       }
 
       setAttendanceList(data)
