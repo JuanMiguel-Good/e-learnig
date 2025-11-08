@@ -189,8 +189,10 @@ export default function AttendanceManagement() {
           course:courses!inner(title, hours),
           company:companies!inner(razon_social),
           signatures:attendance_signatures(
-            user:users!inner(first_name, last_name, dni),
-            signed_at
+            id,
+            signature_data,
+            signed_at,
+            user:users!inner(first_name, last_name, dni, area)
           )
         `)
         .order('created_at', { ascending: false })
@@ -238,25 +240,7 @@ export default function AttendanceManagement() {
       const selectedCourse = courses.find(c => c.id === data.course_id)
       if (!selectedCourse) throw new Error('Curso no encontrado')
 
-      // Get participants who passed evaluation in the date range
-      const { data: participantsData, error: participantsError } = await supabase
-        .from('evaluation_attempts')
-        .select(`
-          id,
-          user_id,
-          completed_at,
-          users!inner(first_name, last_name, dni, company_id),
-          evaluation:evaluations!inner(course_id)
-        `)
-        .eq('passed', true)
-        .eq('users.company_id', data.company_id)
-        .gte('completed_at', data.fecha_inicio)
-        .lte('completed_at', data.fecha_fin)
-        .eq('evaluation.course_id', data.course_id)
-
-      if (participantsError) throw participantsError
-
-      // Create attendance list
+      // Create attendance list first
       const { data: newList, error: insertError } = await supabase
         .from('attendance_lists')
         .insert([
@@ -284,24 +268,51 @@ export default function AttendanceManagement() {
       if (insertError) throw insertError
       if (!newList) throw new Error('No se pudo crear la lista')
 
-      // Link existing signatures to this attendance list
-      if (participantsData && participantsData.length > 0) {
-        const evaluationAttemptIds = participantsData.map((p: any) => p.id)
+      // Find signatures that should be linked - only those with signatures and within the date range
+      const { data: signaturesData, error: signaturesError } = await supabase
+        .from('attendance_signatures')
+        .select(`
+          id,
+          evaluation_attempt_id,
+          evaluation_attempt:evaluation_attempts!inner(
+            completed_at,
+            passed,
+            user_id,
+            evaluation:evaluations!inner(course_id),
+            user:users!inner(company_id)
+          )
+        `)
+        .is('attendance_list_id', null)
+        .eq('evaluation_attempt.passed', true)
+        .eq('evaluation_attempt.user.company_id', data.company_id)
+        .eq('evaluation_attempt.evaluation.course_id', data.course_id)
+        .gte('evaluation_attempt.completed_at', data.fecha_inicio)
+        .lte('evaluation_attempt.completed_at', data.fecha_fin + 'T23:59:59')
 
-        // Update signatures that match these evaluation attempts
-        const { error: updateError } = await supabase
+      if (signaturesError) {
+        console.error('Error fetching signatures:', signaturesError)
+        throw new Error('Error al buscar firmas')
+      }
+
+      let linkedCount = 0
+      if (signaturesData && signaturesData.length > 0) {
+        const signatureIds = signaturesData.map((s: any) => s.id)
+
+        // Update signatures to link them to this attendance list
+        const { error: updateError, count } = await supabase
           .from('attendance_signatures')
           .update({ attendance_list_id: newList.id })
-          .in('evaluation_attempt_id', evaluationAttemptIds)
-          .is('attendance_list_id', null)
+          .in('id', signatureIds)
 
         if (updateError) {
           console.error('Error linking signatures:', updateError)
           toast.error('Lista creada pero hubo un error al vincular las firmas')
+        } else {
+          linkedCount = count || 0
         }
       }
 
-      toast.success(`Lista de asistencia creada con ${participantsData?.length || 0} participantes`)
+      toast.success(`Lista de asistencia creada con ${linkedCount} participante(s)`)
       await loadData()
       setIsModalOpen(false)
       setPreviewParticipants([])
