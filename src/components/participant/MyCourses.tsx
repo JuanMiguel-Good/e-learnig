@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { BookOpen, Play, FileText, CheckCircle, Clock, X, Award, ChevronDown, ChevronRight, PlayCircle, Star } from 'lucide-react'
 import { CertificateGenerator } from '../../lib/certificateGenerator'
 import TakeEvaluation from './TakeEvaluation'
+import SignAttendance from './SignAttendance'
 import toast from 'react-hot-toast'
 
 interface Course {
