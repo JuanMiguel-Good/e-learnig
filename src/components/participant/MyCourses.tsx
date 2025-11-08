@@ -43,6 +43,7 @@ export default function MyCourses() {
   const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set())
   const [generatingCertificate, setGeneratingCertificate] = useState(false)
   const [showEvaluation, setShowEvaluation] = useState<string | null>(null)
+  const [showSignature, setShowSignature] = useState<string | null>(null)
 
   useEffect(() => {
     if (user) {
