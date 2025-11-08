@@ -241,16 +241,14 @@ export default function AttendanceManagement() {
 
   const viewAttendanceList = async (attendance: AttendanceList) => {
     try {
-      // Load signatures for this attendance list (only from approved evaluations)
+      // Load signatures for this attendance list
       const { data: signaturesData, error } = await supabase
         .from('attendance_signatures')
         .select(`
           *,
-          user:users!inner(first_name, last_name, dni, area, company:companies(razon_social)),
-          evaluation_attempt:evaluation_attempts!inner(passed, completed_at)
+          user:users!inner(first_name, last_name, dni, area, company:companies(razon_social))
         `)
         .eq('attendance_list_id', attendance.id)
-        .eq('evaluation_attempt.passed', true)
         .order('signed_at')
 
       if (error) throw error
@@ -280,16 +278,14 @@ export default function AttendanceManagement() {
 
       if (error) throw error
 
-      // Get only signatures from approved evaluations
+      // Get signatures
       const { data: signaturesData } = await supabase
         .from('attendance_signatures')
         .select(`
           *,
-          user:users!inner(first_name, last_name, dni, area),
-          evaluation_attempt:evaluation_attempts!inner(passed, completed_at)
+          user:users!inner(first_name, last_name, dni, area)
         `)
         .eq('attendance_list_id', attendance.id)
-        .eq('evaluation_attempt.passed', true)
         .order('signed_at')
 
       // Get responsible signature
@@ -333,16 +329,14 @@ export default function AttendanceManagement() {
 
       if (error) throw error
 
-      // Get only signatures from approved evaluations
+      // Get signatures
       const { data: signaturesData } = await supabase
         .from('attendance_signatures')
         .select(`
           *,
-          user:users!inner(first_name, last_name, dni, area),
-          evaluation_attempt:evaluation_attempts!inner(passed, completed_at)
+          user:users!inner(first_name, last_name, dni, area)
         `)
         .eq('attendance_list_id', attendance.id)
-        .eq('evaluation_attempt.passed', true)
         .order('signed_at')
 
       const dataWithSignatures = {
