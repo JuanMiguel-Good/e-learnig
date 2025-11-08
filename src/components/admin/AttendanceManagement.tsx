@@ -81,6 +81,9 @@ export default function AttendanceManagement() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedAttendance, setSelectedAttendance] = useState<AttendanceList | null>(null)
+  const [previewParticipants, setPreviewParticipants] = useState<any[]>([])
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false)
+  const [showPreview, setShowPreview] = useState(false)
 
   const {
     register,
@@ -101,10 +104,80 @@ export default function AttendanceManagement() {
 
   const selectedCourseId = watch('course_id')
   const selectedCompanyId = watch('company_id')
+  const fechaInicio = watch('fecha_inicio')
+  const fechaFin = watch('fecha_fin')
 
   useEffect(() => {
     loadData()
   }, [])
+
+  useEffect(() => {
+    if (selectedCourseId && selectedCompanyId && fechaInicio && fechaFin) {
+      loadPreviewParticipants()
+    } else {
+      setPreviewParticipants([])
+      setShowPreview(false)
+    }
+  }, [selectedCourseId, selectedCompanyId, fechaInicio, fechaFin])
+
+  const loadPreviewParticipants = async () => {
+    if (!selectedCourseId || !selectedCompanyId || !fechaInicio || !fechaFin) return
+
+    try {
+      setIsLoadingPreview(true)
+
+      // Get participants who passed evaluation in the date range
+      const { data: participantsData, error: participantsError } = await supabase
+        .from('evaluation_attempts')
+        .select(`
+          id,
+          user_id,
+          completed_at,
+          passed,
+          users!inner(
+            id,
+            first_name,
+            last_name,
+            dni,
+            area,
+            company_id
+          ),
+          evaluation:evaluations!inner(course_id)
+        `)
+        .eq('passed', true)
+        .eq('users.company_id', selectedCompanyId)
+        .gte('completed_at', fechaInicio)
+        .lte('completed_at', fechaFin + 'T23:59:59')
+        .eq('evaluation.course_id', selectedCourseId)
+
+      if (participantsError) throw participantsError
+
+      // For each participant, check if they have a signature
+      const participantsWithSignatures = await Promise.all(
+        (participantsData || []).map(async (participant: any) => {
+          const { data: signatureData } = await supabase
+            .from('attendance_signatures')
+            .select('id, signature_data, signed_at')
+            .eq('evaluation_attempt_id', participant.id)
+            .maybeSingle()
+
+          return {
+            ...participant,
+            has_signature: !!signatureData,
+            signature: signatureData
+          }
+        })
+      )
+
+      setPreviewParticipants(participantsWithSignatures)
+      setShowPreview(true)
+    } catch (error) {
+      console.error('Error loading preview:', error)
+      toast.error('Error al cargar vista previa de participantes')
+    } finally {
+      setIsLoadingPreview(false)
+    }
+  }
 
   const loadData = async () => {
     try {
@@ -231,6 +304,8 @@ export default function AttendanceManagement() {
       toast.success(`Lista de asistencia creada con ${participantsData?.length || 0} participantes`)
       await loadData()
       setIsModalOpen(false)
+      setPreviewParticipants([])
+      setShowPreview(false)
       reset()
     } catch (error: any) {
       console.error('Error creating attendance list:', error)
@@ -433,6 +508,8 @@ export default function AttendanceManagement() {
           <button
             onClick={() => {
               reset()
+              setPreviewParticipants([])
+              setShowPreview(false)
               setIsModalOpen(true)
             }}
             className="inline-flex items-center px-3 md:px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-medium transition-colors text-sm md:text-base"
@@ -794,12 +871,85 @@ export default function AttendanceManagement() {
                   />
                 </div>
 
+                {/* Preview Participants Section */}
+                {showPreview && (
+                  <div className="border-t pt-6">
+                    <h3 className="text-lg font-semibold text-slate-800 mb-4">
+                      Vista Previa de Participantes ({previewParticipants.length})
+                    </h3>
+
+                    {isLoadingPreview ? (
+                      <div className="flex items-center justify-center py-8">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-800"></div>
+                      </div>
+                    ) : previewParticipants.length > 0 ? (
+                      <div className="max-h-96 overflow-y-auto border rounded-lg">
+                        <table className="w-full text-xs">
+                          <thead className="bg-slate-100 sticky top-0">
+                            <tr>
+                              <th className="p-2 text-left border-b">Apellidos y Nombres</th>
+                              <th className="p-2 text-left border-b">DNI</th>
+                              <th className="p-2 text-left border-b">Área</th>
+                              <th className="p-2 text-left border-b">Fecha Aprobación</th>
+                              <th className="p-2 text-center border-b">Firmó</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {previewParticipants.map((participant) => (
+                              <tr key={participant.id} className="border-b hover:bg-slate-50">
+                                <td className="p-2">
+                                  {participant.users.first_name} {participant.users.last_name}
+                                </td>
+                                <td className="p-2">{participant.users.dni}</td>
+                                <td className="p-2">{participant.users.area || '-'}</td>
+                                <td className="p-2">
+                                  {new Date(participant.completed_at).toLocaleDateString('es-ES')}
+                                </td>
+                                <td className="p-2 text-center">
+                                  {participant.has_signature ? (
+                                    <span className="inline-flex items-center px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs">
+                                      ✓ Sí
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs">
+                                      ✗ No
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 bg-slate-50 rounded-lg">
+                        <p className="text-slate-600">
+                          No se encontraron participantes que cumplan los criterios de filtrado.
+                        </p>
+                        <p className="text-xs text-slate-500 mt-2">
+                          Verifica que haya participantes que hayan aprobado la evaluación en el rango de fechas seleccionado.
+                        </p>
+                      </div>
+                    )}
+
+                    {previewParticipants.some(p => !p.has_signature) && (
+                      <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <p className="text-xs text-yellow-800">
+                          <strong>⚠️ Advertencia:</strong> Algunos participantes no han firmado aún. Solo se incluirán en la lista los que tengan firma.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Buttons */}
                 <div className="flex space-x-3 pt-4 border-t">
                   <button
                     type="button"
                     onClick={() => {
                       setIsModalOpen(false)
+                      setPreviewParticipants([])
+                      setShowPreview(false)
                       reset()
                     }}
                     className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-medium transition-colors text-sm"
@@ -808,13 +958,14 @@ export default function AttendanceManagement() {
                   </button>
                   <button
                     type="submit"
-                    disabled={isSubmitting}
-                    className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-medium transition-colors disabled:opacity-50 text-sm"
+                    disabled={isSubmitting || previewParticipants.filter(p => p.has_signature).length === 0}
+                    className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                    title={previewParticipants.filter(p => p.has_signature).length === 0 ? 'No hay participantes con firma para incluir en la lista' : ''}
                   >
                     {isSubmitting ? (
                       <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mx-auto"></div>
                     ) : (
-                      'Crear Lista'
+                      `Crear Lista (${previewParticipants.filter(p => p.has_signature).length} participantes)`
                     )}
                   </button>
                 </div>
