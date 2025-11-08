@@ -399,24 +399,45 @@ export default function MyCourses() {
   }
 
   const checkSignatureStatus = async (courseId: string) => {
-    if (!user?.company_id) return false;
+    if (!user) return false;
 
     try {
-      // Check if there's an attendance list for this course and user's company
-      const { data: attendanceList } = await supabase
-        .from('attendance_lists')
+      // Check if course requires evaluation
+      const { data: courseData } = await supabase
+        .from('courses')
+        .select('requires_evaluation')
+        .eq('id', courseId)
+        .single()
+
+      // If course doesn't require evaluation, no signature needed
+      if (!courseData?.requires_evaluation) return false;
+
+      // Get the evaluation for this course
+      const { data: evaluationData } = await supabase
+        .from('evaluations')
         .select('id')
         .eq('course_id', courseId)
-        .eq('company_id', user.company_id)
+        .eq('is_active', true)
         .maybeSingle()
 
-      if (!attendanceList) return false; // No attendance list required
+      if (!evaluationData) return false;
 
-      // Check if user has already signed
+      // Check if user has a passed evaluation attempt
+      const { data: passedAttempt } = await supabase
+        .from('evaluation_attempts')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('evaluation_id', evaluationData.id)
+        .eq('passed', true)
+        .maybeSingle()
+
+      if (!passedAttempt) return false; // No passed attempt, no signature required yet
+
+      // Check if user has already signed for this evaluation attempt
       const { data: existingSignature } = await supabase
         .from('attendance_signatures')
         .select('id')
-        .eq('attendance_list_id', attendanceList.id)
+        .eq('evaluation_attempt_id', passedAttempt.id)
         .eq('user_id', user.id)
         .maybeSingle()
 

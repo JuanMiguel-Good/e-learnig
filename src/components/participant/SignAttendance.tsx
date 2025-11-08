@@ -11,119 +11,57 @@ interface SignAttendanceProps {
   onCancel: () => void
 }
 
-interface AttendanceList {
-  id: string
-  course_type: string
-  tema: string
-  instructor_name: string
-  fecha: string
-  course: {
-    title: string
-    hours: number
-  }
-  company: {
-    razon_social: string
-    ruc: string
-    direccion: string
-    distrito: string
-    departamento: string
-    provincia: string
-    actividad_economica: string
-    num_trabajadores: number
-  }
+interface CourseInfo {
+  title: string
+  hours: number
 }
 
 export default function SignAttendance({ courseId, evaluationAttemptId, onComplete, onCancel }: SignAttendanceProps) {
   const { user } = useAuth()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [isDrawing, setIsDrawing] = useState(false)
-  const [attendanceList, setAttendanceList] = useState<AttendanceList | null>(null)
+  const [courseInfo, setCourseInfo] = useState<CourseInfo | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSigning, setIsSigning] = useState(false)
   const [hasSignature, setHasSignature] = useState(false)
 
   useEffect(() => {
     if (user && courseId) {
-      loadAttendanceList()
+      loadCourseInfo()
     }
   }, [user, courseId])
 
-  const loadAttendanceList = async () => {
+  const loadCourseInfo = async () => {
     try {
-      // Get attendance list for this course and user's company
-      let { data, error } = await supabase
-        .from('attendance_lists')
-        .select(`
-          *,
-          course:courses!inner(title, hours),
-          company:companies!inner(*)
-        `)
-        .eq('course_id', courseId)
-        .eq('company_id', user?.company_id)
+      // Get course info
+      const { data: courseData, error } = await supabase
+        .from('courses')
+        .select('title, hours')
+        .eq('id', courseId)
         .single()
 
-      // If no attendance list exists, create one automatically
-      if (error && error.code === 'PGRST116') {
-        // Get course and company data
-        const { data: courseData } = await supabase
-          .from('courses')
-          .select('title, hours, instructor:instructors(id, name)')
-          .eq('id', courseId)
-          .single()
+      if (error) throw error
 
-        if (!courseData) {
-          toast.error('No se pudo obtener información del curso')
-          onCancel()
+      setCourseInfo(courseData)
+
+      // Check if user already signed for this course after approving evaluation
+      if (evaluationAttemptId) {
+        const { data: existingSignature } = await supabase
+          .from('attendance_signatures')
+          .select('id')
+          .eq('evaluation_attempt_id', evaluationAttemptId)
+          .eq('user_id', user?.id)
+          .maybeSingle()
+
+        if (existingSignature) {
+          toast.info('Ya has firmado para este curso')
+          onComplete()
           return
         }
-
-        // Create new attendance list
-        const { data: newList, error: createError } = await supabase
-          .from('attendance_lists')
-          .insert({
-            course_id: courseId,
-            company_id: user?.company_id,
-            course_type: 'CAPACITACIÓN',
-            tema: courseData.title,
-            instructor_name: courseData.instructor?.name || 'Instructor',
-            fecha: new Date().toISOString().split('T')[0],
-            responsible_name: '',
-            responsible_position: '',
-            responsible_date: new Date().toISOString().split('T')[0]
-          })
-          .select(`
-            *,
-            course:courses!inner(title, hours),
-            company:companies!inner(*)
-          `)
-          .single()
-
-        if (createError) throw createError
-
-        data = newList
-      } else if (error) {
-        throw error
       }
-
-      setAttendanceList(data)
-
-      // Check if user already signed
-      const { data: existingSignature } = await supabase
-        .from('attendance_signatures')
-        .select('id')
-        .eq('attendance_list_id', data.id)
-        .eq('user_id', user?.id)
-        .maybeSingle()
-
-      if (existingSignature) {
-        toast.info('Ya has firmado la lista de asistencia para este curso')
-        onComplete()
-        return
-      }
-
     } catch (error) {
-      console.error('Error loading attendance list:', error)
-      toast.error('Error al cargar la lista de asistencia')
+      console.error('Error loading course info:', error)
+      toast.error('Error al cargar información del curso')
       onCancel()
     } finally {
       setIsLoading(false)
@@ -231,8 +169,13 @@ export default function SignAttendance({ courseId, evaluationAttemptId, onComple
   }
 
   const saveSignature = async () => {
-    if (!hasSignature || !attendanceList || !user) {
+    if (!hasSignature || !courseInfo || !user) {
       toast.error('Por favor, realiza tu firma antes de continuar')
+      return
+    }
+
+    if (!evaluationAttemptId) {
+      toast.error('No se encontró el intento de evaluación')
       return
     }
 
@@ -245,15 +188,15 @@ export default function SignAttendance({ courseId, evaluationAttemptId, onComple
 
       const signatureData = canvas.toDataURL('image/png').split(',')[1] // Remove data:image/png;base64,
 
-      // Save signature to database
+      // Save signature to database (without attendance_list_id for now)
       const { error } = await supabase
         .from('attendance_signatures')
         .insert([
           {
-            attendance_list_id: attendanceList.id,
             user_id: user.id,
             signature_data: signatureData,
-            evaluation_attempt_id: evaluationAttemptId || null
+            evaluation_attempt_id: evaluationAttemptId,
+            attendance_list_id: null
           }
         ])
 
@@ -277,12 +220,12 @@ export default function SignAttendance({ courseId, evaluationAttemptId, onComple
     )
   }
 
-  if (!attendanceList) {
+  if (!courseInfo) {
     return (
       <div className="text-center py-12">
         <PenTool className="mx-auto h-12 w-12 text-slate-400" />
-        <h3 className="mt-2 text-lg font-medium text-slate-900">Lista no disponible</h3>
-        <p className="mt-1 text-sm text-slate-500">No se pudo cargar la lista de asistencia.</p>
+        <h3 className="mt-2 text-lg font-medium text-slate-900">Curso no disponible</h3>
+        <p className="mt-1 text-sm text-slate-500">No se pudo cargar la información del curso.</p>
       </div>
     )
   }
@@ -292,22 +235,14 @@ export default function SignAttendance({ courseId, evaluationAttemptId, onComple
       {/* Header */}
       <div className="bg-white rounded-xl shadow-sm border p-4 md:p-6 text-center">
         <h1 className="text-xl md:text-2xl font-bold text-slate-800 mb-2">
-          Firma de Lista de Asistencia
+          Firma Digital
         </h1>
         <h2 className="text-base md:text-lg font-semibold text-slate-600 mb-4">
-          {attendanceList.course.title}
+          {courseInfo.title}
         </h2>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-slate-600">
-          <div>
-            <p><span className="font-medium">Empresa:</span> {attendanceList.company.razon_social}</p>
-            <p><span className="font-medium">Tipo:</span> {attendanceList.course_type}</p>
-          </div>
-          <div>
-            <p><span className="font-medium">Instructor:</span> {attendanceList.instructor_name}</p>
-            <p><span className="font-medium">Duración:</span> {attendanceList.course.hours} horas</p>
-          </div>
-        </div>
+        <p className="text-sm text-slate-600">
+          Al firmar, confirmas que has completado exitosamente este curso de {courseInfo.hours} horas.
+        </p>
       </div>
 
       {/* Signature Section */}
@@ -364,7 +299,6 @@ export default function SignAttendance({ courseId, evaluationAttemptId, onComple
             <p><span className="font-medium">Nombre:</span> {user?.first_name} {user?.last_name}</p>
             <p><span className="font-medium">DNI:</span> {user?.dni || 'No especificado'}</p>
             <p><span className="font-medium">Email:</span> {user?.email}</p>
-            <p><span className="font-medium">Empresa:</span> {attendanceList.company.razon_social}</p>
           </div>
         </div>
       </div>
