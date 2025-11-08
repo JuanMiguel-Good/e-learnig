@@ -188,7 +188,10 @@ export default function AttendanceManagement() {
           {
             course_id: data.course_id,
             company_id: data.company_id,
+            course_type: data.attendance_type,
             attendance_type: data.attendance_type,
+            charla_5_minutos: data.attendance_type === 'CHARLA 5 MINUTOS',
+            reunion: data.attendance_type === 'REUNIÓN',
             cargo_otro: data.cargo_otro || null,
             tema: data.tema || selectedCourse.title,
             instructor_name: selectedCourse.instructor.name,
