@@ -13,7 +13,11 @@ interface Participant {
   country_code: string
   dni: string | null
   area: string | null
+  company_id: string | null
   created_at: string
+  company?: {
+    razon_social: string
+  }
 }
 
 interface ParticipantFormData {
@@ -24,12 +28,19 @@ interface ParticipantFormData {
   country_code: string
   dni: string
   area: string
+  company_id: string
   password?: string
   role: string
 }
 
+interface Company {
+  id: string
+  razon_social: string
+}
+
 export default function ParticipantsManagement() {
   const [participants, setParticipants] = useState<Participant[]>([])
+  const [companies, setCompanies] = useState<Company[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingParticipant, setEditingParticipant] = useState<Participant | null>(null)
@@ -50,13 +61,14 @@ export default function ParticipantsManagement() {
 
   useEffect(() => {
     loadParticipants()
+    loadCompanies()
   }, [])
 
   const loadParticipants = async () => {
     try {
       const { data, error } = await supabase
         .from('users')
-        .select('*')
+        .select('*, company:companies(razon_social)')
         .eq('role', 'participant')
         .order('created_at', { ascending: false })
 
@@ -67,6 +79,21 @@ export default function ParticipantsManagement() {
       toast.error('Error al cargar participantes')
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const loadCompanies = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('companies')
+        .select('id, razon_social')
+        .order('razon_social')
+
+      if (error) throw error
+      setCompanies(data || [])
+    } catch (error) {
+      console.error('Error loading companies:', error)
+      toast.error('Error al cargar empresas')
     }
   }
 
@@ -82,6 +109,7 @@ export default function ParticipantsManagement() {
           country_code: data.country_code,
           dni: data.dni || null,
           area: data.area || null,
+          company_id: data.company_id || null,
           role: data.role,
           updated_at: new Date().toISOString()
         }
@@ -120,6 +148,7 @@ export default function ParticipantsManagement() {
               country_code: data.country_code,
               dni: data.dni || null,
               area: data.area || null,
+              company_id: data.company_id || null,
               role: data.role
             }
           ])
@@ -147,6 +176,7 @@ export default function ParticipantsManagement() {
     setValue('country_code', participant.country_code)
     setValue('dni', participant.dni || '')
     setValue('area', participant.area || '')
+    setValue('company_id', participant.company_id || '')
     setIsModalOpen(true)
   }
 
@@ -223,6 +253,9 @@ export default function ParticipantsManagement() {
                   Participante
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                  Empresa
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                   Contacto
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
@@ -247,6 +280,11 @@ export default function ParticipantsManagement() {
                         </div>
                         <div className="text-sm text-slate-500">{participant.email}</div>
                       </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-slate-600">
+                      {participant.company?.razon_social || 'Sin empresa'}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -353,6 +391,27 @@ export default function ParticipantsManagement() {
                 />
                 {errors.email && (
                   <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>
+                )}
+              </div>
+
+              {/* Empresa */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Empresa
+                </label>
+                <select
+                  {...register('company_id', { required: 'La empresa es requerida' })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                >
+                  <option value="">Selecciona una empresa</option>
+                  {companies.map((company) => (
+                    <option key={company.id} value={company.id}>
+                      {company.razon_social}
+                    </option>
+                  ))}
+                </select>
+                {errors.company_id && (
+                  <p className="text-red-500 text-xs mt-1">{errors.company_id.message}</p>
                 )}
               </div>
 
