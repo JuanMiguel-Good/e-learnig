@@ -25,6 +25,7 @@ interface AttendanceExcelData {
       first_name: string
       last_name: string
       dni: string | null
+      area?: string | null
     }
     signed_at: string
   }>
@@ -32,64 +33,75 @@ interface AttendanceExcelData {
 
 export class ExcelExporter {
   static exportAttendanceToExcel(data: AttendanceExcelData): void {
-    // Create CSV content
-    let csvContent = "data:text/csv;charset=utf-8,"
-    
-    // Add headers
-    csvContent += "LISTA DE ASISTENCIA - " + data.course.title + "\n\n"
-    
-    // Company information
-    csvContent += "DATOS DEL EMPLEADOR\n"
-    csvContent += "Razón Social,RUC,Domicilio,Actividad Económica,Nº Trabajadores\n"
-    csvContent += `"${data.company.razon_social}","${data.company.ruc}","${data.company.direccion}, ${data.company.distrito}, ${data.company.departamento}, ${data.company.provincia}","${data.company.actividad_economica}","${data.company.num_trabajadores}"\n\n`
-    
-    // Course details
-    csvContent += "DETALLES DEL CURSO\n"
-    csvContent += "Tipo,Tema,Horas,Instructor,Fecha\n"
-    csvContent += `"${data.course_type}${data.cargo_otro ? ' - ' + data.cargo_otro : ''}","${data.tema || data.course.title}","${data.course.hours}","${data.instructor_name}","${new Date(data.fecha).toLocaleDateString('es-ES')}"\n\n`
-    
-    // Participants
-    csvContent += "PARTICIPANTES\n"
-    csvContent += "Apellidos y Nombres,DNI,Área,Fecha de Firma\n"
-    
+    let csvContent = "data:text/csv;charset=utf-8,\uFEFF"
+
+    csvContent += "REGISTRO DE INDUCCIÓN CAPACITACIÓN ENTRENAMIENTO Y SIMULACROS DE EMERGENCIA\n\n"
+
+    csvContent += "DATOS DEL EMPLEADOR:\n"
+    csvContent += "Razón Social o Denominación Social,RUC,Domicilio,Actividad Económica,Nº Trabajadores en el Centro Laboral\n"
+    csvContent += `"${data.company.razon_social}","${data.company.ruc}","${data.company.direccion} ${data.company.distrito} ${data.company.departamento} ${data.company.provincia}","${data.company.actividad_economica}","${data.company.num_trabajadores}"\n\n`
+
+    csvContent += "MARCAR (X)\n"
+    const typeMarks = {
+      'INDUCCIÓN': data.course_type === 'INDUCCIÓN' ? 'X' : '',
+      'CAPACITACIÓN': data.course_type === 'CAPACITACIÓN' ? 'X' : '',
+      'ENTRENAMIENTO': data.course_type === 'ENTRENAMIENTO' ? 'X' : '',
+      'SIMULACRO DE EMERGENCIA': data.course_type === 'SIMULACRO DE EMERGENCIA' ? 'X' : '',
+      'CHARLA 5 MINUTOS': data.course_type === 'CHARLA 5 MINUTOS' ? 'X' : '',
+      'REUNIÓN': data.course_type === 'REUNIÓN' ? 'X' : '',
+      'CARGO': data.course_type === 'CARGO' ? 'X' : '',
+      'OTRO': data.course_type === 'OTRO' ? 'X' : ''
+    }
+    csvContent += "INDUCCIÓN,CAPACITACIÓN,ENTRENAMIENTO,SIMULACRO DE EMERGENCIA\n"
+    csvContent += `"${typeMarks['INDUCCIÓN']}","${typeMarks['CAPACITACIÓN']}","${typeMarks['ENTRENAMIENTO']}","${typeMarks['SIMULACRO DE EMERGENCIA']}"\n`
+    csvContent += "CHARLA 5 MINUTOS,REUNIÓN,CARGO,OTRO\n"
+    csvContent += `"${typeMarks['CHARLA 5 MINUTOS']}","${typeMarks['REUNIÓN']}","${typeMarks['CARGO']}${data.cargo_otro && data.course_type === 'CARGO' ? ': ' + data.cargo_otro : ''}","${typeMarks['OTRO']}${data.cargo_otro && data.course_type === 'OTRO' ? ': ' + data.cargo_otro : ''}"\n\n`
+
+    csvContent += "TEMA,Nº HORAS,NOMBRE DEL CAPACITADOR O ENTRENADOR\n"
+    csvContent += `"${data.tema || data.course.title}","${data.course.hours}","${data.instructor_name}"\n\n`
+
+    csvContent += "DATOS DE LOS PARTICIPANTES:\n"
+    csvContent += "Apellidos y Nombres de los Capacitados,Nº DNI,ÁREA,FECHA,FIRMA\n"
+
     if (data.signatures && data.signatures.length > 0) {
       data.signatures.forEach(signature => {
-        const fullName = `${signature.user.first_name} ${signature.user.last_name}`
-        const dni = signature.user.dni || 'No especificado'
-        const area = data.company.razon_social
+        const fullName = `${signature.user.last_name} ${signature.user.first_name}`
+        const dni = signature.user.dni || ''
+        const area = signature.user.area || ''
         const signDate = new Date(signature.signed_at).toLocaleDateString('es-ES')
-        csvContent += `"${fullName}","${dni}","${area}","${signDate}"\n`
+        csvContent += `"${fullName}","${dni}","${area}","${signDate}","Firmado"\n`
       })
     } else {
-      csvContent += "No hay participantes registrados\n"
+      csvContent += "Sin participantes registrados,,,,"
     }
-    
-    // Responsible
+
+    for (let i = data.signatures?.length || 0; i < 10; i++) {
+      csvContent += ",,,,"
+      csvContent += "\n"
+    }
+
     csvContent += "\nRESPONSABLE DEL REGISTRO\n"
-    csvContent += "Nombre,Cargo,Fecha\n"
+    csvContent += "NOMBRE,CARGO,FECHA\n"
     csvContent += `"${data.responsible_name}","${data.responsible_position}","${new Date(data.fecha).toLocaleDateString('es-ES')}"\n`
-    
-    // Create and download file
+
     const encodedUri = encodeURI(csvContent)
     const link = document.createElement("a")
     link.setAttribute("href", encodedUri)
-    
+
     const fileName = `Lista_Asistencia_${data.course.title.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date(data.fecha).toLocaleDateString('es-ES').replace(/\//g, '-')}.csv`
     link.setAttribute("download", fileName)
-    
+
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
   }
 
   static exportParticipantsSummary(attendanceLists: any[]): void {
-    let csvContent = "data:text/csv;charset=utf-8,"
-    
-    // Headers
+    let csvContent = "data:text/csv;charset=utf-8,\uFEFF"
+
     csvContent += "RESUMEN DE PARTICIPANTES POR CURSO\n\n"
-    csvContent += "Curso,Empresa,Tipo,Fecha,Participante,DNI,Fecha de Firma,Estado\n"
-    
-    // Data rows
+    csvContent += "Curso,Empresa,Tipo,Fecha,Participante,DNI,Área,Fecha de Firma,Estado\n"
+
     attendanceLists.forEach(attendance => {
       if (attendance.signatures && attendance.signatures.length > 0) {
         attendance.signatures.forEach((signature: any) => {
@@ -97,32 +109,31 @@ export class ExcelExporter {
           const companyName = attendance.company?.razon_social || 'Sin empresa'
           const courseType = attendance.course_type || 'Sin tipo'
           const attendanceDate = new Date(attendance.fecha).toLocaleDateString('es-ES')
-          const participantName = `${signature.user.first_name} ${signature.user.last_name}`
+          const participantName = `${signature.user.last_name} ${signature.user.first_name}`
           const dni = signature.user.dni || 'No especificado'
+          const area = signature.user.area || ''
           const signDate = new Date(signature.signed_at).toLocaleDateString('es-ES')
           const status = 'Firmado'
-          
-          csvContent += `"${courseName}","${companyName}","${courseType}","${attendanceDate}","${participantName}","${dni}","${signDate}","${status}"\n`
+
+          csvContent += `"${courseName}","${companyName}","${courseType}","${attendanceDate}","${participantName}","${dni}","${area}","${signDate}","${status}"\n`
         })
       } else {
-        // Include attendance lists without participants
         const courseName = attendance.course?.title || 'Sin título'
         const companyName = attendance.company?.razon_social || 'Sin empresa'
         const courseType = attendance.course_type || 'Sin tipo'
         const attendanceDate = new Date(attendance.fecha).toLocaleDateString('es-ES')
-        
-        csvContent += `"${courseName}","${companyName}","${courseType}","${attendanceDate}","Sin participantes","","","Pendiente"\n`
+
+        csvContent += `"${courseName}","${companyName}","${courseType}","${attendanceDate}","Sin participantes","","","","Pendiente"\n`
       }
     })
-    
-    // Download file
+
     const encodedUri = encodeURI(csvContent)
     const link = document.createElement("a")
     link.setAttribute("href", encodedUri)
-    
+
     const fileName = `Resumen_Asistencias_${new Date().toLocaleDateString('es-ES').replace(/\//g, '-')}.csv`
     link.setAttribute("download", fileName)
-    
+
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
