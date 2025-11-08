@@ -44,6 +44,7 @@ export default function MyCourses() {
   const [generatingCertificate, setGeneratingCertificate] = useState(false)
   const [showEvaluation, setShowEvaluation] = useState<string | null>(null)
   const [showSignature, setShowSignature] = useState<string | null>(null)
+  const [evaluationAttemptId, setEvaluationAttemptId] = useState<string | null>(null)
 
   useEffect(() => {
     if (user) {
@@ -438,9 +439,16 @@ export default function MyCourses() {
     return (
       <TakeEvaluation
         courseId={showEvaluation}
-        onComplete={() => {
-          setShowEvaluation(null)
-          loadCourses() // Reload to update progress
+        onComplete={(attemptId) => {
+          if (attemptId) {
+            // Si aprobó, redirigir a firma
+            setEvaluationAttemptId(attemptId)
+            setShowSignature(showEvaluation)
+            setShowEvaluation(null)
+          } else {
+            setShowEvaluation(null)
+            loadCourses() // Reload to update progress
+          }
         }}
         onBack={() => setShowEvaluation(null)}
       />
@@ -452,11 +460,17 @@ export default function MyCourses() {
     return (
       <SignAttendance
         courseId={showSignature}
+        evaluationAttemptId={evaluationAttemptId || undefined}
         onComplete={() => {
           setShowSignature(null)
+          setEvaluationAttemptId(null)
           toast.success('Firma completada correctamente')
+          loadCourses()
         }}
-        onCancel={() => setShowSignature(null)}
+        onCancel={() => {
+          setShowSignature(null)
+          setEvaluationAttemptId(null)
+        }}
       />
     )
   }

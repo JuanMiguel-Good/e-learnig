@@ -284,7 +284,7 @@ export class AttendancePDFGenerator {
                 </td>
                 <td style="border: 1px solid black; padding: 3px; text-align: center; vertical-align: middle;">
                   ${signature.signature_data ?
-                    `<img src="${signature.signature_data}" style="max-height: 25px; max-width: 90%;" />` :
+                    `<img src="data:image/png;base64,${signature.signature_data}" style="max-height: 25px; max-width: 90%;" />` :
                     ''
                   }
                 </td>

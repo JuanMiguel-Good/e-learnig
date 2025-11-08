@@ -35,7 +35,7 @@ interface EvaluationAttempt {
 
 interface TakeEvaluationProps {
   courseId: string
-  onComplete: () => void
+  onComplete: (evaluationAttemptId?: string) => void
   onBack: () => void
 }
 
@@ -199,9 +199,9 @@ export default function TakeEvaluation({ courseId, onComplete, onBack }: TakeEva
       
       if (passed) {
         setHasPassedEvaluation(true)
-        toast.success('¡Felicitaciones! Has aprobado la evaluación')
+        toast.success('¡Felicitaciones! Has aprobado la evaluación. Ahora debes firmar.')
         setTimeout(() => {
-          onComplete()
+          onComplete(newAttempt.id)
         }, 2000)
       } else {
         const remainingAttempts = evaluation.max_attempts - attemptNumber

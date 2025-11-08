@@ -241,14 +241,16 @@ export default function AttendanceManagement() {
 
   const viewAttendanceList = async (attendance: AttendanceList) => {
     try {
-      // Load signatures for this attendance list
+      // Load signatures for this attendance list (only from approved evaluations)
       const { data: signaturesData, error } = await supabase
         .from('attendance_signatures')
         .select(`
           *,
-          user:users!inner(first_name, last_name, dni, area, company:companies(razon_social))
+          user:users!inner(first_name, last_name, dni, area, company:companies(razon_social)),
+          evaluation_attempt:evaluation_attempts!inner(passed, completed_at)
         `)
         .eq('attendance_list_id', attendance.id)
+        .eq('evaluation_attempt.passed', true)
         .order('signed_at')
 
       if (error) throw error
@@ -265,22 +267,30 @@ export default function AttendanceManagement() {
 
   const exportToPDF = async (attendance: AttendanceList) => {
     try {
-      // Load full attendance data with signatures
+      // Load full attendance data with signatures (only approved evaluations)
       const { data: fullData, error } = await supabase
         .from('attendance_lists')
         .select(`
           *,
           course:courses!inner(title, hours, instructor:instructors(name, signature_url)),
-          company:companies!inner(*),
-          signatures:attendance_signatures(
-            *,
-            user:users!inner(first_name, last_name, dni, area)
-          )
+          company:companies!inner(*)
         `)
         .eq('id', attendance.id)
         .single()
 
       if (error) throw error
+
+      // Get only signatures from approved evaluations
+      const { data: signaturesData } = await supabase
+        .from('attendance_signatures')
+        .select(`
+          *,
+          user:users!inner(first_name, last_name, dni, area),
+          evaluation_attempt:evaluation_attempts!inner(passed, completed_at)
+        `)
+        .eq('attendance_list_id', attendance.id)
+        .eq('evaluation_attempt.passed', true)
+        .order('signed_at')
 
       // Get responsible signature
       const { data: responsibleData } = await supabase
@@ -292,6 +302,7 @@ export default function AttendanceManagement() {
 
       const dataWithSignatures = {
         ...fullData,
+        signatures: signaturesData || [],
         responsible_signature_url: responsibleData?.signature_url || null,
         instructor_signature_url: fullData.course?.instructor?.signature_url || null
       }
@@ -309,24 +320,37 @@ export default function AttendanceManagement() {
 
   const exportToExcel = async (attendance: AttendanceList) => {
     try {
-      // Load full attendance data with signatures
+      // Load full attendance data
       const { data: fullData, error } = await supabase
         .from('attendance_lists')
         .select(`
           *,
           course:courses!inner(title, hours, instructor:instructors(name)),
-          company:companies!inner(*),
-          signatures:attendance_signatures(
-            *,
-            user:users!inner(first_name, last_name, dni, area)
-          )
+          company:companies!inner(*)
         `)
         .eq('id', attendance.id)
         .single()
 
       if (error) throw error
 
-      ExcelExporter.exportAttendanceToExcel(fullData)
+      // Get only signatures from approved evaluations
+      const { data: signaturesData } = await supabase
+        .from('attendance_signatures')
+        .select(`
+          *,
+          user:users!inner(first_name, last_name, dni, area),
+          evaluation_attempt:evaluation_attempts!inner(passed, completed_at)
+        `)
+        .eq('attendance_list_id', attendance.id)
+        .eq('evaluation_attempt.passed', true)
+        .order('signed_at')
+
+      const dataWithSignatures = {
+        ...fullData,
+        signatures: signaturesData || []
+      }
+
+      ExcelExporter.exportAttendanceToExcel(dataWithSignatures)
       toast.success('Excel generado y descargado')
     } catch (error) {
       console.error('Error generating Excel:', error)

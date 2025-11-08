@@ -6,6 +6,7 @@ import toast from 'react-hot-toast'
 
 interface SignAttendanceProps {
   courseId: string
+  evaluationAttemptId?: string
   onComplete: () => void
   onCancel: () => void
 }
@@ -32,7 +33,7 @@ interface AttendanceList {
   }
 }
 
-export default function SignAttendance({ courseId, onComplete, onCancel }: SignAttendanceProps) {
+export default function SignAttendance({ courseId, evaluationAttemptId, onComplete, onCancel }: SignAttendanceProps) {
   const { user } = useAuth()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [isDrawing, setIsDrawing] = useState(false)
@@ -218,7 +219,8 @@ export default function SignAttendance({ courseId, onComplete, onCancel }: SignA
           {
             attendance_list_id: attendanceList.id,
             user_id: user.id,
-            signature_data: signatureData
+            signature_data: signatureData,
+            evaluation_attempt_id: evaluationAttemptId || null
           }
         ])
 
