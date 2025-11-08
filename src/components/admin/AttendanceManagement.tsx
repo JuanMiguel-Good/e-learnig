@@ -170,13 +170,14 @@ export default function AttendanceManagement() {
         .select(`
           user_id,
           completed_at,
-          users!inner(first_name, last_name, dni, company_id)
+          users!inner(first_name, last_name, dni, company_id),
+          evaluation:evaluations!inner(course_id)
         `)
         .eq('passed', true)
         .eq('users.company_id', data.company_id)
         .gte('completed_at', data.fecha_inicio)
         .lte('completed_at', data.fecha_fin)
-        .eq('evaluations.course_id', data.course_id)
+        .eq('evaluation.course_id', data.course_id)
 
       if (participantsError) throw participantsError
 
