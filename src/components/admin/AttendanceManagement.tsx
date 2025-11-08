@@ -87,7 +87,8 @@ export default function AttendanceManagement() {
     handleSubmit,
     formState: { errors, isSubmitting },
     reset,
-    watch
+    watch,
+    setValue
   } = useForm<AttendanceFormData>({
     defaultValues: {
       attendance_type: 'CAPACITACIÓN',
