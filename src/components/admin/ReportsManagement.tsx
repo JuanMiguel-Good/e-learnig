@@ -16,10 +16,12 @@ import {
   Mail,
   Filter,
   X,
-  HelpCircle
+  HelpCircle,
+  PackageOpen
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { exportReportsToExcel } from '../../lib/reportsExporter'
+import { CertificateBulkDownloader } from '../../lib/certificateBulkDownloader'
 
 interface ParticipantCourseProgress {
   participant_id: string
@@ -95,6 +97,10 @@ export default function ReportsManagement() {
   const [courseFilter, setCourseFilter] = useState<string>('all')
   const [isLoading, setIsLoading] = useState(true)
   const [isExporting, setIsExporting] = useState(false)
+  const [isDownloadingCertificates, setIsDownloadingCertificates] = useState(false)
+  const [downloadProgress, setDownloadProgress] = useState({ current: 0, total: 0, percentage: 0 })
+  const [showConfirmModal, setShowConfirmModal] = useState(false)
+  const [showProgressModal, setShowProgressModal] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -611,6 +617,69 @@ export default function ReportsManagement() {
     }
   }
 
+  const getAvailableCertificates = () => {
+    return filteredParticipantCourses.filter(
+      (p) => p.certificate_status === 'generated' && p.certificate_url
+    )
+  }
+
+  const handleBulkDownloadClick = () => {
+    const availableCertificates = getAvailableCertificates()
+    if (availableCertificates.length === 0) {
+      toast.error('No hay certificados disponibles para descargar')
+      return
+    }
+    setShowConfirmModal(true)
+  }
+
+  const handleConfirmDownload = async () => {
+    setShowConfirmModal(false)
+    const availableCertificates = getAvailableCertificates()
+
+    if (availableCertificates.length === 0) {
+      return
+    }
+
+    try {
+      setIsDownloadingCertificates(true)
+      setShowProgressModal(true)
+      setDownloadProgress({ current: 0, total: availableCertificates.length, percentage: 0 })
+
+      const certificateData = availableCertificates.map((cert) => ({
+        participant_id: cert.participant_id,
+        first_name: cert.first_name,
+        last_name: cert.last_name,
+        dni: cert.dni,
+        course_title: cert.course_title,
+        certificate_url: cert.certificate_url!
+      }))
+
+      const result = await CertificateBulkDownloader.downloadCertificatesAsZip(
+        certificateData,
+        (progress) => {
+          setDownloadProgress(progress)
+        }
+      )
+
+      setShowProgressModal(false)
+
+      if (result.failureCount > 0) {
+        toast.success(
+          `${result.successCount} de ${result.total} certificados descargados correctamente`
+        )
+      } else {
+        toast.success('Todos los certificados se descargaron correctamente')
+      }
+    } catch (error) {
+      console.error('Error downloading certificates:', error)
+      setShowProgressModal(false)
+      toast.error('Error al descargar certificados')
+    } finally {
+      setIsDownloadingCertificates(false)
+      setDownloadProgress({ current: 0, total: 0, percentage: 0 })
+    }
+  }
+
   const getProgressColor = (progress: number) => {
     if (progress === 100) return 'text-green-600 bg-green-100'
     if (progress > 0) return 'text-blue-600 bg-blue-100'
@@ -653,23 +722,42 @@ export default function ReportsManagement() {
           <h1 className="text-2xl font-bold text-slate-800">Reportes y Seguimiento</h1>
           <p className="text-slate-600">Monitorea el progreso de todos los participantes</p>
         </div>
-        <button
-          onClick={handleExport}
-          disabled={isExporting}
-          className="inline-flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
-        >
-          {isExporting ? (
-            <>
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-              Exportando...
-            </>
-          ) : (
-            <>
-              <Download className="w-5 h-5 mr-2" />
-              Exportar a Excel
-            </>
-          )}
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={handleBulkDownloadClick}
+            disabled={isDownloadingCertificates || isExporting || getAvailableCertificates().length === 0}
+            className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isDownloadingCertificates ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                Descargando...
+              </>
+            ) : (
+              <>
+                <PackageOpen className="w-5 h-5 mr-2" />
+                Descargar Certificados
+              </>
+            )}
+          </button>
+          <button
+            onClick={handleExport}
+            disabled={isExporting || isDownloadingCertificates}
+            className="inline-flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+          >
+            {isExporting ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                Exportando...
+              </>
+            ) : (
+              <>
+                <Download className="w-5 h-5 mr-2" />
+                Exportar a Excel
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
@@ -920,6 +1008,66 @@ export default function ReportsManagement() {
           </div>
         </div>
       </div>
+
+      {showConfirmModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
+            <div className="flex items-start mb-4">
+              <div className="flex-shrink-0">
+                <PackageOpen className="w-6 h-6 text-blue-600" />
+              </div>
+              <div className="ml-3 flex-1">
+                <h3 className="text-lg font-semibold text-slate-900 mb-2">
+                  Descargar Certificados
+                </h3>
+                <p className="text-sm text-slate-600 mb-4">
+                  Se descargarán <strong>{getAvailableCertificates().length} certificados</strong> en formato PDF.
+                  Este proceso puede tomar varios minutos dependiendo de la cantidad de certificados.
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowConfirmModal(false)}
+                className="px-4 py-2 text-slate-700 hover:bg-slate-100 rounded-lg font-medium transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmDownload}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+              >
+                Descargar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showProgressModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <h3 className="text-lg font-semibold text-slate-900 mb-2">
+                Descargando Certificados
+              </h3>
+              <p className="text-sm text-slate-600 mb-4">
+                Procesando certificado {downloadProgress.current} de {downloadProgress.total}
+              </p>
+              <div className="w-full bg-slate-200 rounded-full h-2.5 mb-2">
+                <div
+                  className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
+                  style={{ width: `${downloadProgress.percentage}%` }}
+                ></div>
+              </div>
+              <p className="text-sm font-medium text-slate-700">
+                {downloadProgress.percentage}%
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
