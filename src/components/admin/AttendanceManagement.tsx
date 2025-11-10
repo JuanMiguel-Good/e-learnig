@@ -349,9 +349,12 @@ export default function AttendanceManagement() {
 
   const getFilteredSignatures = async (attendanceList: any) => {
     if (attendanceList.date_range_start && attendanceList.date_range_end) {
-      const endDate = attendanceList.date_range_end.includes('T')
-        ? attendanceList.date_range_end
-        : `${attendanceList.date_range_end}T23:59:59`
+      // Extract date from ISO string to get YYYY-MM-DD format
+      const startDate = attendanceList.date_range_start.split('T')[0]
+      const endDateOnly = attendanceList.date_range_end.split('T')[0]
+      const endDate = `${endDateOnly}T23:59:59.999Z`
+
+      console.log('Filtering with dates:', { startDate, endDate, company: attendanceList.company_id, course: attendanceList.course_id })
 
       const { data: attempts, error: attemptsError } = await supabase
         .from('evaluation_attempts')
@@ -365,8 +368,10 @@ export default function AttendanceManagement() {
         .eq('passed', true)
         .eq('users.company_id', attendanceList.company_id)
         .eq('evaluations.course_id', attendanceList.course_id)
-        .gte('completed_at', attendanceList.date_range_start)
+        .gte('completed_at', startDate)
         .lte('completed_at', endDate)
+
+      console.log('Attempts found:', attempts?.length || 0, attempts)
 
       if (attemptsError) {
         console.error('Error fetching attempts:', attemptsError)
@@ -390,6 +395,8 @@ export default function AttendanceManagement() {
         `)
         .in('evaluation_attempt_id', attemptIds)
         .order('signed_at')
+
+      console.log('Signatures found:', signaturesData?.length || 0)
 
       if (signaturesError) {
         console.error('Error fetching signatures:', signaturesError)
