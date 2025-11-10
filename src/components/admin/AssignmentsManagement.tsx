@@ -77,29 +77,25 @@ export default function AssignmentsManagement() {
 
       if (assignmentsError) throw assignmentsError
 
-      // Load participants with company info
-      const { data: participantsData, error: participantsError } = await supabase
-        .from('users')
-        .select(`
-          id,
-          first_name,
-          last_name,
-          email,
-          company_id,
-          company:companies(name)
-        `)
-        .eq('role', 'participant')
-        .order('first_name')
-
-      if (participantsError) throw participantsError
-
-      // Load companies
+      // Load companies first
       const { data: companiesData, error: companiesError } = await supabase
         .from('companies')
         .select('id, name')
         .order('name')
 
       if (companiesError) throw companiesError
+
+      // Create a map for quick company lookup
+      const companiesMap = new Map(companiesData?.map(c => [c.id, c.name]) || [])
+
+      // Load participants
+      const { data: participantsData, error: participantsError } = await supabase
+        .from('users')
+        .select('id, first_name, last_name, email, company_id')
+        .eq('role', 'participant')
+        .order('first_name')
+
+      if (participantsError) throw participantsError
 
       // Load courses
       const { data: coursesData, error: coursesError } = await supabase
@@ -117,7 +113,7 @@ export default function AssignmentsManagement() {
         last_name: p.last_name,
         email: p.email,
         company_id: p.company_id,
-        company_name: (p.company as any)?.name || null
+        company_name: p.company_id ? companiesMap.get(p.company_id) || null : null
       })) || [])
       setCourses(coursesData || [])
       setCompanies(companiesData || [])
