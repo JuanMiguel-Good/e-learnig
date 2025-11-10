@@ -243,7 +243,7 @@ export default function ReportsManagement() {
 
             const { data: attempts } = await supabase
               .from('evaluation_attempts')
-              .select('passed, score')
+              .select('id, passed, score')
               .eq('user_id', participant.id)
               .eq('evaluation_id', evaluation.id)
               .order('created_at', { ascending: false })
@@ -261,6 +261,32 @@ export default function ReportsManagement() {
               }
             } else if (progress === 100) {
               evaluationStatus = 'pending'
+            }
+
+            if (evaluationStatus !== 'passed') {
+              const { data: signature } = await supabase
+                .from('attendance_signatures')
+                .select('evaluation_attempt_id')
+                .eq('user_id', participant.id)
+                .eq('course_id', course.id)
+                .not('evaluation_attempt_id', 'is', null)
+                .maybeSingle()
+
+              if (signature?.evaluation_attempt_id) {
+                const { data: attemptData } = await supabase
+                  .from('evaluation_attempts')
+                  .select('passed, score')
+                  .eq('id', signature.evaluation_attempt_id)
+                  .maybeSingle()
+
+                if (attemptData?.passed) {
+                  evaluationStatus = 'passed'
+                  evaluationScore = attemptData.score
+                  if (evaluationAttempts === 0) {
+                    evaluationAttempts = 1
+                  }
+                }
+              }
             }
           }
         }
