@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
-import { Plus, CreditCard as Edit2, Trash2, Phone, Mail, User, Eye, EyeOff } from 'lucide-react'
+import { Plus, CreditCard as Edit2, Trash2, Phone, Mail, User, Eye, EyeOff, Upload, Download, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useForm } from 'react-hook-form'
+import { generateParticipantsTemplate, parseParticipantsFromExcel, ValidationError, ParsedParticipant } from '../../lib/excelTemplateGenerator'
 
 interface Participant {
   id: string
@@ -45,6 +46,13 @@ export default function ParticipantsManagement() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingParticipant, setEditingParticipant] = useState<Participant | null>(null)
   const [showPassword, setShowPassword] = useState(false)
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [parsedData, setParsedData] = useState<ParsedParticipant[]>([])
+  const [validationErrors, setValidationErrors] = useState<ValidationError[]>([])
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [selectedCompanyForBulk, setSelectedCompanyForBulk] = useState<string>('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const {
     register,
@@ -192,12 +200,107 @@ export default function ParticipantsManagement() {
         .eq('id', participant.id)
 
       if (error) throw error
-      
+
       toast.success('Participante eliminado correctamente')
       await loadParticipants()
     } catch (error) {
       console.error('Error deleting participant:', error)
       toast.error('Error al eliminar participante')
+    }
+  }
+
+  const handleDownloadTemplate = () => {
+    generateParticipantsTemplate()
+    toast.success('Plantilla descargada correctamente')
+  }
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setSelectedFile(file)
+    setIsProcessing(true)
+
+    try {
+      const { participants, errors } = await parseParticipantsFromExcel(file)
+      setParsedData(participants)
+      setValidationErrors(errors)
+
+      if (errors.length > 0) {
+        toast.error(`Se encontraron ${errors.length} errores en el archivo`)
+      } else {
+        toast.success(`Se procesaron ${participants.length} participantes correctamente`)
+      }
+    } catch (error) {
+      console.error('Error parsing file:', error)
+      toast.error('Error al procesar el archivo')
+      setSelectedFile(null)
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const handleBulkUpload = async () => {
+    if (!selectedCompanyForBulk) {
+      toast.error('Selecciona una empresa')
+      return
+    }
+
+    if (parsedData.length === 0) {
+      toast.error('No hay participantes para cargar')
+      return
+    }
+
+    if (validationErrors.length > 0) {
+      toast.error('Corrige los errores antes de continuar')
+      return
+    }
+
+    setIsProcessing(true)
+
+    try {
+      const participantsToInsert = parsedData.map(p => ({
+        email: p.email,
+        first_name: p.first_name,
+        last_name: p.last_name,
+        phone: p.phone || null,
+        country_code: '+52',
+        dni: p.dni,
+        area: p.area || null,
+        company_id: selectedCompanyForBulk,
+        role: 'participant',
+        password_hash: 'change_me'
+      }))
+
+      const { error } = await supabase
+        .from('users')
+        .insert(participantsToInsert)
+
+      if (error) throw error
+
+      toast.success(`${participantsToInsert.length} participantes agregados correctamente`)
+      await loadParticipants()
+      handleCloseBulkModal()
+    } catch (error: any) {
+      console.error('Error bulk uploading:', error)
+      if (error.code === '23505') {
+        toast.error('Algunos participantes ya existen (DNI o correo duplicado)')
+      } else {
+        toast.error('Error al cargar participantes')
+      }
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const handleCloseBulkModal = () => {
+    setIsBulkModalOpen(false)
+    setSelectedFile(null)
+    setParsedData([])
+    setValidationErrors([])
+    setSelectedCompanyForBulk('')
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
     }
   }
 
@@ -230,17 +333,26 @@ export default function ParticipantsManagement() {
           <h1 className="text-2xl font-bold text-slate-800">Participantes</h1>
           <p className="text-slate-600">Gestiona los participantes de la plataforma</p>
         </div>
-        <button
-          onClick={() => {
-            setEditingParticipant(null)
-            reset()
-            setIsModalOpen(true)
-          }}
-          className="inline-flex items-center px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-medium transition-colors"
-        >
-          <Plus className="w-5 h-5 mr-2" />
-          Agregar Participante
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={() => setIsBulkModalOpen(true)}
+            className="inline-flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
+          >
+            <Upload className="w-5 h-5 mr-2" />
+            Carga Masiva
+          </button>
+          <button
+            onClick={() => {
+              setEditingParticipant(null)
+              reset()
+              setIsModalOpen(true)
+            }}
+            className="inline-flex items-center px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-medium transition-colors"
+          >
+            <Plus className="w-5 h-5 mr-2" />
+            Agregar Participante
+          </button>
+        </div>
       </div>
 
       {/* Table */}
@@ -529,6 +641,159 @@ export default function ParticipantsManagement() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Upload Modal */}
+      {isBulkModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="p-6 border-b flex justify-between items-center">
+              <div>
+                <h2 className="text-xl font-bold text-slate-800">Carga Masiva de Participantes</h2>
+                <p className="text-sm text-slate-600 mt-1">Importa múltiples participantes desde un archivo Excel</p>
+              </div>
+              <button
+                onClick={handleCloseBulkModal}
+                className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto flex-1">
+              <div className="space-y-6">
+                {/* Step 1: Download Template */}
+                <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                  <h3 className="font-semibold text-slate-800 mb-2">Paso 1: Descarga la Plantilla</h3>
+                  <p className="text-sm text-slate-600 mb-3">
+                    Descarga la plantilla Excel con el formato correcto y los campos requeridos.
+                  </p>
+                  <button
+                    onClick={handleDownloadTemplate}
+                    className="inline-flex items-center px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-medium transition-colors"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Descargar Plantilla
+                  </button>
+                </div>
+
+                {/* Step 2: Select Company */}
+                <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                  <h3 className="font-semibold text-slate-800 mb-2">Paso 2: Selecciona la Empresa</h3>
+                  <p className="text-sm text-slate-600 mb-3">
+                    Todos los participantes se asignarán a esta empresa.
+                  </p>
+                  <select
+                    value={selectedCompanyForBulk}
+                    onChange={(e) => setSelectedCompanyForBulk(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                  >
+                    <option value="">Seleccionar empresa...</option>
+                    {companies.map((company) => (
+                      <option key={company.id} value={company.id}>
+                        {company.razon_social}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Step 3: Upload File */}
+                <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                  <h3 className="font-semibold text-slate-800 mb-2">Paso 3: Sube el Archivo</h3>
+                  <p className="text-sm text-slate-600 mb-3">
+                    Completa la plantilla con los datos de los participantes y súbela aquí.
+                  </p>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".xlsx,.xls"
+                    onChange={handleFileSelect}
+                    className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-slate-800 file:text-white hover:file:bg-slate-900 cursor-pointer"
+                  />
+                  {selectedFile && (
+                    <p className="text-sm text-slate-600 mt-2">
+                      Archivo seleccionado: <span className="font-medium">{selectedFile.name}</span>
+                    </p>
+                  )}
+                </div>
+
+                {/* Validation Errors */}
+                {validationErrors.length > 0 && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <h3 className="font-semibold text-red-800 mb-2">
+                      Errores de Validación ({validationErrors.length})
+                    </h3>
+                    <div className="max-h-48 overflow-y-auto space-y-1">
+                      {validationErrors.map((error, idx) => (
+                        <p key={idx} className="text-sm text-red-700">
+                          Fila {error.row}, {error.field}: {error.message}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Preview Data */}
+                {parsedData.length > 0 && validationErrors.length === 0 && (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <h3 className="font-semibold text-green-800 mb-2">
+                      Participantes Listos para Importar ({parsedData.length})
+                    </h3>
+                    <div className="max-h-64 overflow-y-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-green-100 sticky top-0">
+                          <tr>
+                            <th className="p-2 text-left">DNI</th>
+                            <th className="p-2 text-left">Nombres</th>
+                            <th className="p-2 text-left">Apellidos</th>
+                            <th className="p-2 text-left">Área</th>
+                            <th className="p-2 text-left">Email</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {parsedData.map((p, idx) => (
+                            <tr key={idx} className="border-b border-green-200">
+                              <td className="p-2">{p.dni}</td>
+                              <td className="p-2">{p.first_name}</td>
+                              <td className="p-2">{p.last_name}</td>
+                              <td className="p-2">{p.area || '-'}</td>
+                              <td className="p-2">{p.email}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-6 border-t bg-slate-50 flex justify-end gap-3">
+              <button
+                onClick={handleCloseBulkModal}
+                disabled={isProcessing}
+                className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-100 font-medium transition-colors disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleBulkUpload}
+                disabled={isProcessing || parsedData.length === 0 || validationErrors.length > 0 || !selectedCompanyForBulk}
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isProcessing ? (
+                  <div className="flex items-center">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                    Procesando...
+                  </div>
+                ) : (
+                  `Importar ${parsedData.length} Participantes`
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}
