@@ -347,23 +347,54 @@ export default function AttendanceManagement() {
     }
   }
 
-  const viewAttendanceList = async (attendance: AttendanceList) => {
-    try {
-      // Load signatures for this attendance list
+  const getFilteredSignatures = async (attendanceList: any) => {
+    if (attendanceList.date_range_start && attendanceList.date_range_end) {
+      const { data: signaturesData, error } = await supabase
+        .from('attendance_signatures')
+        .select(`
+          id,
+          signature_data,
+          signed_at,
+          evaluation_attempt_id,
+          user:users!inner(first_name, last_name, dni, area),
+          evaluation_attempt:evaluation_attempts!inner(
+            completed_at,
+            passed,
+            evaluation:evaluations!inner(course_id),
+            user:users!inner(company_id)
+          )
+        `)
+        .eq('evaluation_attempt.passed', true)
+        .eq('evaluation_attempt.user.company_id', attendanceList.company_id)
+        .eq('evaluation_attempt.evaluation.course_id', attendanceList.course_id)
+        .gte('evaluation_attempt.completed_at', attendanceList.date_range_start)
+        .lte('evaluation_attempt.completed_at', attendanceList.date_range_end + 'T23:59:59')
+        .order('signed_at')
+
+      if (error) throw error
+      return signaturesData || []
+    } else {
       const { data: signaturesData, error } = await supabase
         .from('attendance_signatures')
         .select(`
           *,
-          user:users!inner(first_name, last_name, dni, area, company:companies(razon_social))
+          user:users!inner(first_name, last_name, dni, area)
         `)
-        .eq('attendance_list_id', attendance.id)
+        .eq('attendance_list_id', attendanceList.id)
         .order('signed_at')
 
       if (error) throw error
+      return signaturesData || []
+    }
+  }
+
+  const viewAttendanceList = async (attendance: AttendanceList) => {
+    try {
+      const signaturesData = await getFilteredSignatures(attendance)
 
       setSelectedAttendance({
         ...attendance,
-        signatures: signaturesData || []
+        signatures: signaturesData
       })
     } catch (error) {
       console.error('Error loading signatures:', error)
@@ -373,6 +404,8 @@ export default function AttendanceManagement() {
 
   const exportToPDF = async (attendance: AttendanceList) => {
     try {
+      toast.loading('Generando PDF...', { id: 'pdf-generation' })
+
       // Load full attendance data with signatures (only approved evaluations)
       const { data: fullData, error } = await supabase
         .from('attendance_lists')
@@ -386,15 +419,8 @@ export default function AttendanceManagement() {
 
       if (error) throw error
 
-      // Get signatures
-      const { data: signaturesData } = await supabase
-        .from('attendance_signatures')
-        .select(`
-          *,
-          user:users!inner(first_name, last_name, dni, area)
-        `)
-        .eq('attendance_list_id', attendance.id)
-        .order('signed_at')
+      // Get signatures using filtered method (by date range)
+      const signaturesData = await getFilteredSignatures(fullData)
 
       // Get responsible signature
       const { data: responsibleData } = await supabase
@@ -406,12 +432,10 @@ export default function AttendanceManagement() {
 
       const dataWithSignatures = {
         ...fullData,
-        signatures: signaturesData || [],
+        signatures: signaturesData,
         responsible_signature_url: responsibleData?.signature_url || null,
         instructor_signature_url: fullData.course?.instructor?.signature_url || null
       }
-
-      toast.loading('Generando PDF...', { id: 'pdf-generation' })
 
       await AttendancePDFGenerator.generatePDF(dataWithSignatures)
 
@@ -439,15 +463,8 @@ export default function AttendanceManagement() {
 
       if (error) throw error
 
-      // Get signatures with signature_data
-      const { data: signaturesData } = await supabase
-        .from('attendance_signatures')
-        .select(`
-          *,
-          user:users!inner(first_name, last_name, dni, area)
-        `)
-        .eq('attendance_list_id', attendance.id)
-        .order('signed_at')
+      // Get signatures using filtered method (by date range)
+      const signaturesData = await getFilteredSignatures(fullData)
 
       // Get responsible signature
       const { data: responsibleData } = await supabase
@@ -459,7 +476,7 @@ export default function AttendanceManagement() {
 
       const dataWithSignatures = {
         ...fullData,
-        signatures: signaturesData || [],
+        signatures: signaturesData,
         responsible_signature_url: responsibleData?.signature_url || null,
         instructor_signature_url: fullData.course?.instructor?.signature_url || null
       }
