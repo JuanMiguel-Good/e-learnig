@@ -18,6 +18,7 @@ import CompaniesManagement from './components/admin/CompaniesManagement'
 import CompanyResponsiblesManagement from './components/admin/CompanyResponsiblesManagement'
 import EvaluationsManagement from './components/admin/EvaluationsManagement'
 import AttendanceManagement from './components/admin/AttendanceManagement'
+import ReportsManagement from './components/admin/ReportsManagement'
 
 function AuthWrapper() {
   const { user, isLoading } = useAuth();
@@ -51,6 +52,7 @@ function AuthWrapper() {
             <Route path="companies" element={<CompaniesManagement />} />
             <Route path="company-responsibles" element={<CompanyResponsiblesManagement />} />
             <Route path="attendance" element={<AttendanceManagement />} />
+            <Route path="reports" element={<ReportsManagement />} />
           </Route>
         )}
         
