@@ -62,7 +62,7 @@ export default function ParticipantsManagement() {
     setValue
   } = useForm<ParticipantFormData>({
     defaultValues: {
-      country_code: '+52',
+      country_code: '+51',
       role: 'participant'
     }
   })
@@ -259,18 +259,22 @@ export default function ParticipantsManagement() {
     setIsProcessing(true)
 
     try {
-      const participantsToInsert = parsedData.map(p => ({
-        email: p.email,
-        first_name: p.first_name,
-        last_name: p.last_name,
-        phone: p.phone || null,
-        country_code: '+52',
-        dni: p.dni,
-        area: p.area || null,
-        company_id: selectedCompanyForBulk,
-        role: 'participant',
-        password_hash: 'change_me'
-      }))
+      const bcrypt = await import('bcryptjs')
+
+      const participantsToInsert = await Promise.all(
+        parsedData.map(async (p) => ({
+          email: p.email,
+          first_name: p.first_name,
+          last_name: p.last_name,
+          phone: p.phone || null,
+          country_code: '+51',
+          dni: p.dni,
+          area: p.area || null,
+          company_id: selectedCompanyForBulk,
+          role: 'participant',
+          password_hash: await bcrypt.hash(p.dni, 10)
+        }))
+      )
 
       const { error } = await supabase
         .from('users')
