@@ -1,5 +1,21 @@
 import * as ExcelJS from 'exceljs'
 
+function base64ToArrayBuffer(base64: string): ArrayBuffer {
+  const binaryString = window.atob(base64)
+  const len = binaryString.length
+  const bytes = new Uint8Array(len)
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i)
+  }
+  return bytes.buffer
+}
+
+async function fetchImageAsArrayBuffer(url: string): Promise<ArrayBuffer> {
+  const response = await fetch(url)
+  if (!response.ok) throw new Error(`Failed to fetch image: ${response.statusText}`)
+  return await response.arrayBuffer()
+}
+
 interface AttendanceExcelData {
   course: {
     title: string
@@ -120,17 +136,18 @@ export class ExcelAttendanceExporter {
 
     if (data.company.logo_url) {
       try {
-        const response = await fetch(data.company.logo_url)
-        const arrayBuffer = await response.arrayBuffer()
+        const arrayBuffer = await fetchImageAsArrayBuffer(data.company.logo_url)
+        const ext = data.company.logo_url.toLowerCase().includes('.jpg') || data.company.logo_url.toLowerCase().includes('.jpeg') ? 'jpeg' : 'png'
         const imageId = workbook.addImage({
-          buffer: Buffer.from(arrayBuffer),
-          extension: 'png',
+          buffer: arrayBuffer,
+          extension: ext,
         })
         worksheet.addImage(imageId, {
           tl: { col: 0.1, row: startRow - 0.9 },
           ext: { width: 130, height: 50 }
         })
       } catch (error) {
+        console.error('Error loading company logo:', error)
         logoCell.value = 'AQUÍ VA EL LOGO'
         logoCell.alignment = { vertical: 'middle', horizontal: 'center' }
         logoCell.font = { size: 9, bold: true, color: { argb: 'FF666666' } }
@@ -327,15 +344,14 @@ export class ExcelAttendanceExporter {
 
     if (data.instructor_signature_url) {
       try {
-        const response = await fetch(data.instructor_signature_url)
-        const arrayBuffer = await response.arrayBuffer()
+        const arrayBuffer = await fetchImageAsArrayBuffer(data.instructor_signature_url)
         const imageId = workbook.addImage({
-          buffer: Buffer.from(arrayBuffer),
+          buffer: arrayBuffer,
           extension: 'png',
         })
         worksheet.addImage(imageId, {
-          tl: { col: 8.2, row: startRow + 0.4 },
-          ext: { width: 60, height: 30 }
+          tl: { col: 8.2, row: startRow - 0.6 },
+          ext: { width: 80, height: 40 }
         })
       } catch (error) {
         console.error('Error loading instructor signature:', error)
@@ -422,17 +438,17 @@ export class ExcelAttendanceExporter {
         if (participant.signature_data) {
           try {
             const base64Data = participant.signature_data.replace(/^data:image\/\w+;base64,/, '')
-            const buffer = Buffer.from(base64Data, 'base64')
+            const arrayBuffer = base64ToArrayBuffer(base64Data)
             const imageId = workbook.addImage({
-              buffer: buffer,
+              buffer: arrayBuffer,
               extension: 'png',
             })
             worksheet.addImage(imageId, {
               tl: { col: 8.1, row: currentRow - 0.85 },
-              ext: { width: 50, height: 20 }
+              ext: { width: 70, height: 25 }
             })
           } catch (error) {
-            console.error('Error loading participant signature:', error)
+            console.error('Error loading participant signature:', error, participant)
           }
         }
       } else {
@@ -494,15 +510,14 @@ export class ExcelAttendanceExporter {
 
     if (data.responsible_signature_url) {
       try {
-        const response = await fetch(data.responsible_signature_url)
-        const arrayBuffer = await response.arrayBuffer()
+        const arrayBuffer = await fetchImageAsArrayBuffer(data.responsible_signature_url)
         const imageId = workbook.addImage({
-          buffer: Buffer.from(arrayBuffer),
+          buffer: arrayBuffer,
           extension: 'png',
         })
         worksheet.addImage(imageId, {
-          tl: { col: 7.5, row: startRow + 0.5 },
-          ext: { width: 60, height: 30 }
+          tl: { col: 7.5, row: startRow + 0.1 },
+          ext: { width: 80, height: 40 }
         })
       } catch (error) {
         console.error('Error loading responsible signature:', error)
