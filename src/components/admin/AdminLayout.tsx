@@ -54,14 +54,14 @@ export default function AdminLayout() {
           label: 'Cursos'
         },
         {
-          to: '/admin/assignments',
-          icon: GraduationCap,
-          label: 'Asignaciones'
-        },
-        {
           to: '/admin/evaluations',
           icon: HelpCircle,
           label: 'Evaluaciones'
+        },
+        {
+          to: '/admin/assignments',
+          icon: GraduationCap,
+          label: 'Asignaciones'
         }
       ]
     },
