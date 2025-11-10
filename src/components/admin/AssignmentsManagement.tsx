@@ -8,6 +8,13 @@ interface Participant {
   first_name: string
   last_name: string
   email: string
+  company_id: string | null
+  company_name: string | null
+}
+
+interface Company {
+  id: string
+  name: string
 }
 
 interface Course {
@@ -37,6 +44,7 @@ export default function AssignmentsManagement() {
   const [participants, setParticipants] = useState<Participant[]>([])
   const [participantsWithCourses, setParticipantsWithCourses] = useState<Map<string, number>>(new Map())
   const [courses, setCourses] = useState<Course[]>([])
+  const [companies, setCompanies] = useState<Company[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedParticipant, setSelectedParticipant] = useState('')
@@ -47,6 +55,8 @@ export default function AssignmentsManagement() {
   const [selectedParticipants, setSelectedParticipants] = useState<string[]>([])
   const [bulkCourse, setBulkCourse] = useState('')
   const [assignToAll, setAssignToAll] = useState(false)
+  const [selectedCompany, setSelectedCompany] = useState<string>('all')
+  const [bulkSearchTerm, setBulkSearchTerm] = useState('')
 
   useEffect(() => {
     loadData()
@@ -67,14 +77,29 @@ export default function AssignmentsManagement() {
 
       if (assignmentsError) throw assignmentsError
 
-      // Load participants
+      // Load participants with company info
       const { data: participantsData, error: participantsError } = await supabase
         .from('users')
-        .select('id, first_name, last_name, email')
+        .select(`
+          id,
+          first_name,
+          last_name,
+          email,
+          company_id,
+          companies(name)
+        `)
         .eq('role', 'participant')
         .order('first_name')
 
       if (participantsError) throw participantsError
+
+      // Load companies
+      const { data: companiesData, error: companiesError } = await supabase
+        .from('companies')
+        .select('id, name')
+        .order('name')
+
+      if (companiesError) throw companiesError
 
       // Load courses
       const { data: coursesData, error: coursesError } = await supabase
@@ -86,8 +111,16 @@ export default function AssignmentsManagement() {
       if (coursesError) throw coursesError
 
       setAssignments(assignmentsData || [])
-      setParticipants(participantsData || [])
+      setParticipants(participantsData?.map(p => ({
+        id: p.id,
+        first_name: p.first_name,
+        last_name: p.last_name,
+        email: p.email,
+        company_id: p.company_id,
+        company_name: (p.companies as any)?.name || null
+      })) || [])
       setCourses(coursesData || [])
+      setCompanies(companiesData || [])
     } catch (error) {
       console.error('Error loading data:', error)
       toast.error('Error al cargar datos')
@@ -183,10 +216,10 @@ export default function AssignmentsManagement() {
   }
 
   const handleBulkAssign = async () => {
-    const participantsToAssign = assignToAll 
-      ? participants.map(p => p.id)
+    const participantsToAssign = assignToAll
+      ? getFilteredParticipants().map(p => p.id)
       : selectedParticipants
-    
+
     if (!bulkCourse || participantsToAssign.length === 0) {
       toast.error('Selecciona un curso y al menos un participante')
       return
@@ -225,10 +258,13 @@ export default function AssignmentsManagement() {
       toast.success(`✅ ${newAssignments.length} asignaciones creadas${skipped > 0 ? ` (${skipped} ya existían)` : ''}`)
       
       await loadData()
+      await loadParticipantCourseCount()
       setIsBulkModalOpen(false)
       setSelectedParticipants([])
       setBulkCourse('')
       setAssignToAll(false)
+      setSelectedCompany('all')
+      setBulkSearchTerm('')
     } catch (error) {
       console.error('Error in bulk assignment:', error)
       toast.error('Error en la asignación masiva')
@@ -246,10 +282,16 @@ export default function AssignmentsManagement() {
   }
 
   const selectAllParticipants = () => {
-    const filteredParticipants = participants.filter(p => 
-      `${p.first_name} ${p.last_name} ${p.email}`.toLowerCase().includes(searchTerm.toLowerCase())
-    )
+    const filteredParticipants = getFilteredParticipants()
     setSelectedParticipants(filteredParticipants.map(p => p.id))
+  }
+
+  const getFilteredParticipants = () => {
+    return participants.filter(p => {
+      const matchesSearch = `${p.first_name} ${p.last_name} ${p.email}`.toLowerCase().includes(bulkSearchTerm.toLowerCase())
+      const matchesCompany = selectedCompany === 'all' || p.company_id === selectedCompany
+      return matchesSearch && matchesCompany
+    })
   }
 
   const filteredAssignments = assignments.filter(assignment => 
@@ -411,6 +453,28 @@ export default function AssignmentsManagement() {
                 </select>
               </div>
 
+              {/* Company Filter */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Filtrar por Empresa
+                </label>
+                <select
+                  value={selectedCompany}
+                  onChange={(e) => {
+                    setSelectedCompany(e.target.value)
+                    setSelectedParticipants([])
+                  }}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                >
+                  <option value="all">Todas las empresas</option>
+                  {companies.map((company) => (
+                    <option key={company.id} value={company.id}>
+                      {company.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               {/* Assign to All Option */}
               <div className="flex items-center p-4 bg-blue-50 rounded-lg">
                 <input
@@ -421,7 +485,7 @@ export default function AssignmentsManagement() {
                   className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded"
                 />
                 <label htmlFor="assignToAll" className="ml-3 text-sm font-medium text-blue-900">
-                  🚀 Asignar a TODOS los participantes ({participants.length} total)
+                  🚀 Asignar a TODOS los participantes filtrados ({getFilteredParticipants().length} total)
                 </label>
               </div>
 
@@ -455,19 +519,15 @@ export default function AssignmentsManagement() {
                     <input
                       type="text"
                       placeholder="Buscar participantes..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
+                      value={bulkSearchTerm}
+                      onChange={(e) => setBulkSearchTerm(e.target.value)}
                       className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
                     />
                   </div>
 
                   {/* Participants List */}
                   <div className="max-h-60 overflow-y-auto border border-slate-200 rounded-lg">
-                    {participants
-                      .filter(p => 
-                        `${p.first_name} ${p.last_name} ${p.email}`.toLowerCase().includes(searchTerm.toLowerCase())
-                      )
-                      .map((participant) => (
+                    {getFilteredParticipants().map((participant) => (
                         <div key={participant.id} className={`flex items-center p-3 hover:bg-slate-50 border-b border-slate-100 last:border-b-0 ${
                           participantsWithCourses.get(participant.id) ? 'bg-green-50' : 'bg-orange-50'
                         }`}>
@@ -481,24 +541,23 @@ export default function AssignmentsManagement() {
                             <div className="text-sm font-medium text-slate-900">
                               {participant.first_name} {participant.last_name}
                             </div>
-                            <div className="ml-4 flex items-center space-x-2">
+                            <div className="text-sm text-slate-500">{participant.email}</div>
+                            <div className="flex items-center space-x-2 mt-1">
+                              {participant.company_name && (
+                                <span className="text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded-full">
+                                  {participant.company_name}
+                                </span>
+                              )}
                               {participantsWithCourses.get(participant.id) ? (
-                                <div className="flex items-center">
-                                  <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
-                                  <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full font-medium">
-                                    {participantsWithCourses.get(participant.id)} curso{participantsWithCourses.get(participant.id) !== 1 ? 's' : ''}
-                                  </span>
-                                </div>
+                                <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full font-medium">
+                                  {participantsWithCourses.get(participant.id)} curso{participantsWithCourses.get(participant.id) !== 1 ? 's' : ''}
+                                </span>
                               ) : (
-                                <div className="flex items-center">
-                                  <div className="w-2 h-2 bg-orange-500 rounded-full mr-2"></div>
-                                  <span className="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded-full font-medium">
-                                    Sin cursos
-                                  </span>
-                                </div>
+                                <span className="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded-full font-medium">
+                                  Sin cursos
+                                </span>
                               )}
                             </div>
-                            <div className="text-sm text-slate-500">{participant.email}</div>
                           </div>
                         </div>
                       ))}
@@ -516,6 +575,8 @@ export default function AssignmentsManagement() {
                   setSelectedParticipants([])
                   setBulkCourse('')
                   setAssignToAll(false)
+                  setSelectedCompany('all')
+                  setBulkSearchTerm('')
                 }}
                 className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-medium transition-colors"
               >
@@ -529,7 +590,7 @@ export default function AssignmentsManagement() {
                 {isSubmitting ? (
                   <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mx-auto"></div>
                 ) : (
-                  `Asignar${assignToAll ? ` a ${participants.length}` : selectedParticipants.length > 0 ? ` a ${selectedParticipants.length}` : ''} Participante${(assignToAll ? participants.length : selectedParticipants.length) !== 1 ? 's' : ''}`
+                  `Asignar${assignToAll ? ` a ${getFilteredParticipants().length}` : selectedParticipants.length > 0 ? ` a ${selectedParticipants.length}` : ''} Participante${(assignToAll ? getFilteredParticipants().length : selectedParticipants.length) !== 1 ? 's' : ''}`
                 )}
               </button>
             </div>
