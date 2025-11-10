@@ -74,21 +74,17 @@ interface CourseDetail {
   completed_date: string | null
 }
 
-type TabType = 'global' | 'company' | 'course'
-
 export default function ReportsManagement() {
-  const [activeTab, setActiveTab] = useState<TabType>('global')
   const [participants, setParticipants] = useState<ParticipantProgress[]>([])
   const [filteredParticipants, setFilteredParticipants] = useState<ParticipantProgress[]>([])
   const [companies, setCompanies] = useState<CompanyStats[]>([])
   const [courses, setCourses] = useState<any[]>([])
-  const [selectedCompany, setSelectedCompany] = useState<string>('')
-  const [selectedCourse, setSelectedCourse] = useState<string>('')
   const [selectedParticipant, setSelectedParticipant] = useState<ParticipantProgress | null>(null)
   const [courseDetails, setCourseDetails] = useState<CourseDetail[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'completed' | 'in_progress' | 'not_started'>('all')
   const [companyFilter, setCompanyFilter] = useState<string>('all')
+  const [courseFilter, setCourseFilter] = useState<string>('all')
   const [isLoading, setIsLoading] = useState(true)
   const [isLoadingDetails, setIsLoadingDetails] = useState(false)
   const [showDetailModal, setShowDetailModal] = useState(false)
@@ -100,7 +96,7 @@ export default function ReportsManagement() {
 
   useEffect(() => {
     applyFilters()
-  }, [participants, searchTerm, statusFilter, companyFilter])
+  }, [participants, searchTerm, statusFilter, companyFilter, courseFilter])
 
   const loadData = async () => {
     try {
@@ -505,7 +501,7 @@ export default function ReportsManagement() {
     }
   }
 
-  const applyFilters = () => {
+  const applyFilters = async () => {
     let filtered = [...participants]
 
     if (searchTerm) {
@@ -530,6 +526,19 @@ export default function ReportsManagement() {
 
     if (companyFilter !== 'all') {
       filtered = filtered.filter(p => p.company_id === companyFilter)
+    }
+
+    if (courseFilter !== 'all') {
+      const participantIdsWithCourse = new Set<string>()
+
+      const { data: assignments } = await supabase
+        .from('course_assignments')
+        .select('user_id')
+        .eq('course_id', courseFilter)
+
+      assignments?.forEach(a => participantIdsWithCourse.add(a.user_id))
+
+      filtered = filtered.filter(p => participantIdsWithCourse.has(p.id))
     }
 
     setFilteredParticipants(filtered)
@@ -610,47 +619,8 @@ export default function ReportsManagement() {
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border">
-        <div className="border-b">
-          <nav className="flex space-x-4 px-6" aria-label="Tabs">
-            <button
-              onClick={() => setActiveTab('global')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                activeTab === 'global'
-                  ? 'border-slate-800 text-slate-800'
-                  : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-              }`}
-            >
-              <ClipboardCheck className="w-5 h-5 inline-block mr-2" />
-              Vista Global
-            </button>
-            <button
-              onClick={() => setActiveTab('company')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                activeTab === 'company'
-                  ? 'border-slate-800 text-slate-800'
-                  : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-              }`}
-            >
-              <Building2 className="w-5 h-5 inline-block mr-2" />
-              Por Empresa
-            </button>
-            <button
-              onClick={() => setActiveTab('course')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                activeTab === 'course'
-                  ? 'border-slate-800 text-slate-800'
-                  : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-              }`}
-            >
-              <BookOpen className="w-5 h-5 inline-block mr-2" />
-              Por Curso
-            </button>
-          </nav>
-        </div>
-
         <div className="p-6">
-          {activeTab === 'global' && (
-            <div className="space-y-6">
+          <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
                   <div className="flex items-center justify-between">
@@ -733,6 +703,19 @@ export default function ReportsManagement() {
                   {companies.map((company) => (
                     <option key={company.company_id} value={company.company_id}>
                       {company.company_name}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={courseFilter}
+                  onChange={(e) => setCourseFilter(e.target.value)}
+                  className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                >
+                  <option value="all">Todos los cursos</option>
+                  {courses.map((course) => (
+                    <option key={course.id} value={course.id}>
+                      {course.title}
                     </option>
                   ))}
                 </select>
@@ -855,350 +838,13 @@ export default function ReportsManagement() {
                   <User className="mx-auto h-12 w-12 text-slate-400" />
                   <h3 className="mt-2 text-sm font-medium text-slate-900">No hay participantes</h3>
                   <p className="mt-1 text-sm text-slate-500">
-                    {searchTerm || statusFilter !== 'all' || companyFilter !== 'all'
+                    {searchTerm || statusFilter !== 'all' || companyFilter !== 'all' || courseFilter !== 'all'
                       ? 'No hay resultados para los filtros aplicados.'
                       : 'No hay participantes registrados.'}
                   </p>
                 </div>
               )}
-            </div>
-          )}
-
-          {activeTab === 'course' && (
-            <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Seleccionar Curso
-                </label>
-                <select
-                  value={selectedCourse}
-                  onChange={(e) => setSelectedCourse(e.target.value)}
-                  className="w-full md:w-96 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
-                >
-                  <option value="">Seleccionar curso...</option>
-                  {courses.map((course) => (
-                    <option key={course.id} value={course.id}>
-                      {course.title}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {selectedCourse && (() => {
-                const course = courses.find(c => c.id === selectedCourse)
-                const courseParticipants = participants.filter(p => {
-                  return p.total_courses > 0
-                }).map(p => {
-                  const hasCourse = courseDetails.find(cd => cd.course_id === selectedCourse && selectedParticipant?.id === p.id)
-                  return { ...p, hasCourse: !!hasCourse }
-                })
-
-                return (
-                  <div className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                      <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm text-blue-600 font-medium">Participantes Asignados</p>
-                            <p className="text-2xl font-bold text-blue-900">
-                              {participants.filter(p => p.total_courses > 0).length}
-                            </p>
-                          </div>
-                          <User className="w-8 h-8 text-blue-600" />
-                        </div>
-                      </div>
-
-                      <div className="bg-green-50 rounded-lg p-4 border border-green-200">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm text-green-600 font-medium">Completados</p>
-                            <p className="text-2xl font-bold text-green-900">
-                              {participants.filter(p => p.completed_courses > 0).length}
-                            </p>
-                          </div>
-                          <CheckCircle className="w-8 h-8 text-green-600" />
-                        </div>
-                      </div>
-
-                      <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm text-yellow-600 font-medium">En Progreso</p>
-                            <p className="text-2xl font-bold text-yellow-900">
-                              {participants.filter(p => p.in_progress_courses > 0).length}
-                            </p>
-                          </div>
-                          <Clock className="w-8 h-8 text-yellow-600" />
-                        </div>
-                      </div>
-
-                      <div className="bg-purple-50 rounded-lg p-4 border border-purple-200">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm text-purple-600 font-medium">Requiere Evaluación</p>
-                            <p className="text-2xl font-bold text-purple-900">
-                              {course?.requires_evaluation ? 'Sí' : 'No'}
-                            </p>
-                          </div>
-                          <HelpCircle className="w-8 h-8 text-purple-600" />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="overflow-x-auto">
-                      <h3 className="text-lg font-semibold text-slate-800 mb-4">Participantes en {course?.title}</h3>
-                      <p className="text-sm text-slate-600 mb-4">
-                        Mostrando todos los participantes del sistema. Los asignados a este curso se mostrarán con sus detalles.
-                      </p>
-                      <table className="w-full">
-                        <thead className="bg-slate-50">
-                          <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                              Participante
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                              Empresa
-                            </th>
-                            <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">
-                              Progreso
-                            </th>
-                            <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">
-                              Estado
-                            </th>
-                            <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
-                              Acciones
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-slate-200">
-                          {participants.map((participant) => (
-                            <tr key={participant.id} className="hover:bg-slate-50">
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div>
-                                  <div className="text-sm font-medium text-slate-900">
-                                    {participant.first_name} {participant.last_name}
-                                  </div>
-                                  <div className="text-sm text-slate-500">{participant.email}</div>
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="text-sm text-slate-900">{participant.company_name}</div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="flex flex-col items-center">
-                                  <span className="text-sm text-slate-600">Ver detalle</span>
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-center">
-                                <span className="text-sm text-slate-600">Ver detalle</span>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                <button
-                                  onClick={() => loadParticipantDetails(participant)}
-                                  className="text-slate-600 hover:text-slate-900"
-                                >
-                                  <FileText className="w-5 h-5" />
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )
-              })()}
-
-              {!selectedCourse && (
-                <div className="text-center py-12">
-                  <BookOpen className="mx-auto h-12 w-12 text-slate-400" />
-                  <h3 className="mt-2 text-sm font-medium text-slate-900">Selecciona un curso</h3>
-                  <p className="mt-1 text-sm text-slate-500">Elige un curso para ver sus estadísticas y participantes.</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {activeTab === 'company' && (
-            <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Seleccionar Empresa
-                </label>
-                <select
-                  value={selectedCompany}
-                  onChange={(e) => setSelectedCompany(e.target.value)}
-                  className="w-full md:w-96 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
-                >
-                  <option value="">Seleccionar empresa...</option>
-                  {companies.map((company) => (
-                    <option key={company.company_id} value={company.company_id}>
-                      {company.company_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {selectedCompany && (() => {
-                const company = companies.find(c => c.company_id === selectedCompany)
-                const companyParticipants = participants.filter(p => p.company_id === selectedCompany)
-                const avgProgress = companyParticipants.length > 0
-                  ? Math.round(companyParticipants.reduce((sum, p) => sum + p.overall_progress, 0) / companyParticipants.length)
-                  : 0
-
-                return (
-                  <div className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                      <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm text-blue-600 font-medium">Participantes</p>
-                            <p className="text-2xl font-bold text-blue-900">{company?.total_participants || 0}</p>
-                          </div>
-                          <User className="w-8 h-8 text-blue-600" />
-                        </div>
-                      </div>
-
-                      <div className="bg-green-50 rounded-lg p-4 border border-green-200">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm text-green-600 font-medium">Cursos Asignados</p>
-                            <p className="text-2xl font-bold text-green-900">{company?.total_courses_assigned || 0}</p>
-                          </div>
-                          <BookOpen className="w-8 h-8 text-green-600" />
-                        </div>
-                      </div>
-
-                      <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm text-yellow-600 font-medium">Certificados</p>
-                            <p className="text-2xl font-bold text-yellow-900">{company?.total_certificates || 0}</p>
-                          </div>
-                          <Award className="w-8 h-8 text-yellow-600" />
-                        </div>
-                      </div>
-
-                      <div className="bg-purple-50 rounded-lg p-4 border border-purple-200">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm text-purple-600 font-medium">Progreso Promedio</p>
-                            <p className="text-2xl font-bold text-purple-900">{avgProgress}%</p>
-                          </div>
-                          <TrendingUp className="w-8 h-8 text-purple-600" />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="overflow-x-auto">
-                      <h3 className="text-lg font-semibold text-slate-800 mb-4">Participantes de {company?.company_name}</h3>
-                      <table className="w-full">
-                        <thead className="bg-slate-50">
-                          <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                              Participante
-                            </th>
-                            <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">
-                              Cursos
-                            </th>
-                            <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">
-                              Certificados
-                            </th>
-                            <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">
-                              Progreso
-                            </th>
-                            <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
-                              Acciones
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-slate-200">
-                          {companyParticipants.map((participant) => (
-                            <tr key={participant.id} className="hover:bg-slate-50">
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div>
-                                  <div className="text-sm font-medium text-slate-900">
-                                    {participant.first_name} {participant.last_name}
-                                  </div>
-                                  <div className="text-sm text-slate-500">{participant.email}</div>
-                                  {participant.area && (
-                                    <div className="text-xs text-slate-400">{participant.area}</div>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="flex flex-col items-center space-y-1">
-                                  <div className="text-sm font-medium text-slate-900">
-                                    {participant.total_courses}
-                                  </div>
-                                  <div className="flex space-x-1 text-xs">
-                                    <span className="text-green-600">{participant.completed_courses}✓</span>
-                                    <span className="text-blue-600">{participant.in_progress_courses}⟳</span>
-                                    <span className="text-slate-400">{participant.not_started_courses}○</span>
-                                  </div>
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-center">
-                                <div className="flex items-center justify-center">
-                                  <Award className="w-4 h-4 text-yellow-600 mr-1" />
-                                  <span className="text-sm font-medium text-slate-900">
-                                    {participant.certificates_generated}
-                                  </span>
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="flex flex-col items-center">
-                                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getProgressColor(participant.overall_progress)}`}>
-                                    {participant.overall_progress}%
-                                  </span>
-                                  <div className="w-20 bg-slate-200 rounded-full h-1.5 mt-2">
-                                    <div
-                                      className={`h-1.5 rounded-full ${
-                                        participant.overall_progress === 100
-                                          ? 'bg-green-500'
-                                          : participant.overall_progress > 0
-                                          ? 'bg-blue-500'
-                                          : 'bg-slate-400'
-                                      }`}
-                                      style={{ width: `${participant.overall_progress}%` }}
-                                    />
-                                  </div>
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                <button
-                                  onClick={() => loadParticipantDetails(participant)}
-                                  className="text-slate-600 hover:text-slate-900"
-                                >
-                                  <FileText className="w-5 h-5" />
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-
-                    {companyParticipants.length === 0 && (
-                      <div className="text-center py-12">
-                        <User className="mx-auto h-12 w-12 text-slate-400" />
-                        <h3 className="mt-2 text-sm font-medium text-slate-900">No hay participantes</h3>
-                        <p className="mt-1 text-sm text-slate-500">Esta empresa no tiene participantes registrados.</p>
-                      </div>
-                    )}
-                  </div>
-                )
-              })()}
-
-              {!selectedCompany && (
-                <div className="text-center py-12">
-                  <Building2 className="mx-auto h-12 w-12 text-slate-400" />
-                  <h3 className="mt-2 text-sm font-medium text-slate-900">Selecciona una empresa</h3>
-                  <p className="mt-1 text-sm text-slate-500">Elige una empresa para ver sus estadísticas y participantes.</p>
-                </div>
-              )}
-            </div>
-          )}
+          </div>
         </div>
       </div>
 
