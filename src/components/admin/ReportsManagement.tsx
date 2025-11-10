@@ -15,7 +15,8 @@ import {
   FileText,
   Mail,
   Filter,
-  X
+  X,
+  HelpCircle
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { exportReportsToExcel } from '../../lib/reportsExporter'
