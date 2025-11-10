@@ -1,28 +1,11 @@
-import React, { useState } from 'react'
+import React from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
-import { Users, BookOpen, GraduationCap, BarChart3, UserCheck, Building2, UserCog, HelpCircle, FileText, ClipboardCheck, ChevronDown, ChevronRight } from 'lucide-react'
+import { Users, BookOpen, GraduationCap, BarChart3, UserCheck, Building2, UserCog, HelpCircle, FileText, ClipboardCheck } from 'lucide-react'
 
 export default function AdminLayout() {
-  const [expandedSections, setExpandedSections] = useState<string[]>([
-    'general',
-    'personas',
-    'empresas',
-    'capacitacion',
-    'seguimiento'
-  ])
-
-  const toggleSection = (section: string) => {
-    setExpandedSections(prev =>
-      prev.includes(section)
-        ? prev.filter(s => s !== section)
-        : [...prev, section]
-    )
-  }
-
   const menuSections = [
     {
       id: 'general',
-      title: 'General',
       items: [
         {
           to: '/admin',
@@ -34,7 +17,6 @@ export default function AdminLayout() {
     },
     {
       id: 'personas',
-      title: 'Gestión de Personas',
       items: [
         {
           to: '/admin/participants',
@@ -50,7 +32,6 @@ export default function AdminLayout() {
     },
     {
       id: 'empresas',
-      title: 'Gestión de Empresas',
       items: [
         {
           to: '/admin/companies',
@@ -66,7 +47,6 @@ export default function AdminLayout() {
     },
     {
       id: 'capacitacion',
-      title: 'Capacitación',
       items: [
         {
           to: '/admin/courses',
@@ -87,7 +67,6 @@ export default function AdminLayout() {
     },
     {
       id: 'seguimiento',
-      title: 'Seguimiento',
       items: [
         {
           to: '/admin/attendance',
@@ -111,40 +90,30 @@ export default function AdminLayout() {
       <div className="hidden lg:block w-64 bg-white rounded-xl shadow-sm border p-6">
         <h2 className="text-lg font-semibold text-slate-800 mb-6">Administración</h2>
         <nav className="space-y-1">
-          {menuSections.map((section) => (
-            <div key={section.id} className="mb-3">
-              <button
-                onClick={() => toggleSection(section.id)}
-                className="flex items-center justify-between w-full px-2 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wide hover:text-slate-700 transition-colors"
-              >
-                <span>{section.title}</span>
-                {expandedSections.includes(section.id) ? (
-                  <ChevronDown className="w-4 h-4" />
-                ) : (
-                  <ChevronRight className="w-4 h-4" />
-                )}
-              </button>
-              {expandedSections.includes(section.id) && (
-                <div className="mt-1 space-y-1">
-                  {section.items.map((item) => (
-                    <NavLink
-                      key={item.to}
-                      to={item.to}
-                      end={item.end}
-                      className={({ isActive }) =>
-                        `flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                          isActive
-                            ? 'bg-slate-800 text-white'
-                            : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100'
-                        }`
-                      }
-                    >
-                      <item.icon className="w-5 h-5 mr-3" />
-                      {item.label}
-                    </NavLink>
-                  ))}
-                </div>
+          {menuSections.map((section, sectionIndex) => (
+            <div key={section.id}>
+              {sectionIndex > 0 && (
+                <div className="my-3 border-t border-slate-200" />
               )}
+              <div className="space-y-1">
+                {section.items.map((item) => (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end={item.end}
+                    className={({ isActive }) =>
+                      `flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        isActive
+                          ? 'bg-slate-800 text-white'
+                          : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100'
+                      }`
+                    }
+                  >
+                    <item.icon className="w-5 h-5 mr-3" />
+                    {item.label}
+                  </NavLink>
+                ))}
+              </div>
             </div>
           ))}
         </nav>
