@@ -264,20 +264,27 @@ export default function ReportsManagement() {
             }
 
             if (evaluationStatus !== 'passed') {
-              const { data: signature } = await supabase
+              const { data: signatures } = await supabase
                 .from('attendance_signatures')
-                .select('evaluation_attempt_id')
+                .select(`
+                  evaluation_attempt_id,
+                  evaluation_attempts!inner(
+                    id,
+                    passed,
+                    score,
+                    evaluation_id,
+                    evaluations!inner(
+                      course_id
+                    )
+                  )
+                `)
                 .eq('user_id', participant.id)
-                .eq('course_id', course.id)
+                .eq('evaluation_attempts.evaluations.course_id', course.id)
                 .not('evaluation_attempt_id', 'is', null)
-                .maybeSingle()
 
-              if (signature?.evaluation_attempt_id) {
-                const { data: attemptData } = await supabase
-                  .from('evaluation_attempts')
-                  .select('passed, score')
-                  .eq('id', signature.evaluation_attempt_id)
-                  .maybeSingle()
+              if (signatures && signatures.length > 0) {
+                const signature = signatures[0] as any
+                const attemptData = signature.evaluation_attempts
 
                 if (attemptData?.passed) {
                   evaluationStatus = 'passed'
