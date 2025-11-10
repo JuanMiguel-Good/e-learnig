@@ -1,5 +1,5 @@
 import { AttendancePDFGenerator } from '../../lib/attendancePDFGenerator'
-import { ExcelExporter } from '../../lib/excelExporter'
+import { ExcelAttendanceExporter } from '../../lib/excelAttendanceExporter'
 import React, { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { Plus, FileText, Users, Building2, Download, Eye, Trash2, Search } from 'lucide-react'
@@ -424,12 +424,14 @@ export default function AttendanceManagement() {
 
   const exportToExcel = async (attendance: AttendanceList) => {
     try {
-      // Load full attendance data
+      toast.loading('Generando Excel...', { id: 'excel-generation' })
+
+      // Load full attendance data with instructor signature
       const { data: fullData, error } = await supabase
         .from('attendance_lists')
         .select(`
           *,
-          course:courses!inner(title, hours, instructor:instructors(name)),
+          course:courses!inner(title, hours, instructor:instructors(name, signature_url)),
           company:companies!inner(*)
         `)
         .eq('id', attendance.id)
@@ -437,7 +439,7 @@ export default function AttendanceManagement() {
 
       if (error) throw error
 
-      // Get signatures
+      // Get signatures with signature_data
       const { data: signaturesData } = await supabase
         .from('attendance_signatures')
         .select(`
@@ -447,21 +449,33 @@ export default function AttendanceManagement() {
         .eq('attendance_list_id', attendance.id)
         .order('signed_at')
 
+      // Get responsible signature
+      const { data: responsibleData } = await supabase
+        .from('company_responsibles')
+        .select('signature_url')
+        .eq('nombre', fullData.responsible_name)
+        .eq('company_id', fullData.company_id)
+        .maybeSingle()
+
       const dataWithSignatures = {
         ...fullData,
-        signatures: signaturesData || []
+        signatures: signaturesData || [],
+        responsible_signature_url: responsibleData?.signature_url || null,
+        instructor_signature_url: fullData.course?.instructor?.signature_url || null
       }
 
-      ExcelExporter.exportAttendanceToExcel(dataWithSignatures)
-      toast.success('Excel generado y descargado')
+      await ExcelAttendanceExporter.exportAttendanceToExcel(dataWithSignatures)
+      toast.success('Excel generado y descargado', { id: 'excel-generation' })
     } catch (error) {
       console.error('Error generating Excel:', error)
-      toast.error('Error al generar Excel')
+      toast.error('Error al generar Excel', { id: 'excel-generation' })
     }
   }
 
   const exportAllToExcel = async () => {
     try {
+      toast.loading('Generando resumen en Excel...', { id: 'summary-generation' })
+
       // Load all attendance data
       const { data: allData, error } = await supabase
         .from('attendance_lists')
@@ -471,18 +485,18 @@ export default function AttendanceManagement() {
           company:companies!inner(razon_social),
           signatures:attendance_signatures(
             *,
-            user:users!inner(first_name, last_name, dni)
+            user:users!inner(first_name, last_name, dni, area)
           )
         `)
         .order('created_at', { ascending: false })
 
       if (error) throw error
 
-      ExcelExporter.exportParticipantsSummary(allData || [])
-      toast.success('Resumen completo exportado a Excel')
+      await ExcelAttendanceExporter.exportParticipantsSummary(allData || [])
+      toast.success('Resumen completo exportado a Excel', { id: 'summary-generation' })
     } catch (error) {
       console.error('Error exporting summary:', error)
-      toast.error('Error al exportar resumen')
+      toast.error('Error al exportar resumen', { id: 'summary-generation' })
     }
   }
 
