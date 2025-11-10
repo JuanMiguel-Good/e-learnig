@@ -1,13 +1,17 @@
 import React, { useEffect, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
-import { Users, BookOpen, Award, TrendingUp, User, GraduationCap } from 'lucide-react'
+import { Users, BookOpen, Award, TrendingUp, User, GraduationCap, AlertCircle, CheckCircle, Clock } from 'lucide-react'
 
 interface DashboardStats {
   totalParticipants: number
   totalCourses: number
   totalCertificates: number
   completionRate: number
+  totalAssignments: number
+  inProgress: number
+  completed: number
+  inactiveParticipants: number
 }
 
 export default function Dashboard() {
@@ -16,7 +20,11 @@ export default function Dashboard() {
     totalParticipants: 0,
     totalCourses: 0,
     totalCertificates: 0,
-    completionRate: 0
+    completionRate: 0,
+    totalAssignments: 0,
+    inProgress: 0,
+    completed: 0,
+    inactiveParticipants: 0
   })
   const [isLoading, setIsLoading] = useState(true)
 
@@ -42,15 +50,29 @@ export default function Dashboard() {
         .from('certificates')
         .select('*', { count: 'exact', head: true })
 
-      // Calcular tasa de finalización promedio
+      // Estadísticas de asignaciones
       const { data: assignments } = await supabase
         .from('course_assignments')
-        .select(`
-          user_id,
-          course_id,
-          courses!inner(id)
-        `)
+        .select('user_id, course_id, status, last_activity_at')
 
+      const totalAssignments = assignments?.length || 0
+      const inProgress = assignments?.filter(a =>
+        ['in_progress', 'lessons_completed', 'evaluation_pending', 'signature_pending'].includes(a.status)
+      ).length || 0
+      const completed = assignments?.filter(a =>
+        ['completed', 'certificate_generated'].includes(a.status)
+      ).length || 0
+
+      // Participantes inactivos (más de 15 días)
+      const inactiveParticipants = assignments?.filter(a => {
+        if (!a.last_activity_at) return false
+        const daysSinceActivity = Math.floor(
+          (Date.now() - new Date(a.last_activity_at).getTime()) / (1000 * 60 * 60 * 24)
+        )
+        return daysSinceActivity >= 15 && !['completed', 'certificate_generated'].includes(a.status)
+      }).length || 0
+
+      // Calcular tasa de finalización promedio
       let totalProgress = 0
       if (assignments && assignments.length > 0) {
         for (const assignment of assignments) {
@@ -63,15 +85,19 @@ export default function Dashboard() {
         }
       }
 
-      const avgCompletionRate = assignments?.length 
-        ? Math.round(totalProgress / assignments.length) 
+      const avgCompletionRate = assignments?.length
+        ? Math.round(totalProgress / assignments.length)
         : 0
 
       setStats({
         totalParticipants: participantsCount || 0,
         totalCourses: coursesCount || 0,
         totalCertificates: certificatesCount || 0,
-        completionRate: avgCompletionRate
+        completionRate: avgCompletionRate,
+        totalAssignments,
+        inProgress,
+        completed,
+        inactiveParticipants
       })
     } catch (error) {
       console.error('Error loading stats:', error)
@@ -109,59 +135,107 @@ export default function Dashboard() {
 
       {/* Stats Cards */}
       {user?.role === 'admin' && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
-          {/* Total Participantes */}
-          <div className="bg-white rounded-xl shadow-sm p-4 md:p-6 border">
-            <div className="flex items-center">
-              <div className="w-10 h-10 md:w-12 md:h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                <Users className="w-5 h-5 md:w-6 md:h-6 text-blue-600" />
+        <>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
+            {/* Total Participantes */}
+            <div className="bg-white rounded-xl shadow-sm p-4 md:p-6 border">
+              <div className="flex items-center">
+                <div className="w-10 h-10 md:w-12 md:h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <Users className="w-5 h-5 md:w-6 md:h-6 text-blue-600" />
+                </div>
+                <div className="ml-2 md:ml-4">
+                  <p className="text-lg md:text-2xl font-bold text-slate-800">{stats.totalParticipants}</p>
+                  <p className="text-xs md:text-sm text-slate-600">Participantes</p>
+                </div>
               </div>
-              <div className="ml-2 md:ml-4">
-                <p className="text-lg md:text-2xl font-bold text-slate-800">{stats.totalParticipants}</p>
-                <p className="text-xs md:text-sm text-slate-600">Participantes</p>
+            </div>
+
+            {/* Total Cursos */}
+            <div className="bg-white rounded-xl shadow-sm p-4 md:p-6 border">
+              <div className="flex items-center">
+                <div className="w-10 h-10 md:w-12 md:h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                  <BookOpen className="w-5 h-5 md:w-6 md:h-6 text-green-600" />
+                </div>
+                <div className="ml-2 md:ml-4">
+                  <p className="text-lg md:text-2xl font-bold text-slate-800">{stats.totalCourses}</p>
+                  <p className="text-xs md:text-sm text-slate-600">Cursos</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Total Certificados */}
+            <div className="bg-white rounded-xl shadow-sm p-4 md:p-6 border">
+              <div className="flex items-center">
+                <div className="w-10 h-10 md:w-12 md:h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+                  <Award className="w-5 h-5 md:w-6 md:h-6 text-yellow-600" />
+                </div>
+                <div className="ml-2 md:ml-4">
+                  <p className="text-lg md:text-2xl font-bold text-slate-800">{stats.totalCertificates}</p>
+                  <p className="text-xs md:text-sm text-slate-600">Certificados</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Tasa de Finalización */}
+            <div className="bg-white rounded-xl shadow-sm p-4 md:p-6 border">
+              <div className="flex items-center">
+                <div className="w-10 h-10 md:w-12 md:h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                  <TrendingUp className="w-5 h-5 md:w-6 md:h-6 text-purple-600" />
+                </div>
+                <div className="ml-2 md:ml-4">
+                  <p className="text-lg md:text-2xl font-bold text-slate-800">{stats.completionRate}%</p>
+                  <p className="text-xs md:text-sm text-slate-600">Finalización</p>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Total Cursos */}
-          <div className="bg-white rounded-xl shadow-sm p-4 md:p-6 border">
-            <div className="flex items-center">
-              <div className="w-10 h-10 md:w-12 md:h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                <BookOpen className="w-5 h-5 md:w-6 md:h-6 text-green-600" />
+          {/* Progress Overview Section */}
+          <div className="bg-white rounded-xl shadow-sm p-6 border">
+            <h2 className="text-lg font-semibold text-slate-800 mb-4">Resumen de Progreso</h2>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center">
+                  <BookOpen className="w-5 h-5 text-slate-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-slate-800">{stats.totalAssignments}</p>
+                  <p className="text-sm text-slate-600">Total Asignaciones</p>
+                </div>
               </div>
-              <div className="ml-2 md:ml-4">
-                <p className="text-lg md:text-2xl font-bold text-slate-800">{stats.totalCourses}</p>
-                <p className="text-xs md:text-sm text-slate-600">Cursos</p>
-              </div>
-            </div>
-          </div>
 
-          {/* Total Certificados */}
-          <div className="bg-white rounded-xl shadow-sm p-4 md:p-6 border">
-            <div className="flex items-center">
-              <div className="w-10 h-10 md:w-12 md:h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-                <Award className="w-5 h-5 md:w-6 md:h-6 text-yellow-600" />
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <Clock className="w-5 h-5 text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-blue-600">{stats.inProgress}</p>
+                  <p className="text-sm text-slate-600">En Progreso</p>
+                </div>
               </div>
-              <div className="ml-2 md:ml-4">
-                <p className="text-lg md:text-2xl font-bold text-slate-800">{stats.totalCertificates}</p>
-                <p className="text-xs md:text-sm text-slate-600">Certificados</p>
-              </div>
-            </div>
-          </div>
 
-          {/* Tasa de Finalización */}
-          <div className="bg-white rounded-xl shadow-sm p-4 md:p-6 border">
-            <div className="flex items-center">
-              <div className="w-10 h-10 md:w-12 md:h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                <TrendingUp className="w-5 h-5 md:w-6 md:h-6 text-purple-600" />
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                  <CheckCircle className="w-5 h-5 text-green-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-green-600">{stats.completed}</p>
+                  <p className="text-sm text-slate-600">Completados</p>
+                </div>
               </div>
-              <div className="ml-2 md:ml-4">
-                <p className="text-lg md:text-2xl font-bold text-slate-800">{stats.completionRate}%</p>
-                <p className="text-xs md:text-sm text-slate-600">Finalización</p>
+
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
+                  <AlertCircle className="w-5 h-5 text-red-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-red-600">{stats.inactiveParticipants}</p>
+                  <p className="text-sm text-slate-600">Inactivos +15 días</p>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        </>
       )}
 
       {/* Quick Actions for Participants */}
