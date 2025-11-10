@@ -86,7 +86,7 @@ export default function AssignmentsManagement() {
           last_name,
           email,
           company_id,
-          companies(name)
+          company:companies(name)
         `)
         .eq('role', 'participant')
         .order('first_name')
@@ -117,7 +117,7 @@ export default function AssignmentsManagement() {
         last_name: p.last_name,
         email: p.email,
         company_id: p.company_id,
-        company_name: (p.companies as any)?.name || null
+        company_name: (p.company as any)?.name || null
       })) || [])
       setCourses(coursesData || [])
       setCompanies(companiesData || [])
