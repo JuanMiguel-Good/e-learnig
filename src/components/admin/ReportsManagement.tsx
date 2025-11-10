@@ -672,7 +672,7 @@ export default function ReportsManagement() {
         </button>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border">
+      <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
         <div className="p-6">
           <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -775,8 +775,10 @@ export default function ReportsManagement() {
                 </select>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-max">
+              <div className="overflow-x-auto -mx-6">
+                <div className="inline-block min-w-full align-middle">
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-slate-200">
                   <thead className="bg-slate-50">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap">
@@ -899,7 +901,9 @@ export default function ReportsManagement() {
                       </tr>
                     ))}
                   </tbody>
-                </table>
+                    </table>
+                  </div>
+                </div>
               </div>
 
               {filteredParticipantCourses.length === 0 && (
