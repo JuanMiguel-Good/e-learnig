@@ -14,7 +14,7 @@ interface Participant {
 
 interface Company {
   id: string
-  name: string
+  razon_social: string
 }
 
 interface Course {
@@ -80,13 +80,13 @@ export default function AssignmentsManagement() {
       // Load companies first
       const { data: companiesData, error: companiesError } = await supabase
         .from('companies')
-        .select('id, name')
-        .order('name')
+        .select('id, razon_social')
+        .order('razon_social')
 
       if (companiesError) throw companiesError
 
       // Create a map for quick company lookup
-      const companiesMap = new Map(companiesData?.map(c => [c.id, c.name]) || [])
+      const companiesMap = new Map(companiesData?.map(c => [c.id, c.razon_social]) || [])
 
       // Load participants
       const { data: participantsData, error: participantsError } = await supabase
@@ -465,7 +465,7 @@ export default function AssignmentsManagement() {
                   <option value="all">Todas las empresas</option>
                   {companies.map((company) => (
                     <option key={company.id} value={company.id}>
-                      {company.name}
+                      {company.razon_social}
                     </option>
                   ))}
                 </select>
