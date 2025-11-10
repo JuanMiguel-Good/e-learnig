@@ -1,6 +1,6 @@
 import React from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
-import { Users, BookOpen, GraduationCap, BarChart3, UserCheck, Building2, UserCog, HelpCircle, FileText, ClipboardCheck, TrendingUp } from 'lucide-react'
+import { Users, BookOpen, GraduationCap, BarChart3, UserCheck, Building2, UserCog, HelpCircle, FileText, ClipboardCheck } from 'lucide-react'
 
 export default function AdminLayout() {
   const navItems = [
@@ -29,11 +29,6 @@ export default function AdminLayout() {
       to: '/admin/assignments',
       icon: GraduationCap,
       label: 'Asignaciones'
-    },
-    {
-      to: '/admin/progress-tracking',
-      icon: TrendingUp,
-      label: 'Seguimiento'
     },
     {
       to: '/admin/evaluations',

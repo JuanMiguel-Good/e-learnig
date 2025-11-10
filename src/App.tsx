@@ -19,7 +19,6 @@ import CompanyResponsiblesManagement from './components/admin/CompanyResponsible
 import EvaluationsManagement from './components/admin/EvaluationsManagement'
 import AttendanceManagement from './components/admin/AttendanceManagement'
 import ReportsManagement from './components/admin/ReportsManagement'
-import ParticipantProgressTracking from './components/admin/ParticipantProgressTracking'
 
 function AuthWrapper() {
   const { user, isLoading } = useAuth();
@@ -49,7 +48,6 @@ function AuthWrapper() {
             <Route path="instructors" element={<InstructorsManagement />} />
             <Route path="courses" element={<CoursesManagement />} />
             <Route path="assignments" element={<AssignmentsManagement />} />
-            <Route path="progress-tracking" element={<ParticipantProgressTracking />} />
             <Route path="evaluations" element={<EvaluationsManagement />} />
             <Route path="companies" element={<CompaniesManagement />} />
             <Route path="company-responsibles" element={<CompanyResponsiblesManagement />} />
