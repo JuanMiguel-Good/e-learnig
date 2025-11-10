@@ -547,7 +547,7 @@ export default function ReportsManagement() {
   const handleExport = async () => {
     try {
       setIsExporting(true)
-      await exportReportsToExcel(participants, companies)
+      await exportReportsToExcel(filteredParticipants, companies)
       toast.success('Reporte exportado correctamente')
     } catch (error) {
       console.error('Error exporting report:', error)
