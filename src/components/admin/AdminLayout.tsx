@@ -1,84 +1,151 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
-import { Users, BookOpen, GraduationCap, BarChart3, UserCheck, Building2, UserCog, HelpCircle, FileText, ClipboardCheck } from 'lucide-react'
+import { Users, BookOpen, GraduationCap, BarChart3, UserCheck, Building2, UserCog, HelpCircle, FileText, ClipboardCheck, ChevronDown, ChevronRight } from 'lucide-react'
 
 export default function AdminLayout() {
-  const navItems = [
+  const [expandedSections, setExpandedSections] = useState<string[]>([
+    'general',
+    'personas',
+    'empresas',
+    'capacitacion',
+    'seguimiento'
+  ])
+
+  const toggleSection = (section: string) => {
+    setExpandedSections(prev =>
+      prev.includes(section)
+        ? prev.filter(s => s !== section)
+        : [...prev, section]
+    )
+  }
+
+  const menuSections = [
     {
-      to: '/admin',
-      icon: BarChart3,
-      label: 'Dashboard',
-      end: true
+      id: 'general',
+      title: 'General',
+      items: [
+        {
+          to: '/admin',
+          icon: BarChart3,
+          label: 'Dashboard',
+          end: true
+        }
+      ]
     },
     {
-      to: '/admin/participants',
-      icon: Users,
-      label: 'Participantes'
+      id: 'personas',
+      title: 'Gestión de Personas',
+      items: [
+        {
+          to: '/admin/participants',
+          icon: Users,
+          label: 'Participantes'
+        },
+        {
+          to: '/admin/instructors',
+          icon: UserCheck,
+          label: 'Instructores'
+        }
+      ]
     },
     {
-      to: '/admin/instructors',
-      icon: UserCheck,
-      label: 'Instructores'
+      id: 'empresas',
+      title: 'Gestión de Empresas',
+      items: [
+        {
+          to: '/admin/companies',
+          icon: Building2,
+          label: 'Empresas'
+        },
+        {
+          to: '/admin/company-responsibles',
+          icon: UserCog,
+          label: 'Responsables'
+        }
+      ]
     },
     {
-      to: '/admin/courses',
-      icon: BookOpen,
-      label: 'Cursos'
+      id: 'capacitacion',
+      title: 'Capacitación',
+      items: [
+        {
+          to: '/admin/courses',
+          icon: BookOpen,
+          label: 'Cursos'
+        },
+        {
+          to: '/admin/assignments',
+          icon: GraduationCap,
+          label: 'Asignaciones'
+        },
+        {
+          to: '/admin/evaluations',
+          icon: HelpCircle,
+          label: 'Evaluaciones'
+        }
+      ]
     },
     {
-      to: '/admin/assignments',
-      icon: GraduationCap,
-      label: 'Asignaciones'
-    },
-    {
-      to: '/admin/evaluations',
-      icon: HelpCircle,
-      label: 'Evaluaciones'
-    },
-    {
-      to: '/admin/companies',
-      icon: Building2,
-      label: 'Empresas'
-    },
-    {
-      to: '/admin/company-responsibles',
-      icon: UserCog,
-      label: 'Responsables'
-    },
-    {
-      to: '/admin/attendance',
-      icon: FileText,
-      label: 'Asistencia'
-    },
-    {
-      to: '/admin/reports',
-      icon: ClipboardCheck,
-      label: 'Reportes'
+      id: 'seguimiento',
+      title: 'Seguimiento',
+      items: [
+        {
+          to: '/admin/attendance',
+          icon: FileText,
+          label: 'Asistencia'
+        },
+        {
+          to: '/admin/reports',
+          icon: ClipboardCheck,
+          label: 'Reportes'
+        }
+      ]
     }
   ]
 
+  const flatNavItems = menuSections.flatMap(section => section.items)
+
   return (
     <div className="flex flex-col lg:flex-row lg:space-x-6 space-y-4 lg:space-y-0">
-      {/* Sidebar */}
-      <div className="w-full lg:w-64 bg-white rounded-xl shadow-sm border p-4 lg:p-6 sidebar-desktop">
-        <h2 className="text-base lg:text-lg font-semibold text-slate-800 mb-4 lg:mb-6">Administración</h2>
-        <nav className="flex lg:flex-col space-x-2 lg:space-x-0 lg:space-y-2 overflow-x-auto lg:overflow-x-visible">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              className={({ isActive }) =>
-                `flex items-center px-2 lg:px-3 py-2 rounded-lg text-xs lg:text-sm font-medium transition-colors whitespace-nowrap ${
-                  isActive
-                    ? 'bg-slate-800 text-white'
-                    : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100'
-                }`
-              }
-            >
-              <item.icon className="w-4 h-4 lg:w-5 lg:h-5 mr-1 lg:mr-3" />
-              {item.label}
-            </NavLink>
+      {/* Sidebar Desktop */}
+      <div className="hidden lg:block w-64 bg-white rounded-xl shadow-sm border p-6">
+        <h2 className="text-lg font-semibold text-slate-800 mb-6">Administración</h2>
+        <nav className="space-y-1">
+          {menuSections.map((section) => (
+            <div key={section.id} className="mb-3">
+              <button
+                onClick={() => toggleSection(section.id)}
+                className="flex items-center justify-between w-full px-2 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wide hover:text-slate-700 transition-colors"
+              >
+                <span>{section.title}</span>
+                {expandedSections.includes(section.id) ? (
+                  <ChevronDown className="w-4 h-4" />
+                ) : (
+                  <ChevronRight className="w-4 h-4" />
+                )}
+              </button>
+              {expandedSections.includes(section.id) && (
+                <div className="mt-1 space-y-1">
+                  {section.items.map((item) => (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      end={item.end}
+                      className={({ isActive }) =>
+                        `flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          isActive
+                            ? 'bg-slate-800 text-white'
+                            : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100'
+                        }`
+                      }
+                    >
+                      <item.icon className="w-5 h-5 mr-3" />
+                      {item.label}
+                    </NavLink>
+                  ))}
+                </div>
+              )}
+            </div>
           ))}
         </nav>
       </div>
@@ -86,7 +153,7 @@ export default function AdminLayout() {
       {/* Mobile Navigation */}
       <div className="lg:hidden bg-white rounded-xl shadow-sm border p-4">
         <nav className="flex space-x-2 overflow-x-auto">
-          {navItems.map((item) => (
+          {flatNavItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
