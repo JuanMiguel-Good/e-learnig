@@ -137,34 +137,52 @@ export default function ReportsManagement() {
 
   const loadParticipantsProgress = async () => {
     try {
-      const { data: assignments, error: assignmentsError } = await supabase
-        .from('course_assignments')
-        .select(`
-          user_id,
-          course_id,
-          assigned_at,
-          users!inner(
-            id,
-            first_name,
-            last_name,
-            email,
-            dni,
-            area,
-            company:companies(id, razon_social)
-          ),
-          courses!inner(
-            id,
-            title,
-            image_url,
-            requires_evaluation
-          )
-        `)
-        .eq('users.role', 'participant')
-        .order('users.first_name')
+      const { data: participants, error: participantsError } = await supabase
+        .from('users')
+        .select('id, first_name, last_name, email, dni, area, company_id')
+        .eq('role', 'participant')
+        .order('first_name')
 
-      if (assignmentsError) throw assignmentsError
+      if (participantsError) throw participantsError
 
-      const progressPromises = (assignments || []).map(async (assignment: any) => {
+      const { data: companies, error: companiesError } = await supabase
+        .from('companies')
+        .select('id, razon_social')
+
+      if (companiesError) throw companiesError
+
+      const companiesMap = new Map(companies?.map(c => [c.id, c.razon_social]))
+
+      const allAssignments: any[] = []
+
+      for (const participant of participants || []) {
+        const { data: assignments, error: assignmentsError } = await supabase
+          .from('course_assignments')
+          .select(`
+            user_id,
+            course_id,
+            assigned_at,
+            courses!inner(
+              id,
+              title,
+              image_url,
+              requires_evaluation
+            )
+          `)
+          .eq('user_id', participant.id)
+
+        if (assignmentsError) continue
+
+        assignments?.forEach(assignment => {
+          allAssignments.push({
+            ...assignment,
+            users: participant,
+            participant_company: companiesMap.get(participant.company_id) || 'Sin empresa'
+          })
+        })
+      }
+
+      const progressPromises = allAssignments.map(async (assignment: any) => {
         const participant = assignment.users
         const course = assignment.courses
 
@@ -281,8 +299,8 @@ export default function ReportsManagement() {
           email: participant.email,
           dni: participant.dni,
           area: participant.area,
-          company_name: participant.company?.razon_social || 'Sin empresa',
-          company_id: participant.company?.id || '',
+          company_name: assignment.participant_company,
+          company_id: participant.company_id || '',
           course_id: course.id,
           course_title: course.title,
           course_image: course.image_url,
