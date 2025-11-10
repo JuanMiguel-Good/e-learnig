@@ -349,29 +349,53 @@ export default function AttendanceManagement() {
 
   const getFilteredSignatures = async (attendanceList: any) => {
     if (attendanceList.date_range_start && attendanceList.date_range_end) {
-      const { data: signaturesData, error } = await supabase
+      const endDate = attendanceList.date_range_end.includes('T')
+        ? attendanceList.date_range_end
+        : `${attendanceList.date_range_end}T23:59:59`
+
+      const { data: attempts, error: attemptsError } = await supabase
+        .from('evaluation_attempts')
+        .select(`
+          id,
+          user_id,
+          completed_at,
+          users!inner(first_name, last_name, dni, area, company_id),
+          evaluations!inner(course_id)
+        `)
+        .eq('passed', true)
+        .eq('users.company_id', attendanceList.company_id)
+        .eq('evaluations.course_id', attendanceList.course_id)
+        .gte('completed_at', attendanceList.date_range_start)
+        .lte('completed_at', endDate)
+
+      if (attemptsError) {
+        console.error('Error fetching attempts:', attemptsError)
+        throw attemptsError
+      }
+
+      if (!attempts || attempts.length === 0) {
+        return []
+      }
+
+      const attemptIds = attempts.map((a: any) => a.id)
+
+      const { data: signaturesData, error: signaturesError } = await supabase
         .from('attendance_signatures')
         .select(`
           id,
           signature_data,
           signed_at,
           evaluation_attempt_id,
-          user:users!inner(first_name, last_name, dni, area),
-          evaluation_attempt:evaluation_attempts!inner(
-            completed_at,
-            passed,
-            evaluation:evaluations!inner(course_id),
-            user:users!inner(company_id)
-          )
+          user:users!inner(first_name, last_name, dni, area)
         `)
-        .eq('evaluation_attempt.passed', true)
-        .eq('evaluation_attempt.user.company_id', attendanceList.company_id)
-        .eq('evaluation_attempt.evaluation.course_id', attendanceList.course_id)
-        .gte('evaluation_attempt.completed_at', attendanceList.date_range_start)
-        .lte('evaluation_attempt.completed_at', attendanceList.date_range_end + 'T23:59:59')
+        .in('evaluation_attempt_id', attemptIds)
         .order('signed_at')
 
-      if (error) throw error
+      if (signaturesError) {
+        console.error('Error fetching signatures:', signaturesError)
+        throw signaturesError
+      }
+
       return signaturesData || []
     } else {
       const { data: signaturesData, error } = await supabase
