@@ -21,8 +21,8 @@ import {
 import toast from 'react-hot-toast'
 import { exportReportsToExcel } from '../../lib/reportsExporter'
 
-interface ParticipantProgress {
-  id: string
+interface ParticipantCourseProgress {
+  participant_id: string
   first_name: string
   last_name: string
   email: string
@@ -30,16 +30,26 @@ interface ParticipantProgress {
   area: string | null
   company_name: string
   company_id: string
-  total_courses: number
-  completed_courses: number
-  in_progress_courses: number
-  not_started_courses: number
-  total_evaluations: number
-  passed_evaluations: number
-  failed_evaluations: number
-  pending_evaluations: number
-  certificates_generated: number
-  overall_progress: number
+  course_id: string
+  course_title: string
+  course_image: string | null
+  assigned_date: string
+  started_date: string | null
+  completed_date: string | null
+  progress: number
+  total_modules: number
+  completed_modules: number
+  total_lessons: number
+  completed_lessons: number
+  requires_evaluation: boolean
+  evaluation_status: 'not_started' | 'passed' | 'failed' | 'pending'
+  evaluation_score: number | null
+  evaluation_attempts: number
+  max_attempts: number
+  signature_status: 'signed' | 'pending' | 'not_required'
+  certificate_status: 'generated' | 'pending'
+  certificate_url: string | null
+  certificate_date: string | null
   last_activity: string | null
 }
 
@@ -75,19 +85,15 @@ interface CourseDetail {
 }
 
 export default function ReportsManagement() {
-  const [participants, setParticipants] = useState<ParticipantProgress[]>([])
-  const [filteredParticipants, setFilteredParticipants] = useState<ParticipantProgress[]>([])
+  const [participantCourses, setParticipantCourses] = useState<ParticipantCourseProgress[]>([])
+  const [filteredParticipantCourses, setFilteredParticipantCourses] = useState<ParticipantCourseProgress[]>([])
   const [companies, setCompanies] = useState<CompanyStats[]>([])
   const [courses, setCourses] = useState<any[]>([])
-  const [selectedParticipant, setSelectedParticipant] = useState<ParticipantProgress | null>(null)
-  const [courseDetails, setCourseDetails] = useState<CourseDetail[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'completed' | 'in_progress' | 'not_started'>('all')
   const [companyFilter, setCompanyFilter] = useState<string>('all')
   const [courseFilter, setCourseFilter] = useState<string>('all')
   const [isLoading, setIsLoading] = useState(true)
-  const [isLoadingDetails, setIsLoadingDetails] = useState(false)
-  const [showDetailModal, setShowDetailModal] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
 
   useEffect(() => {
@@ -96,7 +102,7 @@ export default function ReportsManagement() {
 
   useEffect(() => {
     applyFilters()
-  }, [participants, searchTerm, statusFilter, companyFilter, courseFilter])
+  }, [participantCourses, searchTerm, statusFilter, companyFilter, courseFilter])
 
   const loadData = async () => {
     try {
@@ -131,150 +137,145 @@ export default function ReportsManagement() {
 
   const loadParticipantsProgress = async () => {
     try {
-      const { data: participantsData, error: participantsError } = await supabase
-        .from('users')
+      const { data: assignments, error: assignmentsError } = await supabase
+        .from('course_assignments')
         .select(`
-          id,
-          first_name,
-          last_name,
-          email,
-          dni,
-          area,
-          company:companies(id, razon_social)
+          user_id,
+          course_id,
+          assigned_at,
+          users!inner(
+            id,
+            first_name,
+            last_name,
+            email,
+            dni,
+            area,
+            company:companies(id, razon_social)
+          ),
+          courses!inner(
+            id,
+            title,
+            image_url,
+            requires_evaluation
+          )
         `)
-        .eq('role', 'participant')
-        .order('first_name')
+        .eq('users.role', 'participant')
+        .order('users.first_name')
 
-      if (participantsError) throw participantsError
+      if (assignmentsError) throw assignmentsError
 
-      const progressPromises = (participantsData || []).map(async (participant: any) => {
-        const { data: assignments } = await supabase
-          .from('course_assignments')
-          .select(`
-            course_id,
-            assigned_at,
-            courses!inner(
-              id,
-              title,
-              requires_evaluation
-            )
-          `)
+      const progressPromises = (assignments || []).map(async (assignment: any) => {
+        const participant = assignment.users
+        const course = assignment.courses
+
+        const { data: modules } = await supabase
+          .from('modules')
+          .select('id')
+          .eq('course_id', course.id)
+
+        const moduleIds = modules?.map(m => m.id) || []
+
+        const { data: lessons } = await supabase
+          .from('lessons')
+          .select('id, module_id')
+          .in('module_id', moduleIds)
+
+        const lessonIds = lessons?.map(l => l.id) || []
+        const totalLessons = lessons?.length || 0
+
+        const { data: lessonProgress } = await supabase
+          .from('lesson_progress')
+          .select('lesson_id, completed, completed_at')
           .eq('user_id', participant.id)
+          .in('lesson_id', lessonIds)
 
-        const totalCourses = assignments?.length || 0
-        let completedCourses = 0
-        let inProgressCourses = 0
-        let notStartedCourses = 0
-        let totalProgress = 0
-        let lastActivity: string | null = null
+        const completedLessons = lessonProgress?.filter(p => p.completed).length || 0
+        const progress = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0
 
-        let totalEvaluations = 0
-        let passedEvaluations = 0
-        let failedEvaluations = 0
-        let pendingEvaluations = 0
+        const completedModulesSet = new Set<string>()
+        lessonProgress?.filter(p => p.completed).forEach(p => {
+          const lesson = lessons?.find(l => l.id === p.lesson_id)
+          if (lesson) completedModulesSet.add(lesson.module_id)
+        })
 
-        for (const assignment of assignments || []) {
-          const { data: modules } = await supabase
-            .from('modules')
-            .select('id')
-            .eq('course_id', assignment.course_id)
+        const latestActivity = lessonProgress
+          ?.filter(p => p.completed_at)
+          .sort((a, b) => new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime())[0]?.completed_at || null
 
-          const { data: lessons } = await supabase
-            .from('lessons')
-            .select('id, module_id')
-            .in('module_id', modules?.map(m => m.id) || [])
+        const startedDate = lessonProgress && lessonProgress.length > 0 ?
+          lessonProgress.filter(p => p.completed_at).sort((a, b) =>
+            new Date(a.completed_at).getTime() - new Date(b.completed_at).getTime()
+          )[0]?.completed_at || null : null
 
-          const totalLessons = lessons?.length || 0
+        let evaluationStatus: 'not_started' | 'passed' | 'failed' | 'pending' = 'not_started'
+        let evaluationScore: number | null = null
+        let evaluationAttempts = 0
+        let maxAttempts = 0
 
-          const { data: progress } = await supabase
-            .from('lesson_progress')
-            .select('lesson_id, completed, completed_at')
-            .eq('user_id', participant.id)
-            .in('lesson_id', lessons?.map(l => l.id) || [])
+        if (course.requires_evaluation) {
+          const { data: evaluation } = await supabase
+            .from('evaluations')
+            .select('id, max_attempts')
+            .eq('course_id', course.id)
+            .eq('is_active', true)
+            .maybeSingle()
 
-          const completedLessons = progress?.filter(p => p.completed).length || 0
-          const courseProgress = totalLessons > 0 ? (completedLessons / totalLessons) * 100 : 0
-          totalProgress += courseProgress
+          if (evaluation) {
+            maxAttempts = evaluation.max_attempts
 
-          const latestActivity = progress
-            ?.filter(p => p.completed_at)
-            .sort((a, b) => new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime())[0]
+            const { data: attempts } = await supabase
+              .from('evaluation_attempts')
+              .select('passed, score')
+              .eq('user_id', participant.id)
+              .eq('evaluation_id', evaluation.id)
+              .order('created_at', { ascending: false })
 
-          if (latestActivity && (!lastActivity || new Date(latestActivity.completed_at) > new Date(lastActivity))) {
-            lastActivity = latestActivity.completed_at
-          }
+            evaluationAttempts = attempts?.length || 0
 
-          let isCourseCompleted = false
-
-          if (assignment.courses.requires_evaluation) {
-            const { data: evaluation } = await supabase
-              .from('evaluations')
-              .select('id')
-              .eq('course_id', assignment.course_id)
-              .eq('is_active', true)
-              .maybeSingle()
-
-            if (evaluation) {
-              const { data: attempts } = await supabase
-                .from('evaluation_attempts')
-                .select('passed')
-                .eq('user_id', participant.id)
-                .eq('evaluation_id', evaluation.id)
-
-              isCourseCompleted = attempts?.some(a => a.passed) || false
-            }
-          } else {
-            isCourseCompleted = courseProgress === 100
-          }
-
-          if (isCourseCompleted) {
-            completedCourses++
-          } else if (courseProgress > 0) {
-            inProgressCourses++
-          } else {
-            notStartedCourses++
-          }
-
-          if (assignment.courses.requires_evaluation) {
-            totalEvaluations++
-
-            const { data: evaluation } = await supabase
-              .from('evaluations')
-              .select('id')
-              .eq('course_id', assignment.course_id)
-              .eq('is_active', true)
-              .maybeSingle()
-
-            if (evaluation) {
-              const { data: attempts } = await supabase
-                .from('evaluation_attempts')
-                .select('passed')
-                .eq('user_id', participant.id)
-                .eq('evaluation_id', evaluation.id)
-
-              const hasPassed = attempts?.some(a => a.passed)
-              const hasFailed = attempts && attempts.length > 0 && !hasPassed
-
-              if (hasPassed) {
-                passedEvaluations++
-              } else if (hasFailed) {
-                failedEvaluations++
+            if (attempts && attempts.length > 0) {
+              const passedAttempt = attempts.find(a => a.passed)
+              if (passedAttempt) {
+                evaluationStatus = 'passed'
+                evaluationScore = passedAttempt.score
               } else {
-                pendingEvaluations++
+                evaluationStatus = 'failed'
+                evaluationScore = attempts[0].score
               }
+            } else if (progress === 100) {
+              evaluationStatus = 'pending'
             }
           }
         }
 
-        const { count: certificatesCount } = await supabase
-          .from('certificates')
-          .select('*', { count: 'exact', head: true })
+        const { data: signature } = await supabase
+          .from('attendance_signatures')
+          .select('id')
           .eq('user_id', participant.id)
+          .eq('course_id', course.id)
+          .maybeSingle()
 
-        const overallProgress = totalCourses > 0 ? Math.round(totalProgress / totalCourses) : 0
+        const signatureStatus = signature ? 'signed' : (course.requires_evaluation ? 'not_required' : 'pending')
+
+        const { data: certificate } = await supabase
+          .from('certificates')
+          .select('certificate_url, completion_date')
+          .eq('user_id', participant.id)
+          .eq('course_id', course.id)
+          .maybeSingle()
+
+        let completedDate: string | null = null
+        if (course.requires_evaluation) {
+          if (evaluationStatus === 'passed') {
+            completedDate = certificate?.completion_date || null
+          }
+        } else {
+          if (progress === 100) {
+            completedDate = latestActivity
+          }
+        }
 
         return {
-          id: participant.id,
+          participant_id: participant.id,
           first_name: participant.first_name,
           last_name: participant.last_name,
           email: participant.email,
@@ -282,22 +283,32 @@ export default function ReportsManagement() {
           area: participant.area,
           company_name: participant.company?.razon_social || 'Sin empresa',
           company_id: participant.company?.id || '',
-          total_courses: totalCourses,
-          completed_courses: completedCourses,
-          in_progress_courses: inProgressCourses,
-          not_started_courses: notStartedCourses,
-          total_evaluations: totalEvaluations,
-          passed_evaluations: passedEvaluations,
-          failed_evaluations: failedEvaluations,
-          pending_evaluations: pendingEvaluations,
-          certificates_generated: certificatesCount || 0,
-          overall_progress: overallProgress,
-          last_activity: lastActivity
+          course_id: course.id,
+          course_title: course.title,
+          course_image: course.image_url,
+          assigned_date: assignment.assigned_at,
+          started_date: startedDate,
+          completed_date: completedDate,
+          progress,
+          total_modules: modules?.length || 0,
+          completed_modules: completedModulesSet.size,
+          total_lessons: totalLessons,
+          completed_lessons: completedLessons,
+          requires_evaluation: course.requires_evaluation,
+          evaluation_status: evaluationStatus,
+          evaluation_score: evaluationScore,
+          evaluation_attempts: evaluationAttempts,
+          max_attempts: maxAttempts,
+          signature_status: signatureStatus,
+          certificate_status: certificate ? 'generated' : 'pending',
+          certificate_url: certificate?.certificate_url || null,
+          certificate_date: certificate?.completion_date || null,
+          last_activity: latestActivity
         }
       })
 
-      const progress = await Promise.all(progressPromises)
-      setParticipants(progress)
+      const participantCoursesData = await Promise.all(progressPromises)
+      setParticipantCourses(participantCoursesData)
     } catch (error) {
       console.error('Error loading participants progress:', error)
       throw error
@@ -501,8 +512,8 @@ export default function ReportsManagement() {
     }
   }
 
-  const applyFilters = async () => {
-    let filtered = [...participants]
+  const applyFilters = () => {
+    let filtered = [...participantCourses]
 
     if (searchTerm) {
       const term = searchTerm.toLowerCase()
@@ -511,15 +522,16 @@ export default function ReportsManagement() {
         p.last_name.toLowerCase().includes(term) ||
         p.email.toLowerCase().includes(term) ||
         p.dni?.toLowerCase().includes(term) ||
-        p.company_name.toLowerCase().includes(term)
+        p.company_name.toLowerCase().includes(term) ||
+        p.course_title.toLowerCase().includes(term)
       )
     }
 
     if (statusFilter !== 'all') {
       filtered = filtered.filter(p => {
-        if (statusFilter === 'completed') return p.completed_courses === p.total_courses && p.total_courses > 0
-        if (statusFilter === 'in_progress') return p.in_progress_courses > 0
-        if (statusFilter === 'not_started') return p.not_started_courses === p.total_courses
+        if (statusFilter === 'completed') return p.progress === 100 && (p.requires_evaluation ? p.evaluation_status === 'passed' : true)
+        if (statusFilter === 'in_progress') return p.progress > 0 && p.progress < 100
+        if (statusFilter === 'not_started') return p.progress === 0
         return true
       })
     }
@@ -529,25 +541,16 @@ export default function ReportsManagement() {
     }
 
     if (courseFilter !== 'all') {
-      const participantIdsWithCourse = new Set<string>()
-
-      const { data: assignments } = await supabase
-        .from('course_assignments')
-        .select('user_id')
-        .eq('course_id', courseFilter)
-
-      assignments?.forEach(a => participantIdsWithCourse.add(a.user_id))
-
-      filtered = filtered.filter(p => participantIdsWithCourse.has(p.id))
+      filtered = filtered.filter(p => p.course_id === courseFilter)
     }
 
-    setFilteredParticipants(filtered)
+    setFilteredParticipantCourses(filtered)
   }
 
   const handleExport = async () => {
     try {
       setIsExporting(true)
-      await exportReportsToExcel(filteredParticipants, companies)
+      await exportReportsToExcel(filteredParticipantCourses, companies)
       toast.success('Reporte exportado correctamente')
     } catch (error) {
       console.error('Error exporting report:', error)
@@ -625,10 +628,10 @@ export default function ReportsManagement() {
                 <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm text-blue-600 font-medium">Total Participantes</p>
-                      <p className="text-2xl font-bold text-blue-900">{participants.length}</p>
+                      <p className="text-sm text-blue-600 font-medium">Total Asignaciones</p>
+                      <p className="text-2xl font-bold text-blue-900">{participantCourses.length}</p>
                     </div>
-                    <User className="w-8 h-8 text-blue-600" />
+                    <BookOpen className="w-8 h-8 text-blue-600" />
                   </div>
                 </div>
 
@@ -637,7 +640,7 @@ export default function ReportsManagement() {
                     <div>
                       <p className="text-sm text-green-600 font-medium">Cursos Completados</p>
                       <p className="text-2xl font-bold text-green-900">
-                        {participants.reduce((sum, p) => sum + p.completed_courses, 0)}
+                        {participantCourses.filter(p => p.progress === 100 && (p.requires_evaluation ? p.evaluation_status === 'passed' : true)).length}
                       </p>
                     </div>
                     <CheckCircle className="w-8 h-8 text-green-600" />
@@ -649,24 +652,24 @@ export default function ReportsManagement() {
                     <div>
                       <p className="text-sm text-yellow-600 font-medium">Certificados Generados</p>
                       <p className="text-2xl font-bold text-yellow-900">
-                        {participants.reduce((sum, p) => sum + p.certificates_generated, 0)}
+                        {participantCourses.filter(p => p.certificate_status === 'generated').length}
                       </p>
                     </div>
                     <Award className="w-8 h-8 text-yellow-600" />
                   </div>
                 </div>
 
-                <div className="bg-purple-50 rounded-lg p-4 border border-purple-200">
+                <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm text-purple-600 font-medium">Progreso Promedio</p>
-                      <p className="text-2xl font-bold text-purple-900">
-                        {participants.length > 0
-                          ? Math.round(participants.reduce((sum, p) => sum + p.overall_progress, 0) / participants.length)
+                      <p className="text-sm text-slate-600 font-medium">Progreso Promedio</p>
+                      <p className="text-2xl font-bold text-slate-900">
+                        {participantCourses.length > 0
+                          ? Math.round(participantCourses.reduce((sum, p) => sum + p.progress, 0) / participantCourses.length)
                           : 0}%
                       </p>
                     </div>
-                    <TrendingUp className="w-8 h-8 text-purple-600" />
+                    <TrendingUp className="w-8 h-8 text-slate-600" />
                   </div>
                 </div>
               </div>
@@ -731,101 +734,116 @@ export default function ReportsManagement() {
                       <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                         Empresa
                       </th>
-                      <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">
-                        Cursos
-                      </th>
-                      <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">
-                        Evaluaciones
-                      </th>
-                      <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">
-                        Certificados
+                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                        Curso
                       </th>
                       <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">
                         Progreso
                       </th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
-                        Acciones
+                      <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">
+                        Evaluación
+                      </th>
+                      <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">
+                        Certificado
+                      </th>
+                      <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">
+                        Estado
                       </th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-slate-200">
-                    {filteredParticipants.map((participant) => (
-                      <tr key={participant.id} className="hover:bg-slate-50">
+                    {filteredParticipantCourses.map((item, index) => (
+                      <tr key={`${item.participant_id}-${item.course_id}-${index}`} className="hover:bg-slate-50">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div>
                             <div className="text-sm font-medium text-slate-900">
-                              {participant.first_name} {participant.last_name}
+                              {item.first_name} {item.last_name}
                             </div>
-                            <div className="text-sm text-slate-500">{participant.email}</div>
-                            {participant.dni && (
-                              <div className="text-xs text-slate-400">DNI: {participant.dni}</div>
+                            <div className="text-sm text-slate-500">{item.email}</div>
+                            {item.dni && (
+                              <div className="text-xs text-slate-400">DNI: {item.dni}</div>
                             )}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-slate-900">{participant.company_name}</div>
-                          {participant.area && (
-                            <div className="text-xs text-slate-500">{participant.area}</div>
+                          <div className="text-sm text-slate-900">{item.company_name}</div>
+                          {item.area && (
+                            <div className="text-xs text-slate-500">{item.area}</div>
                           )}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex flex-col items-center space-y-1">
-                            <div className="text-sm font-medium text-slate-900">
-                              {participant.total_courses}
-                            </div>
-                            <div className="flex space-x-1 text-xs">
-                              <span className="text-green-600">{participant.completed_courses}✓</span>
-                              <span className="text-blue-600">{participant.in_progress_courses}⟳</span>
-                              <span className="text-slate-400">{participant.not_started_courses}○</span>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex flex-col items-center space-y-1">
-                            <div className="text-sm font-medium text-slate-900">
-                              {participant.total_evaluations}
-                            </div>
-                            <div className="flex space-x-1 text-xs">
-                              <span className="text-green-600">{participant.passed_evaluations}✓</span>
-                              <span className="text-red-600">{participant.failed_evaluations}✗</span>
-                              <span className="text-yellow-600">{participant.pending_evaluations}⧗</span>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center">
-                          <div className="flex items-center justify-center">
-                            <Award className="w-4 h-4 text-yellow-600 mr-1" />
-                            <span className="text-sm font-medium text-slate-900">
-                              {participant.certificates_generated}
-                            </span>
+                        <td className="px-6 py-4">
+                          <div className="text-sm font-medium text-slate-900">{item.course_title}</div>
+                          <div className="text-xs text-slate-500 mt-1">
+                            {item.total_lessons} lecciones • {item.completed_lessons} completadas
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex flex-col items-center">
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${getProgressColor(participant.overall_progress)}`}>
-                              {participant.overall_progress}%
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${getProgressColor(item.progress)}`}>
+                              {item.progress}%
                             </span>
                             <div className="w-20 bg-slate-200 rounded-full h-1.5 mt-2">
                               <div
                                 className={`h-1.5 rounded-full ${
-                                  participant.overall_progress === 100
+                                  item.progress === 100
                                     ? 'bg-green-500'
-                                    : participant.overall_progress > 0
+                                    : item.progress > 0
                                     ? 'bg-blue-500'
                                     : 'bg-slate-400'
                                 }`}
-                                style={{ width: `${participant.overall_progress}%` }}
+                                style={{ width: `${item.progress}%` }}
                               />
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <button
-                            onClick={() => loadParticipantDetails(participant)}
-                            className="text-slate-600 hover:text-slate-900"
-                          >
-                            <FileText className="w-5 h-5" />
-                          </button>
+                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                          {item.requires_evaluation ? (
+                            <div className="flex flex-col items-center">
+                              {getEvaluationStatusBadge(item.evaluation_status)}
+                              {item.evaluation_score !== null && (
+                                <div className="text-xs text-slate-500 mt-1">
+                                  Nota: {item.evaluation_score}%
+                                </div>
+                              )}
+                              {item.evaluation_attempts > 0 && (
+                                <div className="text-xs text-slate-400 mt-1">
+                                  Intentos: {item.evaluation_attempts}/{item.max_attempts}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-slate-400">No requerida</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                          {item.certificate_status === 'generated' ? (
+                            <a
+                              href={item.certificate_url || '#'}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center text-green-600 hover:text-green-800"
+                            >
+                              <Award className="w-4 h-4 mr-1" />
+                              <span className="text-xs">Ver certificado</span>
+                            </a>
+                          ) : (
+                            <span className="text-xs text-slate-400">Pendiente</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                          {item.progress === 100 && (!item.requires_evaluation || item.evaluation_status === 'passed') ? (
+                            <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                              Completado
+                            </span>
+                          ) : item.progress > 0 ? (
+                            <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                              En progreso
+                            </span>
+                          ) : (
+                            <span className="px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
+                              No iniciado
+                            </span>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -833,215 +851,20 @@ export default function ReportsManagement() {
                 </table>
               </div>
 
-              {filteredParticipants.length === 0 && (
+              {filteredParticipantCourses.length === 0 && (
                 <div className="text-center py-12">
-                  <User className="mx-auto h-12 w-12 text-slate-400" />
-                  <h3 className="mt-2 text-sm font-medium text-slate-900">No hay participantes</h3>
+                  <BookOpen className="mx-auto h-12 w-12 text-slate-400" />
+                  <h3 className="mt-2 text-sm font-medium text-slate-900">No hay asignaciones</h3>
                   <p className="mt-1 text-sm text-slate-500">
                     {searchTerm || statusFilter !== 'all' || companyFilter !== 'all' || courseFilter !== 'all'
                       ? 'No hay resultados para los filtros aplicados.'
-                      : 'No hay participantes registrados.'}
+                      : 'No hay cursos asignados a participantes.'}
                   </p>
                 </div>
               )}
           </div>
         </div>
       </div>
-
-      {showDetailModal && selectedParticipant && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-white rounded-xl shadow-xl max-w-6xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b sticky top-0 bg-white z-10">
-              <div className="flex justify-between items-start">
-                <div>
-                  <h2 className="text-xl font-bold text-slate-800">
-                    {selectedParticipant.first_name} {selectedParticipant.last_name}
-                  </h2>
-                  <p className="text-slate-600">{selectedParticipant.email}</p>
-                  <div className="flex items-center space-x-4 mt-2 text-sm text-slate-500">
-                    <span>{selectedParticipant.company_name}</span>
-                    {selectedParticipant.area && <span>{selectedParticipant.area}</span>}
-                    {selectedParticipant.dni && <span>DNI: {selectedParticipant.dni}</span>}
-                  </div>
-                </div>
-                <button
-                  onClick={() => {
-                    setShowDetailModal(false)
-                    setSelectedParticipant(null)
-                    setCourseDetails([])
-                  }}
-                  className="text-slate-400 hover:text-slate-600"
-                >
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-            </div>
-
-            <div className="p-6">
-              {isLoadingDetails ? (
-                <div className="flex items-center justify-center py-12">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-800"></div>
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                    <div className="bg-slate-50 rounded-lg p-4">
-                      <p className="text-sm text-slate-600 font-medium">Total Cursos</p>
-                      <p className="text-2xl font-bold text-slate-900">{courseDetails.length}</p>
-                    </div>
-                    <div className="bg-green-50 rounded-lg p-4">
-                      <p className="text-sm text-green-600 font-medium">Completados</p>
-                      <p className="text-2xl font-bold text-green-900">
-                        {courseDetails.filter(c => c.progress === 100).length}
-                      </p>
-                    </div>
-                    <div className="bg-blue-50 rounded-lg p-4">
-                      <p className="text-sm text-blue-600 font-medium">En Progreso</p>
-                      <p className="text-2xl font-bold text-blue-900">
-                        {courseDetails.filter(c => c.progress > 0 && c.progress < 100).length}
-                      </p>
-                    </div>
-                    <div className="bg-yellow-50 rounded-lg p-4">
-                      <p className="text-sm text-yellow-600 font-medium">Evaluaciones Aprobadas</p>
-                      <p className="text-2xl font-bold text-yellow-900">
-                        {courseDetails.filter(c => c.evaluation_status === 'passed').length}
-                      </p>
-                    </div>
-                    <div className="bg-purple-50 rounded-lg p-4">
-                      <p className="text-sm text-purple-600 font-medium">Certificados</p>
-                      <p className="text-2xl font-bold text-purple-900">
-                        {courseDetails.filter(c => c.certificate_status === 'generated').length}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div>
-                    <h3 className="text-lg font-semibold text-slate-800 mb-4">Cursos Asignados</h3>
-                    <div className="space-y-4">
-                      {courseDetails.map((course) => (
-                        <div key={course.course_id} className="bg-slate-50 rounded-lg p-4 border border-slate-200">
-                          <div className="flex items-start space-x-4">
-                            {course.course_image ? (
-                              <img
-                                src={course.course_image}
-                                alt={course.course_title}
-                                className="w-24 h-24 object-cover rounded-lg flex-shrink-0"
-                              />
-                            ) : (
-                              <div className="w-24 h-24 bg-slate-200 rounded-lg flex items-center justify-center flex-shrink-0">
-                                <BookOpen className="w-8 h-8 text-slate-400" />
-                              </div>
-                            )}
-
-                            <div className="flex-1 min-w-0">
-                              <h4 className="text-base font-semibold text-slate-900 mb-2">{course.course_title}</h4>
-
-                              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
-                                <div>
-                                  <p className="text-xs text-slate-500">Progreso</p>
-                                  <div className="flex items-center">
-                                    <div className="w-full bg-slate-200 rounded-full h-2 mr-2">
-                                      <div
-                                        className={`h-2 rounded-full ${
-                                          course.progress === 100
-                                            ? 'bg-green-500'
-                                            : course.progress > 0
-                                            ? 'bg-blue-500'
-                                            : 'bg-slate-400'
-                                        }`}
-                                        style={{ width: `${course.progress}%` }}
-                                      />
-                                    </div>
-                                    <span className="text-sm font-medium text-slate-900">{course.progress}%</span>
-                                  </div>
-                                </div>
-
-                                <div>
-                                  <p className="text-xs text-slate-500">Lecciones</p>
-                                  <p className="text-sm font-medium text-slate-900">
-                                    {course.completed_lessons}/{course.total_lessons}
-                                  </p>
-                                </div>
-
-                                <div>
-                                  <p className="text-xs text-slate-500">Evaluación</p>
-                                  <div className="mt-1">
-                                    {getEvaluationStatusBadge(course.evaluation_status)}
-                                  </div>
-                                  {course.evaluation_score !== null && (
-                                    <p className="text-xs text-slate-600 mt-1">Nota: {course.evaluation_score}%</p>
-                                  )}
-                                  {course.max_attempts > 0 && (
-                                    <p className="text-xs text-slate-500 mt-1">
-                                      Intentos: {course.evaluation_attempts}/{course.max_attempts}
-                                    </p>
-                                  )}
-                                </div>
-
-                                <div>
-                                  <p className="text-xs text-slate-500">Certificado</p>
-                                  {course.certificate_status === 'generated' ? (
-                                    <div>
-                                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700 flex items-center w-fit">
-                                        <Award className="w-3 h-3 mr-1" /> Generado
-                                      </span>
-                                      {course.certificate_date && (
-                                        <p className="text-xs text-slate-500 mt-1">
-                                          {new Date(course.certificate_date).toLocaleDateString()}
-                                        </p>
-                                      )}
-                                      {course.certificate_url && (
-                                        <a
-                                          href={course.certificate_url}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="text-xs text-blue-600 hover:text-blue-800 mt-1 inline-block"
-                                        >
-                                          Ver certificado
-                                        </a>
-                                      )}
-                                    </div>
-                                  ) : (
-                                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700 flex items-center w-fit">
-                                      Pendiente
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-
-                              <div className="flex flex-wrap gap-2 text-xs text-slate-600">
-                                <span>Asignado: {new Date(course.assigned_date).toLocaleDateString()}</span>
-                                {course.started_date && (
-                                  <span>Iniciado: {new Date(course.started_date).toLocaleDateString()}</span>
-                                )}
-                                {course.completed_date && (
-                                  <span>Completado: {new Date(course.completed_date).toLocaleDateString()}</span>
-                                )}
-                                {course.signature_status !== 'not_required' && (
-                                  <span className={course.signature_status === 'signed' ? 'text-green-600' : 'text-orange-600'}>
-                                    Firma: {course.signature_status === 'signed' ? 'Firmada' : 'Pendiente'}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    {courseDetails.length === 0 && (
-                      <div className="text-center py-8">
-                        <BookOpen className="mx-auto h-12 w-12 text-slate-400" />
-                        <p className="mt-2 text-sm text-slate-500">No hay cursos asignados</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
