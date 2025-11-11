@@ -199,6 +199,26 @@ export default function AttendanceManagement() {
 
       if (attendanceError) throw attendanceError
 
+      // For each list with date range, count participants correctly
+      const listsWithCounts = await Promise.all(
+        (attendanceData || []).map(async (list: any) => {
+          if (list.date_range_start && list.date_range_end) {
+            // Count by date range
+            const signatures = await getFilteredSignatures(list)
+            return {
+              ...list,
+              participantCount: signatures.length
+            }
+          } else {
+            // Use direct signatures count
+            return {
+              ...list,
+              participantCount: list.signatures?.length || 0
+            }
+          }
+        })
+      )
+
       // Load courses with instructor
       const { data: coursesData, error: coursesError } = await supabase
         .from('courses')
@@ -224,7 +244,7 @@ export default function AttendanceManagement() {
 
       if (companiesError) throw companiesError
 
-      setAttendanceLists(attendanceData || [])
+      setAttendanceLists(listsWithCounts)
       setCourses(coursesData || [])
       setCompanies(companiesData || [])
     } catch (error) {
@@ -634,7 +654,7 @@ export default function AttendanceManagement() {
                       {attendance.course.hours} horas
                     </span>
                     <span className="inline-flex items-center px-2 py-1 bg-purple-100 text-purple-800 rounded-full">
-                      {attendance.signatures?.length || 0} participantes
+                      {attendance.participantCount || 0} participantes
                     </span>
                   </div>
                   
