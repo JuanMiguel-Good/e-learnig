@@ -309,9 +309,15 @@ export default function EvaluationsManagement() {
       return
     }
 
+    // Sort options by order_index for each question
+    const questionsWithSortedOptions = (questionsData || []).map((question: any) => ({
+      ...question,
+      options: (question.options || []).sort((a: any, b: any) => a.order_index - b.order_index)
+    }))
+
     setViewingQuestions({
       ...evaluation,
-      questions: questionsData || []
+      questions: questionsWithSortedOptions
     })
   }
 
