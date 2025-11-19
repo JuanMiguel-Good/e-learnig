@@ -639,6 +639,8 @@ export default function EvaluationsManagement() {
                       errors={errors}
                       onRemove={() => removeQuestion(questionIndex)}
                       canRemove={questionFields.length > 1}
+                      setValue={setValue}
+                      watch={watch}
                     />
                   ))}
                 </div>
@@ -685,17 +687,17 @@ interface QuestionFormProps {
   errors: any
   onRemove: () => void
   canRemove: boolean
+  setValue: any
+  watch: any
 }
 
-function QuestionForm({ questionIndex, register, control, errors, onRemove, canRemove }: QuestionFormProps) {
-  const questionOptions = control._formValues?.questions?.[questionIndex]?.options || []
-  
+function QuestionForm({ questionIndex, register, control, errors, onRemove, canRemove, setValue, watch }: QuestionFormProps) {
+  const questionOptions = watch(`questions.${questionIndex}.options`) || []
+
   const handleCorrectAnswerChange = (optionIndex: number) => {
     // Set all options to false, then set the selected one to true
     questionOptions.forEach((_: any, index: number) => {
-      register(`questions.${questionIndex}.options.${index}.is_correct`).onChange({
-        target: { value: index === optionIndex }
-      })
+      setValue(`questions.${questionIndex}.options.${index}.is_correct`, index === optionIndex)
     })
   }
 
@@ -741,11 +743,12 @@ function QuestionForm({ questionIndex, register, control, errors, onRemove, canR
             Opciones de Respuesta (marca la correcta)
           </label>
           <div className="space-y-3">
-            {questionOptions.map((_: any, optionIndex: number) => (
+            {questionOptions.map((option: any, optionIndex: number) => (
               <div key={optionIndex} className="flex items-center space-x-3">
                 <input
                   type="radio"
                   name={`question-${questionIndex}-correct`}
+                  checked={option.is_correct === true}
                   onChange={() => handleCorrectAnswerChange(optionIndex)}
                   className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300"
                 />
