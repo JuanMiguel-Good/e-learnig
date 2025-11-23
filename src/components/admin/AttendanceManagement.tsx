@@ -199,25 +199,10 @@ export default function AttendanceManagement() {
 
       if (attendanceError) throw attendanceError
 
-      // For each list with date range, count participants correctly
-      const listsWithCounts = await Promise.all(
-        (attendanceData || []).map(async (list: any) => {
-          if (list.date_range_start && list.date_range_end) {
-            // Count by date range
-            const signatures = await getFilteredSignatures(list)
-            return {
-              ...list,
-              participantCount: signatures.length
-            }
-          } else {
-            // Use direct signatures count
-            return {
-              ...list,
-              participantCount: list.signatures?.length || 0
-            }
-          }
-        })
-      )
+      const listsWithCounts = (attendanceData || []).map((list: any) => ({
+        ...list,
+        participantCount: list.signatures?.length || 0
+      }))
 
       // Load courses with instructor
       const { data: coursesData, error: coursesError } = await supabase
@@ -374,8 +359,6 @@ export default function AttendanceManagement() {
       const endDateOnly = attendanceList.date_range_end.split('T')[0]
       const endDate = `${endDateOnly}T23:59:59.999Z`
 
-      console.log('Filtering with dates:', { startDate, endDate, company: attendanceList.company_id, course: attendanceList.course_id })
-
       const { data: attempts, error: attemptsError } = await supabase
         .from('evaluation_attempts')
         .select(`
@@ -390,8 +373,6 @@ export default function AttendanceManagement() {
         .eq('evaluations.course_id', attendanceList.course_id)
         .gte('completed_at', startDate)
         .lte('completed_at', endDate)
-
-      console.log('Attempts found:', attempts?.length || 0, attempts)
 
       if (attemptsError) {
         console.error('Error fetching attempts:', attemptsError)
@@ -415,8 +396,6 @@ export default function AttendanceManagement() {
         `)
         .in('evaluation_attempt_id', attemptIds)
         .order('signed_at')
-
-      console.log('Signatures found:', signaturesData?.length || 0)
 
       if (signaturesError) {
         console.error('Error fetching signatures:', signaturesError)
