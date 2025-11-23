@@ -268,50 +268,40 @@ export default function ReportsManagement() {
             } else if (progress === 100) {
               evaluationStatus = 'pending'
             }
-
-            if (evaluationStatus !== 'passed') {
-              const { data: signatures } = await supabase
-                .from('attendance_signatures')
-                .select(`
-                  evaluation_attempt_id,
-                  evaluation_attempts!inner(
-                    id,
-                    passed,
-                    score,
-                    evaluation_id,
-                    evaluations!inner(
-                      course_id
-                    )
-                  )
-                `)
-                .eq('user_id', participant.id)
-                .eq('evaluation_attempts.evaluations.course_id', course.id)
-                .not('evaluation_attempt_id', 'is', null)
-
-              if (signatures && signatures.length > 0) {
-                const signature = signatures[0] as any
-                const attemptData = signature.evaluation_attempts
-
-                if (attemptData?.passed) {
-                  evaluationStatus = 'passed'
-                  evaluationScore = attemptData.score
-                  if (evaluationAttempts === 0) {
-                    evaluationAttempts = 1
-                  }
-                }
-              }
-            }
           }
         }
 
-        const { data: signature } = await supabase
-          .from('attendance_signatures')
-          .select('id')
-          .eq('user_id', participant.id)
-          .eq('course_id', course.id)
-          .maybeSingle()
+        let signatureStatus: 'signed' | 'pending' | 'not_required' = 'not_required'
 
-        const signatureStatus = signature ? 'signed' : (course.requires_evaluation ? 'not_required' : 'pending')
+        if (course.requires_evaluation && evaluationStatus === 'passed') {
+          const { data: evaluation } = await supabase
+            .from('evaluations')
+            .select('id')
+            .eq('course_id', course.id)
+            .eq('is_active', true)
+            .maybeSingle()
+
+          if (evaluation) {
+            const { data: passedAttempt } = await supabase
+              .from('evaluation_attempts')
+              .select('id')
+              .eq('user_id', participant.id)
+              .eq('evaluation_id', evaluation.id)
+              .eq('passed', true)
+              .maybeSingle()
+
+            if (passedAttempt) {
+              const { data: signature } = await supabase
+                .from('attendance_signatures')
+                .select('id')
+                .eq('user_id', participant.id)
+                .eq('evaluation_attempt_id', passedAttempt.id)
+                .maybeSingle()
+
+              signatureStatus = signature ? 'signed' : 'pending'
+            }
+          }
+        }
 
         const { data: certificate } = await supabase
           .from('certificates')
@@ -418,156 +408,6 @@ export default function ReportsManagement() {
     }
   }
 
-  const loadParticipantDetails = async (participant: ParticipantProgress) => {
-    try {
-      setIsLoadingDetails(true)
-      setSelectedParticipant(participant)
-
-      const { data: assignments } = await supabase
-        .from('course_assignments')
-        .select(`
-          course_id,
-          assigned_at,
-          courses!inner(
-            id,
-            title,
-            image_url,
-            requires_evaluation
-          )
-        `)
-        .eq('user_id', participant.id)
-
-      const detailsPromises = (assignments || []).map(async (assignment: any) => {
-        const { data: modules } = await supabase
-          .from('modules')
-          .select('id')
-          .eq('course_id', assignment.course_id)
-
-        const moduleIds = modules?.map(m => m.id) || []
-
-        const { data: lessons } = await supabase
-          .from('lessons')
-          .select('id, module_id')
-          .in('module_id', moduleIds)
-
-        const totalLessons = lessons?.length || 0
-        const totalModules = modules?.length || 0
-
-        const { data: progress } = await supabase
-          .from('lesson_progress')
-          .select('lesson_id, completed, completed_at')
-          .eq('user_id', participant.id)
-          .in('lesson_id', lessons?.map(l => l.id) || [])
-
-        const completedLessons = progress?.filter(p => p.completed).length || 0
-        const completedModuleIds = new Set(
-          progress?.filter(p => p.completed).map(p => {
-            const lesson = lessons?.find(l => l.id === p.lesson_id)
-            return lesson?.module_id
-          }) || []
-        )
-        const completedModules = completedModuleIds.size
-
-        const courseProgress = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0
-
-        const startedDate = progress && progress.length > 0
-          ? progress.sort((a, b) => new Date(a.completed_at || 0).getTime() - new Date(b.completed_at || 0).getTime())[0]?.completed_at
-          : null
-
-        const completedDate = courseProgress === 100 && progress
-          ? progress.sort((a, b) => new Date(b.completed_at || 0).getTime() - new Date(a.completed_at || 0).getTime())[0]?.completed_at
-          : null
-
-        let evaluationStatus: 'not_started' | 'passed' | 'failed' | 'pending' = 'not_started'
-        let evaluationScore: number | null = null
-        let evaluationAttempts = 0
-        let maxAttempts = 0
-        let signatureStatus: 'signed' | 'pending' | 'not_required' = 'not_required'
-
-        if (assignment.courses.requires_evaluation) {
-          const { data: evaluation } = await supabase
-            .from('evaluations')
-            .select('id, max_attempts')
-            .eq('course_id', assignment.course_id)
-            .eq('is_active', true)
-            .maybeSingle()
-
-          if (evaluation) {
-            maxAttempts = evaluation.max_attempts
-
-            const { data: attempts } = await supabase
-              .from('evaluation_attempts')
-              .select('passed, score, id')
-              .eq('user_id', participant.id)
-              .eq('evaluation_id', evaluation.id)
-              .order('attempt_number', { ascending: false })
-
-            evaluationAttempts = attempts?.length || 0
-
-            if (attempts && attempts.length > 0) {
-              const passedAttempt = attempts.find(a => a.passed)
-              if (passedAttempt) {
-                evaluationStatus = 'passed'
-                evaluationScore = passedAttempt.score
-
-                const { data: signature } = await supabase
-                  .from('attendance_signatures')
-                  .select('id')
-                  .eq('evaluation_attempt_id', passedAttempt.id)
-                  .eq('user_id', participant.id)
-                  .maybeSingle()
-
-                signatureStatus = signature ? 'signed' : 'pending'
-              } else {
-                evaluationStatus = evaluationAttempts >= maxAttempts ? 'failed' : 'pending'
-                evaluationScore = attempts[0].score
-              }
-            } else {
-              evaluationStatus = 'not_started'
-            }
-          }
-        }
-
-        const { data: certificate } = await supabase
-          .from('certificates')
-          .select('certificate_url, completion_date')
-          .eq('user_id', participant.id)
-          .eq('course_id', assignment.course_id)
-          .maybeSingle()
-
-        return {
-          course_id: assignment.course_id,
-          course_title: assignment.courses.title,
-          course_image: assignment.courses.image_url,
-          progress: courseProgress,
-          total_modules: totalModules,
-          completed_modules: completedModules,
-          total_lessons: totalLessons,
-          completed_lessons: completedLessons,
-          evaluation_status: evaluationStatus,
-          evaluation_score: evaluationScore,
-          evaluation_attempts: evaluationAttempts,
-          max_attempts: maxAttempts,
-          signature_status: signatureStatus,
-          certificate_status: certificate ? 'generated' : 'pending',
-          certificate_url: certificate?.certificate_url || null,
-          certificate_date: certificate?.completion_date || null,
-          assigned_date: assignment.assigned_at,
-          started_date: startedDate,
-          completed_date: completedDate
-        }
-      })
-
-      const details = await Promise.all(detailsPromises)
-      setCourseDetails(details)
-      setShowDetailModal(true)
-    } catch (error) {
-      console.error('Error loading participant details:', error)
-      toast.error('Error al cargar detalles del participante')
-    } finally {
-      setIsLoadingDetails(false)
-    }
-  }
 
   const applyFilters = () => {
     let filtered = [...participantCourses]
