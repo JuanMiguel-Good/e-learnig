@@ -34,60 +34,106 @@ export default function Dashboard() {
 
   const loadStats = async () => {
     try {
-      // Total participantes
-      const { count: participantsCount } = await supabase
-        .from('users')
-        .select('*', { count: 'exact', head: true })
-        .eq('role', 'participant')
-
-      // Total cursos
-      const { count: coursesCount } = await supabase
-        .from('courses')
-        .select('*', { count: 'exact', head: true })
-
-      // Total certificados
-      const { count: certificatesCount } = await supabase
-        .from('certificates')
-        .select('*', { count: 'exact', head: true })
-
-      // Estadísticas de asignaciones
       const { data: assignments } = await supabase
         .from('course_assignments')
         .select('user_id, course_id, status, last_activity_at')
 
-      const totalAssignments = assignments?.length || 0
-      const inProgress = assignments?.filter(a =>
-        ['in_progress', 'lessons_completed', 'evaluation_pending', 'signature_pending'].includes(a.status)
-      ).length || 0
-      const completed = assignments?.filter(a =>
-        ['completed', 'certificate_generated'].includes(a.status)
-      ).length || 0
+      if (!assignments || assignments.length === 0) {
+        const [
+          { count: participantsCount },
+          { count: coursesCount },
+          { count: certificatesCount }
+        ] = await Promise.all([
+          supabase.from('users').select('*', { count: 'exact', head: true }).eq('role', 'participant'),
+          supabase.from('courses').select('*', { count: 'exact', head: true }),
+          supabase.from('certificates').select('*', { count: 'exact', head: true })
+        ])
 
-      // Participantes inactivos (más de 15 días)
-      const inactiveParticipants = assignments?.filter(a => {
+        setStats({
+          totalParticipants: participantsCount || 0,
+          totalCourses: coursesCount || 0,
+          totalCertificates: certificatesCount || 0,
+          completionRate: 0,
+          totalAssignments: 0,
+          inProgress: 0,
+          completed: 0,
+          inactiveParticipants: 0
+        })
+        return
+      }
+
+      const courseIds = [...new Set(assignments.map(a => a.course_id))]
+      const userIds = [...new Set(assignments.map(a => a.user_id))]
+
+      const [
+        { count: participantsCount },
+        { count: coursesCount },
+        { count: certificatesCount },
+        { data: allModules },
+        { data: allLessons },
+        { data: allLessonProgress }
+      ] = await Promise.all([
+        supabase.from('users').select('*', { count: 'exact', head: true }).eq('role', 'participant'),
+        supabase.from('courses').select('*', { count: 'exact', head: true }),
+        supabase.from('certificates').select('*', { count: 'exact', head: true }),
+        supabase.from('modules').select('id, course_id').in('course_id', courseIds),
+        supabase.from('lessons').select('id, module_id'),
+        supabase.from('lesson_progress').select('user_id, lesson_id, completed').in('user_id', userIds)
+      ])
+
+      const modulesByCourse = new Map<string, string[]>()
+      allModules?.forEach(m => {
+        if (!modulesByCourse.has(m.course_id)) modulesByCourse.set(m.course_id, [])
+        modulesByCourse.get(m.course_id)!.push(m.id)
+      })
+
+      const lessonsByModule = new Map<string, string[]>()
+      allLessons?.forEach(l => {
+        if (!lessonsByModule.has(l.module_id)) lessonsByModule.set(l.module_id, [])
+        lessonsByModule.get(l.module_id)!.push(l.id)
+      })
+
+      const completedLessonsByUser = new Map<string, Set<string>>()
+      allLessonProgress?.forEach(p => {
+        if (p.completed) {
+          if (!completedLessonsByUser.has(p.user_id)) {
+            completedLessonsByUser.set(p.user_id, new Set())
+          }
+          completedLessonsByUser.get(p.user_id)!.add(p.lesson_id)
+        }
+      })
+
+      let totalProgress = 0
+      assignments.forEach(assignment => {
+        const moduleIds = modulesByCourse.get(assignment.course_id) || []
+        const lessonIds = moduleIds.flatMap(modId => lessonsByModule.get(modId) || [])
+        const totalLessons = lessonIds.length
+
+        if (totalLessons > 0) {
+          const userCompletedLessons = completedLessonsByUser.get(assignment.user_id) || new Set()
+          const completedCount = lessonIds.filter(lessonId => userCompletedLessons.has(lessonId)).length
+          const progress = Math.round((completedCount / totalLessons) * 100)
+          totalProgress += progress
+        }
+      })
+
+      const totalAssignments = assignments.length
+      const inProgress = assignments.filter(a =>
+        ['in_progress', 'lessons_completed', 'evaluation_pending', 'signature_pending'].includes(a.status)
+      ).length
+      const completed = assignments.filter(a =>
+        ['completed', 'certificate_generated'].includes(a.status)
+      ).length
+
+      const inactiveParticipants = assignments.filter(a => {
         if (!a.last_activity_at) return false
         const daysSinceActivity = Math.floor(
           (Date.now() - new Date(a.last_activity_at).getTime()) / (1000 * 60 * 60 * 24)
         )
         return daysSinceActivity >= 15 && !['completed', 'certificate_generated'].includes(a.status)
-      }).length || 0
+      }).length
 
-      // Calcular tasa de finalización promedio
-      let totalProgress = 0
-      if (assignments && assignments.length > 0) {
-        for (const assignment of assignments) {
-          const { data } = await supabase
-            .rpc('calculate_course_progress', {
-              user_id_param: assignment.user_id,
-              course_id_param: assignment.course_id
-            })
-          totalProgress += data || 0
-        }
-      }
-
-      const avgCompletionRate = assignments?.length
-        ? Math.round(totalProgress / assignments.length)
-        : 0
+      const avgCompletionRate = totalAssignments > 0 ? Math.round(totalProgress / totalAssignments) : 0
 
       setStats({
         totalParticipants: participantsCount || 0,
