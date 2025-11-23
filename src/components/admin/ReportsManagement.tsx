@@ -150,32 +150,78 @@ export default function ReportsManagement() {
         .order('first_name')
 
       if (participantsError) throw participantsError
+      if (!participants || participants.length === 0) {
+        setParticipantCourses([])
+        return
+      }
 
-      const { data: companies, error: companiesError } = await supabase
-        .from('companies')
-        .select('id, razon_social')
+      const participantIds = participants.map(p => p.id)
 
-      if (companiesError) throw companiesError
+      const [
+        { data: companies },
+        { data: allAssignmentsData },
+        { data: allModules },
+        { data: allLessons },
+        { data: allLessonProgress },
+        { data: allEvaluations },
+        { data: allAttempts },
+        { data: allSignatures },
+        { data: allCertificates }
+      ] = await Promise.all([
+        supabase.from('companies').select('id, razon_social'),
+        supabase.from('course_assignments').select('user_id, course_id, assigned_at, courses!inner(id, title, image_url, requires_evaluation)').in('user_id', participantIds),
+        supabase.from('modules').select('id, course_id'),
+        supabase.from('lessons').select('id, module_id'),
+        supabase.from('lesson_progress').select('user_id, lesson_id, completed, completed_at').in('user_id', participantIds),
+        supabase.from('evaluations').select('id, course_id, max_attempts, is_active').eq('is_active', true),
+        supabase.from('evaluation_attempts').select('id, user_id, evaluation_id, passed, score, completed_at').in('user_id', participantIds).order('completed_at', { ascending: false }),
+        supabase.from('attendance_signatures').select('user_id, evaluation_attempt_id').in('user_id', participantIds),
+        supabase.from('certificates').select('user_id, course_id, certificate_url, completion_date').in('user_id', participantIds)
+      ])
 
       const companiesMap = new Map(companies?.map(c => [c.id, c.razon_social]))
-      const participantsMap = new Map(participants?.map(p => [p.id, p]))
+      const participantsMap = new Map(participants.map(p => [p.id, p]))
 
-      const { data: allAssignmentsData, error: assignmentsError } = await supabase
-        .from('course_assignments')
-        .select(`
-          user_id,
-          course_id,
-          assigned_at,
-          courses!inner(
-            id,
-            title,
-            image_url,
-            requires_evaluation
-          )
-        `)
-        .in('user_id', participants?.map(p => p.id) || [])
+      const modulesByCourse = new Map<string, any[]>()
+      allModules?.forEach(m => {
+        if (!modulesByCourse.has(m.course_id)) modulesByCourse.set(m.course_id, [])
+        modulesByCourse.get(m.course_id)!.push(m)
+      })
 
-      if (assignmentsError) throw assignmentsError
+      const lessonsByModule = new Map<string, any[]>()
+      allLessons?.forEach(l => {
+        if (!lessonsByModule.has(l.module_id)) lessonsByModule.set(l.module_id, [])
+        lessonsByModule.get(l.module_id)!.push(l)
+      })
+
+      const progressByUserAndLesson = new Map<string, any>()
+      allLessonProgress?.forEach(p => {
+        progressByUserAndLesson.set(`${p.user_id}-${p.lesson_id}`, p)
+      })
+
+      const evaluationsByCourse = new Map<string, any>()
+      allEvaluations?.forEach(e => {
+        if (e.is_active) evaluationsByCourse.set(e.course_id, e)
+      })
+
+      const attemptsByUserAndEval = new Map<string, any[]>()
+      allAttempts?.forEach(a => {
+        const key = `${a.user_id}-${a.evaluation_id}`
+        if (!attemptsByUserAndEval.has(key)) attemptsByUserAndEval.set(key, [])
+        attemptsByUserAndEval.get(key)!.push(a)
+      })
+
+      const signaturesByUserAndAttempt = new Map<string, boolean>()
+      allSignatures?.forEach(s => {
+        if (s.evaluation_attempt_id) {
+          signaturesByUserAndAttempt.set(`${s.user_id}-${s.evaluation_attempt_id}`, true)
+        }
+      })
+
+      const certificatesByUserAndCourse = new Map<string, any>()
+      allCertificates?.forEach(c => {
+        certificatesByUserAndCourse.set(`${c.user_id}-${c.course_id}`, c)
+      })
 
       const allAssignments = (allAssignmentsData || []).map(assignment => {
         const participant = participantsMap.get(assignment.user_id)
@@ -186,48 +232,34 @@ export default function ReportsManagement() {
         }
       })
 
-      const progressPromises = allAssignments.map(async (assignment: any) => {
+      const participantCoursesData = allAssignments.map((assignment: any) => {
         const participant = assignment.users
         const course = assignment.courses
 
-        const { data: modules } = await supabase
-          .from('modules')
-          .select('id')
-          .eq('course_id', course.id)
+        const modules = modulesByCourse.get(course.id) || []
+        const moduleIds = modules.map(m => m.id)
 
-        const moduleIds = modules?.map(m => m.id) || []
+        const lessons = moduleIds.flatMap(modId => lessonsByModule.get(modId) || [])
+        const totalLessons = lessons.length
 
-        const { data: lessons } = await supabase
-          .from('lessons')
-          .select('id, module_id')
-          .in('module_id', moduleIds)
-
-        const lessonIds = lessons?.map(l => l.id) || []
-        const totalLessons = lessons?.length || 0
-
-        const { data: lessonProgress } = await supabase
-          .from('lesson_progress')
-          .select('lesson_id, completed, completed_at')
-          .eq('user_id', participant.id)
-          .in('lesson_id', lessonIds)
-
-        const completedLessons = lessonProgress?.filter(p => p.completed).length || 0
+        const lessonProgressList = lessons.map(l => progressByUserAndLesson.get(`${participant.id}-${l.id}`)).filter(Boolean)
+        const completedLessons = lessonProgressList.filter(p => p.completed).length
         const progress = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0
 
         const completedModulesSet = new Set<string>()
-        lessonProgress?.filter(p => p.completed).forEach(p => {
-          const lesson = lessons?.find(l => l.id === p.lesson_id)
+        lessonProgressList.filter(p => p.completed).forEach(p => {
+          const lesson = lessons.find(l => l.id === p.lesson_id)
           if (lesson) completedModulesSet.add(lesson.module_id)
         })
 
-        const latestActivity = lessonProgress
-          ?.filter(p => p.completed_at)
-          .sort((a, b) => new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime())[0]?.completed_at || null
+        const completedProgressWithDates = lessonProgressList.filter(p => p.completed_at)
+        const latestActivity = completedProgressWithDates.length > 0
+          ? completedProgressWithDates.sort((a, b) => new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime())[0]?.completed_at
+          : null
 
-        const startedDate = lessonProgress && lessonProgress.length > 0 ?
-          lessonProgress.filter(p => p.completed_at).sort((a, b) =>
-            new Date(a.completed_at).getTime() - new Date(b.completed_at).getTime()
-          )[0]?.completed_at || null : null
+        const startedDate = completedProgressWithDates.length > 0
+          ? completedProgressWithDates.sort((a, b) => new Date(a.completed_at).getTime() - new Date(b.completed_at).getTime())[0]?.completed_at
+          : null
 
         let evaluationStatus: 'not_started' | 'passed' | 'failed' | 'pending' = 'not_started'
         let evaluationScore: number | null = null
@@ -237,40 +269,22 @@ export default function ReportsManagement() {
         let passedAttemptId: string | null = null
 
         if (course.requires_evaluation) {
-          const { data: evaluation } = await supabase
-            .from('evaluations')
-            .select('id, max_attempts')
-            .eq('course_id', course.id)
-            .eq('is_active', true)
-            .maybeSingle()
+          const evaluation = evaluationsByCourse.get(course.id)
 
           if (evaluation) {
             maxAttempts = evaluation.max_attempts
+            const attempts = attemptsByUserAndEval.get(`${participant.id}-${evaluation.id}`) || []
+            evaluationAttempts = attempts.length
 
-            const { data: attempts } = await supabase
-              .from('evaluation_attempts')
-              .select('id, passed, score')
-              .eq('user_id', participant.id)
-              .eq('evaluation_id', evaluation.id)
-              .order('completed_at', { ascending: false })
-
-            evaluationAttempts = attempts?.length || 0
-
-            if (attempts && attempts.length > 0) {
+            if (attempts.length > 0) {
               const passedAttempt = attempts.find(a => a.passed)
               if (passedAttempt) {
                 evaluationStatus = 'passed'
                 evaluationScore = passedAttempt.score
                 passedAttemptId = passedAttempt.id
 
-                const { data: signature } = await supabase
-                  .from('attendance_signatures')
-                  .select('id')
-                  .eq('user_id', participant.id)
-                  .eq('evaluation_attempt_id', passedAttemptId)
-                  .maybeSingle()
-
-                signatureStatus = signature ? 'signed' : 'pending'
+                const hasSigned = signaturesByUserAndAttempt.has(`${participant.id}-${passedAttemptId}`)
+                signatureStatus = hasSigned ? 'signed' : 'pending'
               } else {
                 evaluationStatus = 'failed'
                 evaluationScore = attempts[0].score
@@ -281,12 +295,7 @@ export default function ReportsManagement() {
           }
         }
 
-        const { data: certificate } = await supabase
-          .from('certificates')
-          .select('certificate_url, completion_date')
-          .eq('user_id', participant.id)
-          .eq('course_id', course.id)
-          .maybeSingle()
+        const certificate = certificatesByUserAndCourse.get(`${participant.id}-${course.id}`)
 
         let completedDate: string | null = null
         if (course.requires_evaluation) {
@@ -315,7 +324,7 @@ export default function ReportsManagement() {
           started_date: startedDate,
           completed_date: completedDate,
           progress,
-          total_modules: modules?.length || 0,
+          total_modules: modules.length,
           completed_modules: completedModulesSet.size,
           total_lessons: totalLessons,
           completed_lessons: completedLessons,
@@ -332,7 +341,6 @@ export default function ReportsManagement() {
         }
       })
 
-      const participantCoursesData = await Promise.all(progressPromises)
       setParticipantCourses(participantCoursesData)
     } catch (error) {
       console.error('Error loading participants progress:', error)
