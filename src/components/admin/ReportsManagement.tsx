@@ -158,35 +158,33 @@ export default function ReportsManagement() {
       if (companiesError) throw companiesError
 
       const companiesMap = new Map(companies?.map(c => [c.id, c.razon_social]))
+      const participantsMap = new Map(participants?.map(p => [p.id, p]))
 
-      const allAssignments: any[] = []
+      const { data: allAssignmentsData, error: assignmentsError } = await supabase
+        .from('course_assignments')
+        .select(`
+          user_id,
+          course_id,
+          assigned_at,
+          courses!inner(
+            id,
+            title,
+            image_url,
+            requires_evaluation
+          )
+        `)
+        .in('user_id', participants?.map(p => p.id) || [])
 
-      for (const participant of participants || []) {
-        const { data: assignments, error: assignmentsError } = await supabase
-          .from('course_assignments')
-          .select(`
-            user_id,
-            course_id,
-            assigned_at,
-            courses!inner(
-              id,
-              title,
-              image_url,
-              requires_evaluation
-            )
-          `)
-          .eq('user_id', participant.id)
+      if (assignmentsError) throw assignmentsError
 
-        if (assignmentsError) continue
-
-        assignments?.forEach(assignment => {
-          allAssignments.push({
-            ...assignment,
-            users: participant,
-            participant_company: companiesMap.get(participant.company_id) || 'Sin empresa'
-          })
-        })
-      }
+      const allAssignments = (allAssignmentsData || []).map(assignment => {
+        const participant = participantsMap.get(assignment.user_id)
+        return {
+          ...assignment,
+          users: participant,
+          participant_company: companiesMap.get(participant?.company_id || '') || 'Sin empresa'
+        }
+      })
 
       const progressPromises = allAssignments.map(async (assignment: any) => {
         const participant = assignment.users
@@ -235,6 +233,8 @@ export default function ReportsManagement() {
         let evaluationScore: number | null = null
         let evaluationAttempts = 0
         let maxAttempts = 0
+        let signatureStatus: 'signed' | 'pending' | 'not_required' = 'not_required'
+        let passedAttemptId: string | null = null
 
         if (course.requires_evaluation) {
           const { data: evaluation } = await supabase
@@ -252,7 +252,7 @@ export default function ReportsManagement() {
               .select('id, passed, score')
               .eq('user_id', participant.id)
               .eq('evaluation_id', evaluation.id)
-              .order('created_at', { ascending: false })
+              .order('completed_at', { ascending: false })
 
             evaluationAttempts = attempts?.length || 0
 
@@ -261,44 +261,22 @@ export default function ReportsManagement() {
               if (passedAttempt) {
                 evaluationStatus = 'passed'
                 evaluationScore = passedAttempt.score
+                passedAttemptId = passedAttempt.id
+
+                const { data: signature } = await supabase
+                  .from('attendance_signatures')
+                  .select('id')
+                  .eq('user_id', participant.id)
+                  .eq('evaluation_attempt_id', passedAttemptId)
+                  .maybeSingle()
+
+                signatureStatus = signature ? 'signed' : 'pending'
               } else {
                 evaluationStatus = 'failed'
                 evaluationScore = attempts[0].score
               }
             } else if (progress === 100) {
               evaluationStatus = 'pending'
-            }
-          }
-        }
-
-        let signatureStatus: 'signed' | 'pending' | 'not_required' = 'not_required'
-
-        if (course.requires_evaluation && evaluationStatus === 'passed') {
-          const { data: evaluation } = await supabase
-            .from('evaluations')
-            .select('id')
-            .eq('course_id', course.id)
-            .eq('is_active', true)
-            .maybeSingle()
-
-          if (evaluation) {
-            const { data: passedAttempt } = await supabase
-              .from('evaluation_attempts')
-              .select('id')
-              .eq('user_id', participant.id)
-              .eq('evaluation_id', evaluation.id)
-              .eq('passed', true)
-              .maybeSingle()
-
-            if (passedAttempt) {
-              const { data: signature } = await supabase
-                .from('attendance_signatures')
-                .select('id')
-                .eq('user_id', participant.id)
-                .eq('evaluation_attempt_id', passedAttempt.id)
-                .maybeSingle()
-
-              signatureStatus = signature ? 'signed' : 'pending'
             }
           }
         }
