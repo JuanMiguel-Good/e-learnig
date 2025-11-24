@@ -92,14 +92,15 @@ export default function CompanyResponsiblesManagement() {
       // Upload signature if provided
       if (data.signature && data.signature.length > 0) {
         const file = data.signature[0]
-        const fileName = `responsible_signature_${Date.now()}_${file.name}`
-        
+        const sanitizedName = StorageService.sanitizeFileName(file.name)
+        const fileName = `responsible_signature_${Date.now()}_${sanitizedName}`
+
         const { url, error } = await StorageService.uploadFile(
           'responsible-signatures',
           fileName,
           file
         )
-        
+
         if (error) throw error
         signatureUrl = url
       }

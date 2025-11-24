@@ -61,14 +61,15 @@ export default function InstructorsManagement() {
       // Upload signature if provided
       if (data.signature && data.signature.length > 0) {
         const file = data.signature[0]
-        const fileName = `instructor_${Date.now()}_${file.name}`
-        
+        const sanitizedName = StorageService.sanitizeFileName(file.name)
+        const fileName = `instructor_${Date.now()}_${sanitizedName}`
+
         const { url, error } = await StorageService.uploadFile(
           'instructor-signatures',
           fileName,
           file
         )
-        
+
         if (error) throw error
         signatureUrl = url
       }

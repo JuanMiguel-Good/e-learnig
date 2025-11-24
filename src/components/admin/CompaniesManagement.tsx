@@ -81,14 +81,15 @@ export default function CompaniesManagement() {
       // Upload logo if provided
       if (data.logo && data.logo.length > 0) {
         const file = data.logo[0]
-        const fileName = `company_logo_${Date.now()}_${file.name}`
-        
+        const sanitizedName = StorageService.sanitizeFileName(file.name)
+        const fileName = `company_logo_${Date.now()}_${sanitizedName}`
+
         const { url, error } = await StorageService.uploadFile(
           'company-logos',
           fileName,
           file
         )
-        
+
         if (error) throw error
         logoUrl = url
       }

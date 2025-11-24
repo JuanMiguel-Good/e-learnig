@@ -1,6 +1,18 @@
 import { supabase } from './supabase'
 
 export class StorageService {
+  static sanitizeFileName(fileName: string): string {
+    const extension = fileName.split('.').pop() || ''
+    const nameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.')) || fileName
+    const sanitized = nameWithoutExt
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9]/g, '_')
+      .replace(/_+/g, '_')
+      .toLowerCase()
+
+    return `${sanitized}.${extension.toLowerCase()}`
+  }
   static async uploadFile(
     bucket: string,
     path: string,

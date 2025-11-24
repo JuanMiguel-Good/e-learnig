@@ -127,15 +127,16 @@ export default function CoursesManagement() {
       if (data.image && data.image.length > 0) {
         setUploadProgress(prev => ({ ...prev, courseImage: 0 }))
         const file = data.image[0]
-        const fileName = `course_${Date.now()}_${file.name}`
-        
+        const sanitizedName = StorageService.sanitizeFileName(file.name)
+        const fileName = `course_${Date.now()}_${sanitizedName}`
+
         setUploadProgress(prev => ({ ...prev, courseImage: 50 }))
         const { url, error } = await StorageService.uploadFile(
           'course-images',
           fileName,
           file
         )
-        
+
         if (error) throw error
         setUploadProgress(prev => ({ ...prev, courseImage: 100 }))
         imageUrl = url
@@ -208,17 +209,18 @@ export default function CoursesManagement() {
             if (lessonData.video && lessonData.video.length > 0) {
               const progressKey = `video-${moduleIndex}-${lessonIndex}`
               setUploadProgress(prev => ({ ...prev, [progressKey]: 0 }))
-              
+
               const file = lessonData.video[0]
-              const fileName = `lesson_${Date.now()}_${file.name}`
-              
+              const sanitizedName = StorageService.sanitizeFileName(file.name)
+              const fileName = `lesson_${Date.now()}_${sanitizedName}`
+
               setUploadProgress(prev => ({ ...prev, [progressKey]: 50 }))
               const { url, error } = await StorageService.uploadFile(
                 'lesson-videos',
                 fileName,
                 file
               )
-              
+
               if (error) throw error
               setUploadProgress(prev => ({ ...prev, [progressKey]: 100 }))
               videoUrl = url || ''
@@ -319,14 +321,15 @@ export default function CoursesManagement() {
           // Upload new video if provided
           if (lessonData.video && lessonData.video.length > 0) {
             const file = lessonData.video[0]
-            const fileName = `lesson_${Date.now()}_${file.name}`
-            
+            const sanitizedName = StorageService.sanitizeFileName(file.name)
+            const fileName = `lesson_${Date.now()}_${sanitizedName}`
+
             const { url, error } = await StorageService.uploadFile(
               'lesson-videos',
               fileName,
               file
             )
-            
+
             if (error) throw error
             videoUrl = url || ''
           }
