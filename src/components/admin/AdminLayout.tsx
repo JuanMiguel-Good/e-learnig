@@ -85,9 +85,9 @@ export default function AdminLayout() {
   const flatNavItems = menuSections.flatMap(section => section.items)
 
   return (
-    <div className="flex flex-col lg:flex-row lg:space-x-6 space-y-4 lg:space-y-0">
+    <div className="flex flex-col lg:flex-row lg:space-x-4 space-y-4 lg:space-y-0">
       {/* Sidebar Desktop */}
-      <div className="hidden lg:block w-64 bg-white rounded-xl shadow-sm border p-6">
+      <div className="hidden lg:block w-56 flex-shrink-0 bg-white rounded-xl shadow-sm border p-5">
         <h2 className="text-lg font-semibold text-slate-800 mb-6">Administración</h2>
         <nav className="space-y-1">
           {menuSections.map((section, sectionIndex) => (

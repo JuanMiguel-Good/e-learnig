@@ -69,12 +69,18 @@ html, body {
 /* Responsive utilities */
 @layer utilities {
   .container-responsive {
-    max-width: 1200px;
+    max-width: 1600px;
     margin: 0 auto;
     padding-inline: 1rem;
   }
-  
+
   @media (min-width: 1024px) {
+    .container-responsive {
+      padding-inline: 1.5rem;
+    }
+  }
+
+  @media (min-width: 1440px) {
     .container-responsive {
       padding-inline: 2rem;
     }
@@ -95,13 +101,61 @@ html, body {
     box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.1);
     z-index: 10;
   }
-  
+
   @media (min-width: 768px) {
     .btn-sticky-mobile {
       position: static;
       width: auto;
       box-shadow: none;
     }
+  }
+
+  /* Table scroll container with visual indicators */
+  .table-scroll-container {
+    overflow-x: auto;
+    position: relative;
+    border-radius: 0.75rem;
+  }
+
+  .table-scroll-container::-webkit-scrollbar {
+    height: 8px;
+  }
+
+  .table-scroll-container::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 4px;
+  }
+
+  .table-scroll-container::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+  }
+
+  .table-scroll-container::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+
+  /* Compact table cells */
+  .table-compact td,
+  .table-compact th {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  /* Fixed width for action columns */
+  .col-actions {
+    width: 100px;
+    min-width: 100px;
+  }
+
+  .col-date {
+    width: 120px;
+    min-width: 120px;
+  }
+
+  .col-status {
+    width: 130px;
+    min-width: 130px;
   }
 }
 

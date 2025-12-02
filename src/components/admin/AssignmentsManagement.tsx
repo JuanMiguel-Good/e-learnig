@@ -338,20 +338,20 @@ export default function AssignmentsManagement() {
 
       {/* Assignments Table */}
       <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
+        <div className="table-scroll-container">
+          <table className="w-full table-compact min-w-full">
             <thead className="bg-slate-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                   Participante
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                   Curso
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider col-date">
                   Fecha de Asignación
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider col-actions">
                   Acciones
                 </th>
               </tr>
@@ -359,12 +359,12 @@ export default function AssignmentsManagement() {
             <tbody className="bg-white divide-y divide-slate-200">
               {filteredAssignments.map((assignment) => (
                 <tr key={assignment.id} className="hover:bg-slate-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-4 py-4 whitespace-nowrap">
                     <div className="flex items-center">
-                      <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center">
+                      <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center flex-shrink-0">
                         <User className="w-5 h-5 text-slate-600" />
                       </div>
-                      <div className="ml-4">
+                      <div className="ml-3">
                         <div className="text-sm font-medium text-slate-900">
                           {assignment.user.first_name} {assignment.user.last_name}
                         </div>
@@ -372,30 +372,30 @@ export default function AssignmentsManagement() {
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-4 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       {assignment.course.image_url ? (
-                        <img 
-                          src={assignment.course.image_url} 
+                        <img
+                          src={assignment.course.image_url}
                           alt={assignment.course.title}
-                          className="w-10 h-10 object-cover rounded"
+                          className="w-10 h-10 object-cover rounded flex-shrink-0"
                         />
                       ) : (
-                        <div className="w-10 h-10 bg-slate-100 rounded flex items-center justify-center">
+                        <div className="w-10 h-10 bg-slate-100 rounded flex items-center justify-center flex-shrink-0">
                           <BookOpen className="w-5 h-5 text-slate-600" />
                         </div>
                       )}
-                      <div className="ml-4">
+                      <div className="ml-3">
                         <div className="text-sm font-medium text-slate-900">
                           {assignment.course.title}
                         </div>
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
+                  <td className="px-4 py-4 whitespace-nowrap text-sm text-slate-600">
                     {new Date(assignment.assigned_at).toLocaleDateString()}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                  <td className="px-4 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <button
                       onClick={() => handleRemoveAssignment(assignment)}
                       className="text-red-600 hover:text-red-900"

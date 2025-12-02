@@ -361,23 +361,23 @@ export default function ParticipantsManagement() {
 
       {/* Table */}
       <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
+        <div className="table-scroll-container">
+          <table className="w-full table-compact min-w-full">
             <thead className="bg-slate-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                   Participante
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                   Empresa
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                   Contacto
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider col-date">
                   Fecha de Registro
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider col-actions">
                   Acciones
                 </th>
               </tr>
@@ -385,12 +385,12 @@ export default function ParticipantsManagement() {
             <tbody className="bg-white divide-y divide-slate-200">
               {participants.map((participant) => (
                 <tr key={participant.id} className="hover:bg-slate-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-4 py-4 whitespace-nowrap">
                     <div className="flex items-center">
-                      <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center">
+                      <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center flex-shrink-0">
                         <User className="w-5 h-5 text-slate-600" />
                       </div>
-                      <div className="ml-4">
+                      <div className="ml-3">
                         <div className="text-sm font-medium text-slate-900">
                           {participant.first_name} {participant.last_name}
                         </div>
@@ -398,29 +398,29 @@ export default function ParticipantsManagement() {
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-4 py-4 whitespace-nowrap">
                     <div className="text-sm text-slate-600">
                       {participant.company?.razon_social || 'Sin empresa'}
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-4 py-4 whitespace-nowrap">
                     <div className="space-y-1">
                       <div className="flex items-center text-sm text-slate-600">
-                        <Mail className="w-4 h-4 mr-2" />
+                        <Mail className="w-4 h-4 mr-2 flex-shrink-0" />
                         {participant.email}
                       </div>
                       {participant.phone && (
                         <div className="flex items-center text-sm text-slate-600">
-                          <Phone className="w-4 h-4 mr-2" />
+                          <Phone className="w-4 h-4 mr-2 flex-shrink-0" />
                           {participant.country_code} {participant.phone}
                         </div>
                       )}
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
+                  <td className="px-4 py-4 whitespace-nowrap text-sm text-slate-600">
                     {new Date(participant.created_at).toLocaleDateString()}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                  <td className="px-4 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <button
                       onClick={() => handleEdit(participant)}
                       className="text-slate-600 hover:text-slate-900 mr-3"

@@ -689,31 +689,29 @@ export default function ReportsManagement() {
                 </select>
               </div>
 
-              <div className="overflow-x-auto -mx-6">
-                <div className="inline-block min-w-full align-middle">
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-slate-200">
+              <div className="table-scroll-container -mx-6 px-6">
+                <table className="min-w-full table-compact divide-y divide-slate-200">
                   <thead className="bg-slate-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap min-w-[200px]">
                         Participante
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap min-w-[160px]">
                         Empresa
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap min-w-[220px]">
                         Curso
                       </th>
-                      <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap">
+                      <th className="px-4 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap col-status">
                         Progreso
                       </th>
-                      <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap">
+                      <th className="px-4 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap col-status">
                         Evaluación
                       </th>
-                      <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap">
+                      <th className="px-4 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap col-status">
                         Certificado
                       </th>
-                      <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap">
+                      <th className="px-4 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap col-status">
                         Estado
                       </th>
                     </tr>
@@ -721,7 +719,7 @@ export default function ReportsManagement() {
                   <tbody className="bg-white divide-y divide-slate-200">
                     {filteredParticipantCourses.map((item, index) => (
                       <tr key={`${item.participant_id}-${item.course_id}-${index}`} className="hover:bg-slate-50">
-                        <td className="px-6 py-4 whitespace-nowrap min-w-[220px]">
+                        <td className="px-4 py-3 whitespace-nowrap">
                           <div>
                             <div className="text-sm font-medium text-slate-900">
                               {item.first_name} {item.last_name}
@@ -732,24 +730,24 @@ export default function ReportsManagement() {
                             )}
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap min-w-[180px]">
+                        <td className="px-4 py-3 whitespace-nowrap">
                           <div className="text-sm text-slate-900">{item.company_name}</div>
                           {item.area && (
                             <div className="text-xs text-slate-500">{item.area}</div>
                           )}
                         </td>
-                        <td className="px-6 py-4 min-w-[250px]">
+                        <td className="px-4 py-3">
                           <div className="text-sm font-medium text-slate-900">{item.course_title}</div>
                           <div className="text-xs text-slate-500 mt-1">
                             {item.total_lessons} lecciones • {item.completed_lessons} completadas
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap min-w-[120px]">
+                        <td className="px-4 py-3 whitespace-nowrap">
                           <div className="flex flex-col items-center">
                             <span className={`px-2 py-1 rounded-full text-xs font-medium ${getProgressColor(item.progress)}`}>
                               {item.progress}%
                             </span>
-                            <div className="w-20 bg-slate-200 rounded-full h-1.5 mt-2">
+                            <div className="w-16 bg-slate-200 rounded-full h-1.5 mt-1">
                               <div
                                 className={`h-1.5 rounded-full ${
                                   item.progress === 100
@@ -763,7 +761,7 @@ export default function ReportsManagement() {
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center min-w-[160px]">
+                        <td className="px-4 py-3 whitespace-nowrap text-center">
                           {item.requires_evaluation ? (
                             <div className="flex flex-col items-center">
                               {getEvaluationStatusBadge(item.evaluation_status)}
@@ -774,15 +772,15 @@ export default function ReportsManagement() {
                               )}
                               {item.evaluation_attempts > 0 && (
                                 <div className="text-xs text-slate-400 mt-1">
-                                  Intentos: {item.evaluation_attempts}/{item.max_attempts}
+                                  {item.evaluation_attempts}/{item.max_attempts}
                                 </div>
                               )}
                             </div>
                           ) : (
-                            <span className="text-xs text-slate-400">No requerida</span>
+                            <span className="text-xs text-slate-400">No req.</span>
                           )}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center min-w-[140px]">
+                        <td className="px-4 py-3 whitespace-nowrap text-center">
                           {item.certificate_status === 'generated' ? (
                             <a
                               href={item.certificate_url || '#'}
@@ -791,13 +789,13 @@ export default function ReportsManagement() {
                               className="inline-flex items-center text-green-600 hover:text-green-800"
                             >
                               <Award className="w-4 h-4 mr-1" />
-                              <span className="text-xs">Ver certificado</span>
+                              <span className="text-xs">Ver</span>
                             </a>
                           ) : (
                             <span className="text-xs text-slate-400">Pendiente</span>
                           )}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center min-w-[130px]">
+                        <td className="px-4 py-3 whitespace-nowrap text-center">
                           {item.progress === 100 && (!item.requires_evaluation || item.evaluation_status === 'passed') ? (
                             <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
                               Completado
@@ -815,9 +813,7 @@ export default function ReportsManagement() {
                       </tr>
                     ))}
                   </tbody>
-                    </table>
-                  </div>
-                </div>
+                </table>
               </div>
 
               {filteredParticipantCourses.length === 0 && (
