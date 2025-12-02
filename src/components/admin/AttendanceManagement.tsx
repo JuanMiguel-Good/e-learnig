@@ -187,22 +187,22 @@ export default function AttendanceManagement() {
         .select(`
           *,
           course:courses!inner(title, hours),
-          company:companies!inner(razon_social),
-          signatures:attendance_signatures(
-            id,
-            signature_data,
-            signed_at,
-            user:users!inner(first_name, last_name, dni, area)
-          )
+          company:companies!inner(razon_social)
         `)
         .order('created_at', { ascending: false })
 
       if (attendanceError) throw attendanceError
 
-      const listsWithCounts = (attendanceData || []).map((list: any) => ({
-        ...list,
-        participantCount: list.signatures?.length || 0
-      }))
+      // For each list, count the signatures separately to get accurate counts
+      const listsWithCounts = await Promise.all(
+        (attendanceData || []).map(async (list: any) => {
+          const signatures = await getFilteredSignatures(list)
+          return {
+            ...list,
+            participantCount: signatures.length
+          }
+        })
+      )
 
       // Load courses with instructor
       const { data: coursesData, error: coursesError } = await supabase

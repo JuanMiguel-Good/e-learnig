@@ -41,7 +41,39 @@ interface AttendanceData {
 }
 
 export class AttendancePDFGenerator {
+  private static readonly PARTICIPANTS_PER_PAGE = 12
+
   static async generatePDF(data: AttendanceData): Promise<void> {
+    const totalParticipants = data.signatures?.length || 0
+    const totalPages = Math.max(1, Math.ceil(totalParticipants / this.PARTICIPANTS_PER_PAGE))
+
+    const pdf = new jsPDF('portrait', 'mm', 'a4')
+    let isFirstPage = true
+
+    for (let page = 0; page < totalPages; page++) {
+      const startIdx = page * this.PARTICIPANTS_PER_PAGE
+      const endIdx = Math.min(startIdx + this.PARTICIPANTS_PER_PAGE, totalParticipants)
+      const pageParticipants = data.signatures?.slice(startIdx, endIdx) || []
+
+      if (!isFirstPage) {
+        pdf.addPage()
+      }
+
+      await this.generatePage(pdf, data, pageParticipants, page + 1, totalPages)
+      isFirstPage = false
+    }
+
+    const fileName = `Lista_Asistencia_${data.course.title.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date(data.fecha).toLocaleDateString('es-ES').replace(/\//g, '-')}.pdf`
+    pdf.save(fileName)
+  }
+
+  private static async generatePage(
+    pdf: jsPDF,
+    data: AttendanceData,
+    participants: AttendanceData['signatures'],
+    currentPage: number,
+    totalPages: number
+  ): Promise<void> {
     const container = document.createElement('div')
     container.style.position = 'fixed'
     container.style.top = '-9999px'
@@ -54,6 +86,9 @@ export class AttendancePDFGenerator {
     container.style.padding = '15px'
     container.style.boxSizing = 'border-box'
 
+    const minRowsToShow = 8
+    const rowsToDisplay = Math.max(minRowsToShow, participants.length)
+
     container.innerHTML = `
       <div style="width: 100%; margin: 0 auto; background: white;">
         <!-- Header with Logo, Title, and Version -->
@@ -61,7 +96,7 @@ export class AttendancePDFGenerator {
           <tr>
             <td style="border: 2px solid black; padding: 10px; width: 180px; text-align: center; vertical-align: middle;">
               ${data.company.logo_url ?
-                `<img src="${data.company.logo_url}" style="max-width: 160px; max-height: 60px; object-fit: contain;" alt="Logo" />` :
+                `<img src="${data.company.logo_url}" style="max-width: 160px; max-height: 60px; object-fit: contain;" alt="Logo" crossorigin="anonymous" />` :
                 '<div style="font-size: 10px; font-weight: bold; color: #666;">AQUÍ VA EL LOGO</div>'
               }
             </td>
@@ -69,6 +104,7 @@ export class AttendancePDFGenerator {
               <div style="font-size: 11px; font-weight: bold; text-transform: uppercase; line-height: 1.3;">
                 REGISTRO DE INDUCCIÓN, CAPACITACIÓN, ENTRENAMIENTO Y SIMULACROS DE<br>EMERGENCIA
               </div>
+              ${totalPages > 1 ? `<div style="font-size: 8px; margin-top: 5px; color: #666;">Página ${currentPage} de ${totalPages}</div>` : ''}
             </td>
             <td style="border: 2px solid black; padding: 5px; width: 100px; vertical-align: top;">
               <div style="border-bottom: 1px solid black; padding: 3px; font-size: 9px; font-weight: bold;">
@@ -230,7 +266,7 @@ export class AttendancePDFGenerator {
                   </div>
                   <div style="text-align: center; margin-top: 10px;">
                     ${data.instructor_signature_url ?
-                      `<img src="${data.instructor_signature_url}" style="max-height: 30px; max-width: 70px;" />` :
+                      `<img src="${data.instructor_signature_url}" style="max-height: 30px; max-width: 70px;" crossorigin="anonymous" />` :
                       ''
                     }
                     <div style="font-weight: bold; font-size: 8px; margin-top: 5px;">FIRMA</div>
@@ -268,7 +304,7 @@ export class AttendancePDFGenerator {
             </tr>
           </thead>
           <tbody>
-            ${data.signatures && data.signatures.length > 0 ? data.signatures.map((signature) => `
+            ${participants.map((signature) => `
               <tr style="height: 35px;">
                 <td style="border: 1px solid black; padding: 3px; font-size: 8px; vertical-align: middle;">
                   ${signature.user.last_name} ${signature.user.first_name}
@@ -289,8 +325,8 @@ export class AttendancePDFGenerator {
                   }
                 </td>
               </tr>
-            `).join('') : ''}
-            ${Array.from({ length: Math.max(0, 10 - (data.signatures?.length || 0)) }, () => `
+            `).join('')}
+            ${Array.from({ length: Math.max(0, rowsToDisplay - participants.length) }, () => `
               <tr style="height: 35px;">
                 <td style="border: 1px solid black; padding: 3px;">&nbsp;</td>
                 <td style="border: 1px solid black; padding: 3px;">&nbsp;</td>
@@ -329,7 +365,7 @@ export class AttendancePDFGenerator {
                   </div>
                   <div style="text-align: center; min-width: 80px;">
                     ${data.responsible_signature_url ?
-                      `<img src="${data.responsible_signature_url}" style="max-height: 30px; max-width: 70px;" />` :
+                      `<img src="${data.responsible_signature_url}" style="max-height: 30px; max-width: 70px;" crossorigin="anonymous" />` :
                       ''
                     }
                     <div style="font-weight: bold; font-size: 8px; margin-top: 5px;">FIRMA</div>
@@ -344,38 +380,34 @@ export class AttendancePDFGenerator {
 
     document.body.appendChild(container)
 
-    return new Promise((resolve, reject) => {
-      setTimeout(async () => {
-        try {
-          const canvas = await html2canvas(container, {
-            scale: 2,
-            useCORS: true,
-            allowTaint: true,
-            backgroundColor: 'white',
-            logging: false
-          })
+    try {
+      await new Promise<void>((resolve, reject) => {
+        setTimeout(async () => {
+          try {
+            const canvas = await html2canvas(container, {
+              scale: 2,
+              useCORS: true,
+              allowTaint: true,
+              backgroundColor: 'white',
+              logging: false
+            })
 
-          document.body.removeChild(container)
+            const imgData = canvas.toDataURL('image/png')
+            const imgWidth = 210
+            const imgHeight = (canvas.height * imgWidth) / canvas.width
 
-          const pdf = new jsPDF('portrait', 'mm', 'a4')
-          const imgData = canvas.toDataURL('image/png')
+            pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight)
 
-          const imgWidth = 210
-          const imgHeight = (canvas.height * imgWidth) / canvas.width
-
-          pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight)
-
-          const fileName = `Lista_Asistencia_${data.course.title.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date(data.fecha).toLocaleDateString('es-ES').replace(/\//g, '-')}.pdf`
-          pdf.save(fileName)
-
-          resolve()
-        } catch (error) {
-          if (document.body.contains(container)) {
-            document.body.removeChild(container)
+            resolve()
+          } catch (error) {
+            reject(error)
           }
-          reject(error)
-        }
-      }, 2000)
-    })
+        }, 2000)
+      })
+    } finally {
+      if (document.body.contains(container)) {
+        document.body.removeChild(container)
+      }
+    }
   }
 }
