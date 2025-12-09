@@ -149,6 +149,14 @@ export default function CoursesManagement() {
 
       if (editingCourse) {
         // Update existing course
+        // Auto-set requires_evaluation based on activity_type
+        let requiresEvaluation = data.requires_evaluation
+        if (data.activity_type === 'topic') {
+          requiresEvaluation = true // Topics always require evaluation
+        } else if (data.activity_type === 'attendance_only') {
+          requiresEvaluation = false // Attendance only never requires evaluation
+        }
+
         const { error: courseError } = await supabase
           .from('courses')
           .update({
@@ -156,7 +164,7 @@ export default function CoursesManagement() {
             description: data.description,
             instructor_id: data.instructor_id,
             is_active: data.is_active,
-            requires_evaluation: data.requires_evaluation,
+            requires_evaluation: requiresEvaluation,
             hours: data.hours,
             activity_type: data.activity_type,
             image_url: imageUrl,
@@ -174,6 +182,14 @@ export default function CoursesManagement() {
         toast.success('Curso actualizado correctamente')
       } else {
         // Create new course
+        // Auto-set requires_evaluation based on activity_type
+        let requiresEvaluation = data.requires_evaluation
+        if (data.activity_type === 'topic') {
+          requiresEvaluation = true // Topics always require evaluation
+        } else if (data.activity_type === 'attendance_only') {
+          requiresEvaluation = false // Attendance only never requires evaluation
+        }
+
         const { data: newCourse, error: courseError } = await supabase
           .from('courses')
           .insert([
@@ -182,7 +198,7 @@ export default function CoursesManagement() {
               description: data.description,
               instructor_id: data.instructor_id,
               is_active: data.is_active,
-              requires_evaluation: data.requires_evaluation,
+              requires_evaluation: requiresEvaluation,
               hours: data.hours,
               activity_type: data.activity_type,
               image_url: imageUrl
