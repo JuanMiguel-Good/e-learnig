@@ -49,6 +49,7 @@ export default function MyCourses() {
   const [showSignature, setShowSignature] = useState<string | null>(null)
   const [evaluationAttemptId, setEvaluationAttemptId] = useState<string | null>(null)
   const [evaluationStatuses, setEvaluationStatuses] = useState<{ [key: string]: { canTake: boolean, hasPassed: boolean, required: boolean } }>({})
+  const [signatureStatuses, setSignatureStatuses] = useState<{ [key: string]: boolean }>({})
 
   useEffect(() => {
     if (user) {
@@ -161,6 +162,16 @@ export default function MyCourses() {
         }
       }
       setEvaluationStatuses(statuses)
+
+      // Load signature statuses for attendance_only courses
+      const sigStatuses: { [key: string]: boolean } = {}
+      for (const course of processedCourses) {
+        if (course.activity_type === 'attendance_only') {
+          const hasSigned = await checkAttendanceSignatureStatus(course.id)
+          sigStatuses[course.id] = hasSigned
+        }
+      }
+      setSignatureStatuses(sigStatuses)
     } catch (error) {
       console.error('Error loading courses:', error)
       toast.error('Error al cargar cursos')
@@ -459,6 +470,36 @@ export default function MyCourses() {
     }
   }
 
+  const checkAttendanceSignatureStatus = async (courseId: string) => {
+    if (!user) return false;
+
+    try {
+      // Check if user has recently signed (within 24 hours) for attendance_only activities
+      // Note: attendance_signatures doesn't have course_id for attendance_only,
+      // so we check if they signed recently
+      const { data: recentSignature } = await supabase
+        .from('attendance_signatures')
+        .select('id, signed_at')
+        .eq('user_id', user.id)
+        .is('evaluation_attempt_id', null)
+        .order('signed_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (!recentSignature) return false;
+
+      // Check if signed within last 24 hours
+      const signedAt = new Date(recentSignature.signed_at)
+      const now = new Date()
+      const hoursDiff = (now.getTime() - signedAt.getTime()) / (1000 * 60 * 60)
+
+      return hoursDiff < 24; // Return true if signed within 24 hours
+    } catch (error) {
+      console.error('Error checking attendance signature status:', error)
+      return false;
+    }
+  }
+
   const toggleModule = (moduleId: string) => {
     setExpandedModules(prev => {
       const newSet = new Set(prev)
@@ -506,10 +547,19 @@ export default function MyCourses() {
       <SignAttendance
         courseId={showSignature}
         evaluationAttemptId={evaluationAttemptId || undefined}
-        onComplete={() => {
+        onComplete={async () => {
+          const courseId = showSignature
           setShowSignature(null)
           setEvaluationAttemptId(null)
           toast.success('Firma completada correctamente')
+
+          // Update signature status for this course
+          const hasSigned = await checkAttendanceSignatureStatus(courseId)
+          setSignatureStatuses(prev => ({
+            ...prev,
+            [courseId]: hasSigned
+          }))
+
           loadCourses()
         }}
         onCancel={() => {
@@ -634,16 +684,23 @@ export default function MyCourses() {
 
                   {/* Attendance Only: Direct Sign Button */}
                   {course.activity_type === 'attendance_only' && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setShowSignature(course.id)
-                      }}
-                      className="w-full mt-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center text-sm"
-                    >
-                      <CheckCircle className="w-4 h-4 mr-2" />
-                      Firmar Asistencia
-                    </button>
+                    signatureStatuses[course.id] ? (
+                      <div className="w-full mt-2 px-4 py-2 bg-green-100 text-green-800 rounded-lg font-medium flex items-center justify-center text-sm">
+                        <CheckCircle className="w-4 h-4 mr-2" />
+                        Firmado
+                      </div>
+                    ) : (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setShowSignature(course.id)
+                        }}
+                        className="w-full mt-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center text-sm"
+                      >
+                        <CheckCircle className="w-4 h-4 mr-2" />
+                        Firmar Asistencia
+                      </button>
+                    )
                   )}
                 </div>
               </div>
