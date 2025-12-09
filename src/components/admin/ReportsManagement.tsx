@@ -577,8 +577,8 @@ export default function ReportsManagement() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="space-y-6 w-full max-w-full">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Reportes y Seguimiento</h1>
           <p className="text-slate-600">Monitorea el progreso de todos los participantes</p>
@@ -622,8 +622,8 @@ export default function ReportsManagement() {
       </div>
 
       {/* Dashboard Stats */}
-      <div className="bg-white rounded-xl shadow-sm border p-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="bg-white rounded-xl shadow-sm border p-4 sm:p-6 w-full">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
                 <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
                   <div className="flex items-center justify-between">
                     <div className="min-w-0 flex-1">
@@ -675,8 +675,8 @@ export default function ReportsManagement() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-xl shadow-sm border p-6">
-        <div className="flex flex-col sm:flex-row gap-4">
+      <div className="bg-white rounded-xl shadow-sm border p-4 sm:p-6 w-full">
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
                 <div className="flex-1 relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
                   <input
@@ -728,10 +728,10 @@ export default function ReportsManagement() {
       </div>
 
       {/* Table Container */}
-      <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-        <div className="max-h-[70vh] overflow-auto">
-          <div ref={tableScrollRef}>
-            <table className="min-w-full table-compact divide-y divide-slate-200">
+      <div className="bg-white rounded-xl shadow-sm border w-full overflow-hidden">
+        <div className="max-h-[70vh] overflow-auto w-full">
+          <div ref={tableScrollRef} className="min-w-full">
+            <table className="w-full table-compact divide-y divide-slate-200" style={{minWidth: '1200px'}}>
                     <thead className="bg-slate-50 sticky top-0 z-10 shadow-sm">
                       <tr>
                         <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap min-w-[200px] bg-slate-50">

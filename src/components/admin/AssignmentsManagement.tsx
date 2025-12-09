@@ -341,9 +341,9 @@ export default function AssignmentsManagement() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full max-w-full">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Asignación de Cursos</h1>
           <p className="text-slate-600">Asigna cursos a los participantes</p>
@@ -358,7 +358,7 @@ export default function AssignmentsManagement() {
       </div>
 
       {/* Search */}
-      <div className="bg-white rounded-xl shadow-sm border p-4">
+      <div className="bg-white rounded-xl shadow-sm border p-4 w-full">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
           <input
@@ -372,10 +372,10 @@ export default function AssignmentsManagement() {
       </div>
 
       {/* Assignments Table */}
-      <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-        <div className="max-h-[70vh] overflow-auto">
-          <div ref={tableScrollRef}>
-            <table className="w-full table-compact min-w-full">
+      <div className="bg-white rounded-xl shadow-sm border w-full overflow-hidden">
+        <div className="max-h-[70vh] overflow-auto w-full">
+          <div ref={tableScrollRef} className="min-w-full">
+            <table className="w-full table-compact" style={{minWidth: '1000px'}}>
               <thead className="bg-slate-50 sticky top-0 z-10 shadow-sm">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider bg-slate-50">

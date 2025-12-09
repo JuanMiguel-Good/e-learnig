@@ -2,14 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Prevent horizontal overflow only at root level */
+/* Prevent horizontal overflow at root */
 body {
   overflow-x: hidden;
 }
 
-/* Allow overflow for content containers */
+/* Root container */
 #root {
-  overflow-x: visible;
+  overflow-x: hidden;
 }
 
 /* Base responsive typography using clamp */
