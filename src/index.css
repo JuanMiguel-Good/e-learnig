@@ -2,9 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Prevent horizontal overflow */
-html, body {
+/* Prevent horizontal overflow only at root level */
+body {
   overflow-x: hidden;
+}
+
+/* Allow overflow for content containers */
+#root {
+  overflow-x: visible;
 }
 
 /* Base responsive typography using clamp */
@@ -113,26 +118,73 @@ html, body {
   /* Table scroll container with visual indicators */
   .table-scroll-container {
     overflow-x: auto;
+    overflow-y: visible;
     position: relative;
     border-radius: 0.75rem;
+    width: 100%;
+    max-width: 100%;
+    -webkit-overflow-scrolling: touch;
   }
 
-  .table-scroll-container::-webkit-scrollbar {
-    height: 8px;
+  /* Desktop scrollbar */
+  @media (min-width: 769px) {
+    .table-scroll-container::-webkit-scrollbar {
+      height: 10px;
+    }
+
+    .table-scroll-container::-webkit-scrollbar-track {
+      background: #f1f5f9;
+      border-radius: 5px;
+      margin: 0 8px;
+    }
+
+    .table-scroll-container::-webkit-scrollbar-thumb {
+      background: #94a3b8;
+      border-radius: 5px;
+      border: 2px solid #f1f5f9;
+    }
+
+    .table-scroll-container::-webkit-scrollbar-thumb:hover {
+      background: #64748b;
+    }
+
+    /* Firefox */
+    .table-scroll-container {
+      scrollbar-width: thin;
+      scrollbar-color: #94a3b8 #f1f5f9;
+    }
   }
 
-  .table-scroll-container::-webkit-scrollbar-track {
-    background: #f1f5f9;
-    border-radius: 4px;
+  /* Scroll shadow indicators */
+  .table-scroll-container::before,
+  .table-scroll-container::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 10px;
+    width: 30px;
+    pointer-events: none;
+    z-index: 10;
+    opacity: 0;
+    transition: opacity 0.3s ease;
   }
 
-  .table-scroll-container::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 4px;
+  .table-scroll-container::before {
+    left: 0;
+    background: linear-gradient(to right, rgba(255,255,255,0.9), transparent);
   }
 
-  .table-scroll-container::-webkit-scrollbar-thumb:hover {
-    background: #94a3b8;
+  .table-scroll-container::after {
+    right: 0;
+    background: linear-gradient(to left, rgba(255,255,255,0.9), transparent);
+  }
+
+  .table-scroll-container.has-scroll-left::before {
+    opacity: 1;
+  }
+
+  .table-scroll-container.has-scroll-right::after {
+    opacity: 1;
   }
 
   /* Compact table cells */

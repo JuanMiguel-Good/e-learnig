@@ -26,7 +26,7 @@ export default function Layout({ children }: LayoutProps) {
   return (
     <>
       {/* Desktop Layout */}
-      <div className="min-h-screen bg-gray-50 overflow-x-hidden lg:block hidden">
+      <div className="min-h-screen bg-gray-50 lg:block hidden">
         {/* Header */}
         <header className="bg-white shadow-sm border-b">
           <div className="container-responsive">

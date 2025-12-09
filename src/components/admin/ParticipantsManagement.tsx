@@ -53,6 +53,7 @@ export default function ParticipantsManagement() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [selectedCompanyForBulk, setSelectedCompanyForBulk] = useState<string>('')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const tableScrollRef = React.useRef<HTMLDivElement>(null)
 
   const {
     register,
@@ -71,6 +72,40 @@ export default function ParticipantsManagement() {
     loadParticipants()
     loadCompanies()
   }, [])
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const container = tableScrollRef.current
+      if (!container) return
+
+      const hasScrollLeft = container.scrollLeft > 10
+      const hasScrollRight = container.scrollLeft < container.scrollWidth - container.clientWidth - 10
+
+      if (hasScrollLeft) {
+        container.classList.add('has-scroll-left')
+      } else {
+        container.classList.remove('has-scroll-left')
+      }
+
+      if (hasScrollRight) {
+        container.classList.add('has-scroll-right')
+      } else {
+        container.classList.remove('has-scroll-right')
+      }
+    }
+
+    const container = tableScrollRef.current
+    if (container) {
+      handleScroll()
+      container.addEventListener('scroll', handleScroll)
+      window.addEventListener('resize', handleScroll)
+
+      return () => {
+        container.removeEventListener('scroll', handleScroll)
+        window.removeEventListener('resize', handleScroll)
+      }
+    }
+  }, [participants])
 
   const loadParticipants = async () => {
     try {
@@ -361,7 +396,7 @@ export default function ParticipantsManagement() {
 
       {/* Table */}
       <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-        <div className="table-scroll-container">
+        <div ref={tableScrollRef} className="table-scroll-container">
           <table className="w-full table-compact min-w-full">
             <thead className="bg-slate-50">
               <tr>

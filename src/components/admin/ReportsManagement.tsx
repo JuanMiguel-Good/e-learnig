@@ -98,6 +98,7 @@ export default function ReportsManagement() {
   const [isLoading, setIsLoading] = useState(true)
   const [isExporting, setIsExporting] = useState(false)
   const [isDownloadingCertificates, setIsDownloadingCertificates] = useState(false)
+  const tableScrollRef = React.useRef<HTMLDivElement>(null)
   const [downloadProgress, setDownloadProgress] = useState({ current: 0, total: 0, percentage: 0 })
   const [showConfirmModal, setShowConfirmModal] = useState(false)
   const [showProgressModal, setShowProgressModal] = useState(false)
@@ -109,6 +110,40 @@ export default function ReportsManagement() {
   useEffect(() => {
     applyFilters()
   }, [participantCourses, searchTerm, statusFilter, companyFilter, courseFilter])
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const container = tableScrollRef.current
+      if (!container) return
+
+      const hasScrollLeft = container.scrollLeft > 10
+      const hasScrollRight = container.scrollLeft < container.scrollWidth - container.clientWidth - 10
+
+      if (hasScrollLeft) {
+        container.classList.add('has-scroll-left')
+      } else {
+        container.classList.remove('has-scroll-left')
+      }
+
+      if (hasScrollRight) {
+        container.classList.add('has-scroll-right')
+      } else {
+        container.classList.remove('has-scroll-right')
+      }
+    }
+
+    const container = tableScrollRef.current
+    if (container) {
+      handleScroll()
+      container.addEventListener('scroll', handleScroll)
+      window.addEventListener('resize', handleScroll)
+
+      return () => {
+        container.removeEventListener('scroll', handleScroll)
+        window.removeEventListener('resize', handleScroll)
+      }
+    }
+  }, [filteredParticipantCourses])
 
   const loadData = async () => {
     try {
@@ -689,7 +724,7 @@ export default function ReportsManagement() {
                 </select>
               </div>
 
-              <div className="table-scroll-container -mx-6 px-6">
+              <div ref={tableScrollRef} className="table-scroll-container -mx-6 px-6">
                 <table className="min-w-full table-compact divide-y divide-slate-200">
                   <thead className="bg-slate-50">
                     <tr>
