@@ -676,12 +676,12 @@ export default function ReportsManagement() {
 
       {/* Filters */}
       <div className="bg-white rounded-xl shadow-sm border p-4 sm:p-6 w-full">
-        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
-                <div className="flex-1 relative">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                <div className="relative sm:col-span-2 lg:col-span-1">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
                   <input
                     type="text"
-                    placeholder="Buscar por nombre, email, DNI o empresa..."
+                    placeholder="Buscar..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-10 w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
@@ -691,7 +691,7 @@ export default function ReportsManagement() {
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value as any)}
-                  className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm"
                 >
                   <option value="all">Todos los estados</option>
                   <option value="completed">Completados</option>
@@ -702,7 +702,7 @@ export default function ReportsManagement() {
                 <select
                   value={companyFilter}
                   onChange={(e) => setCompanyFilter(e.target.value)}
-                  className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm truncate"
                 >
                   <option value="all">Todas las empresas</option>
                   {companies.map((company) => (
@@ -715,7 +715,7 @@ export default function ReportsManagement() {
                 <select
                   value={courseFilter}
                   onChange={(e) => setCourseFilter(e.target.value)}
-                  className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm truncate"
                 >
                   <option value="all">Todos los cursos</option>
                   {courses.map((course) => (
