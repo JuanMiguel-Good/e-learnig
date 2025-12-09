@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { StorageService } from '../../lib/storage'
-import { Plus, CreditCard as Edit2, Trash2, Upload, BookOpen, User, Video, FileText } from 'lucide-react'
+import { Plus, CreditCard as Edit2, Trash2, Upload, BookOpen, User, Video, FileText, CheckCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useForm, useFieldArray } from 'react-hook-form'
 
@@ -56,6 +56,7 @@ export default function CoursesManagement() {
   const [instructors, setInstructors] = useState<Instructor[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [showTypeSelector, setShowTypeSelector] = useState(false)
   const [editingCourse, setEditingCourse] = useState<Course | null>(null)
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<{ [key: string]: number }>({})
@@ -552,7 +553,7 @@ export default function CoursesManagement() {
           onClick={() => {
             setEditingCourse(null)
             reset()
-            setIsModalOpen(true)
+            setShowTypeSelector(true)
           }}
           className="inline-flex items-center px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-medium transition-colors"
         >
@@ -651,6 +652,105 @@ export default function CoursesManagement() {
         </div>
       )}
 
+      {/* Modal for Activity Type Selection */}
+      {showTypeSelector && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full p-8">
+            <div className="text-center mb-8">
+              <h2 className="text-2xl font-bold text-slate-800 mb-2">
+                Selecciona el Tipo de Actividad
+              </h2>
+              <p className="text-slate-600">
+                Elige el tipo de actividad que deseas crear
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Full Course Button */}
+              <button
+                onClick={() => {
+                  setValue('activity_type', 'full_course')
+                  setShowTypeSelector(false)
+                  setIsModalOpen(true)
+                }}
+                className="group relative bg-white border-2 border-slate-300 hover:border-blue-500 rounded-xl p-6 text-center transition-all hover:shadow-lg"
+              >
+                <div className="flex flex-col items-center space-y-4">
+                  <div className="w-20 h-20 bg-blue-100 group-hover:bg-blue-500 rounded-full flex items-center justify-center transition-colors">
+                    <BookOpen className="w-10 h-10 text-blue-600 group-hover:text-white transition-colors" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-800 mb-2">
+                      Curso Completo
+                    </h3>
+                    <p className="text-sm text-slate-600">
+                      Con módulos, lecciones y contenido multimedia
+                    </p>
+                  </div>
+                </div>
+              </button>
+
+              {/* Topic Button */}
+              <button
+                onClick={() => {
+                  setValue('activity_type', 'topic')
+                  setShowTypeSelector(false)
+                  setIsModalOpen(true)
+                }}
+                className="group relative bg-white border-2 border-slate-300 hover:border-green-500 rounded-xl p-6 text-center transition-all hover:shadow-lg"
+              >
+                <div className="flex flex-col items-center space-y-4">
+                  <div className="w-20 h-20 bg-green-100 group-hover:bg-green-500 rounded-full flex items-center justify-center transition-colors">
+                    <FileText className="w-10 h-10 text-green-600 group-hover:text-white transition-colors" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-800 mb-2">
+                      Tema
+                    </h3>
+                    <p className="text-sm text-slate-600">
+                      Solo evaluación, sin módulos ni lecciones
+                    </p>
+                  </div>
+                </div>
+              </button>
+
+              {/* Attendance Only Button */}
+              <button
+                onClick={() => {
+                  setValue('activity_type', 'attendance_only')
+                  setShowTypeSelector(false)
+                  setIsModalOpen(true)
+                }}
+                className="group relative bg-white border-2 border-slate-300 hover:border-orange-500 rounded-xl p-6 text-center transition-all hover:shadow-lg"
+              >
+                <div className="flex flex-col items-center space-y-4">
+                  <div className="w-20 h-20 bg-orange-100 group-hover:bg-orange-500 rounded-full flex items-center justify-center transition-colors">
+                    <CheckCircle className="w-10 h-10 text-orange-600 group-hover:text-white transition-colors" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-800 mb-2">
+                      Lista de Asistencia
+                    </h3>
+                    <p className="text-sm text-slate-600">
+                      Solo firma de asistencia, sin evaluación
+                    </p>
+                  </div>
+                </div>
+              </button>
+            </div>
+
+            <div className="flex justify-center mt-8">
+              <button
+                onClick={() => setShowTypeSelector(false)}
+                className="px-6 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-medium transition-colors"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal for Course Creation/Editing */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
@@ -673,23 +773,59 @@ export default function CoursesManagement() {
               </div>
             ) : (
               <form onSubmit={handleSubmit(handleCreateOrUpdate)} className="space-y-6">
-                {/* Basic Course Info */}
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Tipo de Actividad
-                  </label>
-                  <select
-                    {...register('activity_type', { required: 'El tipo de actividad es requerido' })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
-                  >
-                    <option value="full_course">Curso Completo (con módulos y lecciones)</option>
-                    <option value="topic">Tema (solo evaluación)</option>
-                    <option value="attendance_only">Lista de Asistencia (solo firma)</option>
-                  </select>
-                  {errors.activity_type && (
-                    <p className="text-red-500 text-xs mt-1">{errors.activity_type.message}</p>
-                  )}
-                </div>
+                {/* Hidden field for activity_type */}
+                <input type="hidden" {...register('activity_type')} />
+
+                {/* Show selected activity type */}
+                {!editingCourse && (
+                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      {watchActivityType === 'full_course' && (
+                        <>
+                          <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                            <BookOpen className="w-5 h-5 text-blue-600" />
+                          </div>
+                          <div>
+                            <p className="font-semibold text-slate-800">Curso Completo</p>
+                            <p className="text-xs text-slate-600">Con módulos y lecciones</p>
+                          </div>
+                        </>
+                      )}
+                      {watchActivityType === 'topic' && (
+                        <>
+                          <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                            <FileText className="w-5 h-5 text-green-600" />
+                          </div>
+                          <div>
+                            <p className="font-semibold text-slate-800">Tema</p>
+                            <p className="text-xs text-slate-600">Solo evaluación</p>
+                          </div>
+                        </>
+                      )}
+                      {watchActivityType === 'attendance_only' && (
+                        <>
+                          <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
+                            <CheckCircle className="w-5 h-5 text-orange-600" />
+                          </div>
+                          <div>
+                            <p className="font-semibold text-slate-800">Lista de Asistencia</p>
+                            <p className="text-xs text-slate-600">Solo firma</p>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsModalOpen(false)
+                        setShowTypeSelector(true)
+                      }}
+                      className="text-sm text-slate-600 hover:text-slate-800 underline"
+                    >
+                      Cambiar tipo
+                    </button>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
