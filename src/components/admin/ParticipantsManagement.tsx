@@ -396,8 +396,8 @@ export default function ParticipantsManagement() {
 
       {/* Table */}
       <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-        <div className="max-h-[70vh] overflow-y-auto overflow-x-auto border-t border-b border-slate-200 relative">
-          <div ref={tableScrollRef} className="table-scroll-container">
+        <div className="max-h-[70vh] overflow-auto">
+          <div ref={tableScrollRef}>
             <table className="w-full table-compact min-w-full">
               <thead className="bg-slate-50 sticky top-0 z-10 shadow-sm">
                 <tr>

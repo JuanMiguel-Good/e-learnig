@@ -621,10 +621,9 @@ export default function ReportsManagement() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-        <div className="p-6">
-          <div className="space-y-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      {/* Dashboard Stats */}
+      <div className="bg-white rounded-xl shadow-sm border p-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                 <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
                   <div className="flex items-center justify-between">
                     <div className="min-w-0 flex-1">
@@ -672,9 +671,12 @@ export default function ReportsManagement() {
                     <TrendingUp className="w-8 h-8 text-slate-600 flex-shrink-0 ml-2" />
                   </div>
                 </div>
-              </div>
+        </div>
+      </div>
 
-              <div className="flex flex-col sm:flex-row gap-4">
+      {/* Filters */}
+      <div className="bg-white rounded-xl shadow-sm border p-6">
+        <div className="flex flex-col sm:flex-row gap-4">
                 <div className="flex-1 relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
                   <input
@@ -722,11 +724,14 @@ export default function ReportsManagement() {
                     </option>
                   ))}
                 </select>
-              </div>
+        </div>
+      </div>
 
-              <div className="-mx-6 px-6 max-h-[70vh] overflow-y-auto overflow-x-auto border-t border-b border-slate-200 relative">
-                <div ref={tableScrollRef} className="table-scroll-container">
-                  <table className="min-w-full table-compact divide-y divide-slate-200">
+      {/* Table Container */}
+      <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+        <div className="max-h-[70vh] overflow-auto">
+          <div ref={tableScrollRef}>
+            <table className="min-w-full table-compact divide-y divide-slate-200">
                     <thead className="bg-slate-50 sticky top-0 z-10 shadow-sm">
                       <tr>
                         <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap min-w-[200px] bg-slate-50">
@@ -849,23 +854,21 @@ export default function ReportsManagement() {
                       </tr>
                     ))}
                     </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {filteredParticipantCourses.length === 0 && (
-                <div className="text-center py-12">
-                  <BookOpen className="mx-auto h-12 w-12 text-slate-400" />
-                  <h3 className="mt-2 text-sm font-medium text-slate-900">No hay asignaciones</h3>
-                  <p className="mt-1 text-sm text-slate-500">
-                    {searchTerm || statusFilter !== 'all' || companyFilter !== 'all' || courseFilter !== 'all'
-                      ? 'No hay resultados para los filtros aplicados.'
-                      : 'No hay cursos asignados a participantes.'}
-                  </p>
-                </div>
-              )}
+            </table>
           </div>
         </div>
+
+        {filteredParticipantCourses.length === 0 && (
+          <div className="text-center py-12">
+            <BookOpen className="mx-auto h-12 w-12 text-slate-400" />
+            <h3 className="mt-2 text-sm font-medium text-slate-900">No hay asignaciones</h3>
+            <p className="mt-1 text-sm text-slate-500">
+              {searchTerm || statusFilter !== 'all' || companyFilter !== 'all' || courseFilter !== 'all'
+                ? 'No hay resultados para los filtros aplicados.'
+                : 'No hay cursos asignados a participantes.'}
+            </p>
+          </div>
+        )}
       </div>
 
       {showConfirmModal && (
