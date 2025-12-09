@@ -255,21 +255,25 @@ export default function CompaniesManagement() {
       <div className="space-y-4">
         {filteredCompanies.map((company) => (
           <div key={company.id} className="bg-white rounded-xl shadow-sm border p-4 md:p-6">
-            <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-              {/* Company Logo and Basic Info */}
+            <div className="flex flex-col gap-4">
+              {/* Header with Logo, Basic Info and Actions */}
               <div className="flex items-start gap-4">
-                {company.logo_url ? (
-                  <img 
-                    src={company.logo_url} 
-                    alt={`Logo ${company.razon_social}`}
-                    className="w-12 h-12 md:w-16 md:h-16 object-cover rounded-lg border"
-                  />
-                ) : (
-                  <div className="w-12 h-12 md:w-16 md:h-16 bg-slate-100 rounded-lg flex items-center justify-center">
-                    <Building2 className="w-6 h-6 md:w-8 md:h-8 text-slate-600" />
-                  </div>
-                )}
-                
+                {/* Logo */}
+                <div className="flex-shrink-0">
+                  {company.logo_url ? (
+                    <img
+                      src={company.logo_url}
+                      alt={`Logo ${company.razon_social}`}
+                      className="w-12 h-12 md:w-16 md:h-16 object-cover rounded-lg border"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 md:w-16 md:h-16 bg-slate-100 rounded-lg flex items-center justify-center">
+                      <Building2 className="w-6 h-6 md:w-8 md:h-8 text-slate-600" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Basic Info */}
                 <div className="flex-1 min-w-0">
                   <h3 className="text-base md:text-lg font-semibold text-slate-800 mb-1">
                     {company.razon_social}
@@ -285,16 +289,34 @@ export default function CompaniesManagement() {
                     </span>
                   </div>
                 </div>
+
+                {/* Actions */}
+                <div className="flex gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => handleEdit(company)}
+                    className="px-3 py-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors text-sm inline-flex items-center gap-2"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                    <span className="hidden sm:inline">Editar</span>
+                  </button>
+                  <button
+                    onClick={() => handleDelete(company)}
+                    className="px-3 py-2 text-red-600 hover:text-red-900 hover:bg-red-100 rounded-lg transition-colors text-sm inline-flex items-center gap-2"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span className="hidden sm:inline">Eliminar</span>
+                  </button>
+                </div>
               </div>
 
               {/* Company Details */}
-              <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pl-0 md:pl-20 text-sm">
                 <div>
                   <p className="flex items-start text-slate-600">
                     <MapPin className="w-4 h-4 mr-1 mt-0.5 flex-shrink-0" />
                     <span className="line-clamp-2">{company.direccion}, {company.distrito}</span>
                   </p>
-                  <p className="text-slate-500 ml-5 text-xs">
+                  <p className="text-slate-500 ml-5 text-xs mt-1">
                     {company.departamento}, {company.provincia}
                   </p>
                 </div>
@@ -310,24 +332,6 @@ export default function CompaniesManagement() {
                     </p>
                   )}
                 </div>
-              </div>
-
-              {/* Actions */}
-              <div className="flex space-x-2 lg:flex-col lg:space-x-0 lg:space-y-2">
-                <button
-                  onClick={() => handleEdit(company)}
-                  className="flex-1 lg:flex-none px-3 py-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors text-sm"
-                >
-                  <Edit2 className="w-4 h-4 mx-auto lg:mr-2" />
-                  <span className="hidden lg:inline">Editar</span>
-                </button>
-                <button
-                  onClick={() => handleDelete(company)}
-                  className="flex-1 lg:flex-none px-3 py-2 text-red-600 hover:text-red-900 hover:bg-red-100 rounded-lg transition-colors text-sm"
-                >
-                  <Trash2 className="w-4 h-4 mx-auto lg:mr-2" />
-                  <span className="hidden lg:inline">Eliminar</span>
-                </button>
               </div>
             </div>
           </div>
