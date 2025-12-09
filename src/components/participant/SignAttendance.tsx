@@ -44,8 +44,9 @@ export default function SignAttendance({ courseId, evaluationAttemptId, onComple
 
       setCourseInfo(courseData)
 
-      // Check if user already signed for this course after approving evaluation
+      // Check if user already signed
       if (evaluationAttemptId) {
+        // For courses with evaluation: check by evaluation_attempt_id
         const { data: existingSignature } = await supabase
           .from('attendance_signatures')
           .select('id')
@@ -57,6 +58,29 @@ export default function SignAttendance({ courseId, evaluationAttemptId, onComple
           toast.info('Ya has firmado para este curso')
           onComplete()
           return
+        }
+      } else {
+        // For attendance_only activities: check if recently signed for this course
+        const { data: recentSignature } = await supabase
+          .from('attendance_signatures')
+          .select('id, signed_at')
+          .eq('user_id', user?.id)
+          .is('evaluation_attempt_id', null)
+          .order('signed_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+
+        if (recentSignature) {
+          const signedAt = new Date(recentSignature.signed_at)
+          const now = new Date()
+          const hoursDiff = (now.getTime() - signedAt.getTime()) / (1000 * 60 * 60)
+
+          // If signed within last 24 hours, consider it duplicate
+          if (hoursDiff < 24) {
+            toast.info('Ya has firmado recientemente')
+            onComplete()
+            return
+          }
         }
       }
     } catch (error) {
@@ -174,11 +198,6 @@ export default function SignAttendance({ courseId, evaluationAttemptId, onComple
       return
     }
 
-    if (!evaluationAttemptId) {
-      toast.error('No se encontró el intento de evaluación')
-      return
-    }
-
     try {
       setIsSigning(true)
 
@@ -188,14 +207,15 @@ export default function SignAttendance({ courseId, evaluationAttemptId, onComple
 
       const signatureData = canvas.toDataURL('image/png').split(',')[1] // Remove data:image/png;base64,
 
-      // Save signature to database (without attendance_list_id for now)
+      // Save signature to database
+      // evaluation_attempt_id can be null for attendance_only activities
       const { error } = await supabase
         .from('attendance_signatures')
         .insert([
           {
             user_id: user.id,
             signature_data: signatureData,
-            evaluation_attempt_id: evaluationAttemptId,
+            evaluation_attempt_id: evaluationAttemptId || null,
             attendance_list_id: null
           }
         ])

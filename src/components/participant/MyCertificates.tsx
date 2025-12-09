@@ -39,6 +39,7 @@ export default function MyCertificates() {
           course:courses!inner (
             title,
             image_url,
+            activity_type,
             instructor:instructors (
               name,
               signature_url
@@ -46,6 +47,7 @@ export default function MyCertificates() {
           )
         `)
         .eq('user_id', user?.id)
+        .neq('courses.activity_type', 'attendance_only')
         .order('completion_date', { ascending: false })
 
       if (error) throw error

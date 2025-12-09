@@ -15,6 +15,7 @@ interface Course {
   created_at: string
   requires_evaluation: boolean
   hours: number
+  activity_type: 'full_course' | 'topic' | 'attendance_only'
   instructor?: {
     name: string
   }
@@ -45,6 +46,7 @@ interface CourseFormData {
   is_active: boolean
   requires_evaluation: boolean
   hours: number
+  activity_type: 'full_course' | 'topic' | 'attendance_only'
   image: FileList
   modules: Module[]
 }
@@ -69,13 +71,16 @@ export default function CoursesManagement() {
     watch
   } = useForm<CourseFormData>({
     defaultValues: {
-      modules: [{ 
-        title: '', 
-        description: '', 
-        lessons: [{ title: '', content: '', video: null, duration_minutes: 0 }] 
+      activity_type: 'full_course',
+      modules: [{
+        title: '',
+        description: '',
+        lessons: [{ title: '', content: '', video: null, duration_minutes: 0 }]
       }]
     }
   })
+
+  const watchActivityType = watch('activity_type')
 
   const { fields: moduleFields, append: appendModule, remove: removeModule } = useFieldArray({
     control,
@@ -153,6 +158,7 @@ export default function CoursesManagement() {
             is_active: data.is_active,
             requires_evaluation: data.requires_evaluation,
             hours: data.hours,
+            activity_type: data.activity_type,
             image_url: imageUrl,
             updated_at: new Date().toISOString()
           })
@@ -160,9 +166,11 @@ export default function CoursesManagement() {
 
         if (courseError) throw courseError
 
-        // Update modules and lessons
-        await updateModulesAndLessons(editingCourse.id, data.modules)
-        
+        // Update modules and lessons only if full_course type
+        if (data.activity_type === 'full_course') {
+          await updateModulesAndLessons(editingCourse.id, data.modules)
+        }
+
         toast.success('Curso actualizado correctamente')
       } else {
         // Create new course
@@ -176,6 +184,7 @@ export default function CoursesManagement() {
               is_active: data.is_active,
               requires_evaluation: data.requires_evaluation,
               hours: data.hours,
+              activity_type: data.activity_type,
               image_url: imageUrl
             }
           ])
@@ -184,8 +193,9 @@ export default function CoursesManagement() {
 
         if (courseError) throw courseError
 
-        // Create modules and lessons
-        for (const [moduleIndex, moduleData] of data.modules.entries()) {
+        // Create modules and lessons only if full_course type
+        if (data.activity_type === 'full_course') {
+          for (const [moduleIndex, moduleData] of data.modules.entries()) {
           const { data: newModule, error: moduleError } = await supabase
             .from('modules')
             .insert([
@@ -241,6 +251,7 @@ export default function CoursesManagement() {
 
             if (lessonError) throw lessonError
           }
+        }
         }
 
         toast.success('Curso creado correctamente')
@@ -460,11 +471,12 @@ export default function CoursesManagement() {
         is_active: courseData.is_active,
         requires_evaluation: courseData.requires_evaluation || false,
         hours: courseData.hours || 1,
+        activity_type: courseData.activity_type || 'full_course',
         image: undefined as any,
-        modules: formModules.length > 0 ? formModules : [{ 
-          title: '', 
-          description: '', 
-          lessons: [{ title: '', content: '', video: null, duration_minutes: 0 }] 
+        modules: formModules.length > 0 ? formModules : [{
+          title: '',
+          description: '',
+          lessons: [{ title: '', content: '', video: null, duration_minutes: 0 }]
         }]
       })
     } catch (error) {
@@ -549,13 +561,28 @@ export default function CoursesManagement() {
                 <h3 className="text-lg font-semibold text-slate-800 truncate">
                   {course.title}
                 </h3>
-                <span className={`px-2 py-1 text-xs rounded-full ${
-                  course.is_active 
-                    ? 'bg-green-100 text-green-800' 
-                    : 'bg-red-100 text-red-800'
-                }`}>
-                  {course.is_active ? 'Activo' : 'Inactivo'}
-                </span>
+                <div className="flex gap-2">
+                  <span className={`px-2 py-1 text-xs rounded-full ${
+                    course.activity_type === 'full_course'
+                      ? 'bg-blue-100 text-blue-800'
+                      : course.activity_type === 'topic'
+                      ? 'bg-green-100 text-green-800'
+                      : 'bg-orange-100 text-orange-800'
+                  }`}>
+                    {course.activity_type === 'full_course'
+                      ? 'Curso'
+                      : course.activity_type === 'topic'
+                      ? 'Tema'
+                      : 'Lista'}
+                  </span>
+                  <span className={`px-2 py-1 text-xs rounded-full ${
+                    course.is_active
+                      ? 'bg-green-100 text-green-800'
+                      : 'bg-red-100 text-red-800'
+                  }`}>
+                    {course.is_active ? 'Activo' : 'Inactivo'}
+                  </span>
+                </div>
               </div>
               
               {course.description && (
@@ -631,16 +658,33 @@ export default function CoursesManagement() {
             ) : (
               <form onSubmit={handleSubmit(handleCreateOrUpdate)} className="space-y-6">
                 {/* Basic Course Info */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Tipo de Actividad
+                  </label>
+                  <select
+                    {...register('activity_type', { required: 'El tipo de actividad es requerido' })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                  >
+                    <option value="full_course">Curso Completo (con módulos y lecciones)</option>
+                    <option value="topic">Tema (solo evaluación)</option>
+                    <option value="attendance_only">Lista de Asistencia (solo firma)</option>
+                  </select>
+                  {errors.activity_type && (
+                    <p className="text-red-500 text-xs mt-1">{errors.activity_type.message}</p>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">
-                      Título del Curso
+                      Título {watchActivityType === 'full_course' ? 'del Curso' : watchActivityType === 'topic' ? 'del Tema' : 'de la Lista'}
                     </label>
                     <input
                       {...register('title', { required: 'El título es requerido' })}
                       type="text"
                       className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
-                      placeholder="Título del curso"
+                      placeholder="Título"
                     />
                     {errors.title && (
                       <p className="text-red-500 text-xs mt-1">{errors.title.message}</p>
@@ -652,7 +696,7 @@ export default function CoursesManagement() {
                       Nº de Horas
                     </label>
                     <input
-                      {...register('hours', { 
+                      {...register('hours', {
                         required: 'Las horas son requeridas',
                         min: { value: 1, message: 'Debe ser mayor a 0' }
                       })}
@@ -772,55 +816,78 @@ export default function CoursesManagement() {
                       defaultChecked={true}
                     />
                     <label className="ml-2 block text-sm text-slate-900">
-                      Curso activo
+                      Activo
                     </label>
                   </div>
 
-                  <div className="flex items-center">
-                    <input
-                      {...register('requires_evaluation')}
-                      type="checkbox"
-                      className="h-4 w-4 text-slate-600 focus:ring-slate-500 border-slate-300 rounded"
-                    />
-                    <label className="ml-2 block text-sm text-slate-900">
-                      Requiere evaluación
-                    </label>
-                  </div>
+                  {watchActivityType !== 'attendance_only' && (
+                    <div className="flex items-center">
+                      <input
+                        {...register('requires_evaluation')}
+                        type="checkbox"
+                        className="h-4 w-4 text-slate-600 focus:ring-slate-500 border-slate-300 rounded"
+                        defaultChecked={watchActivityType === 'topic'}
+                        disabled={watchActivityType === 'topic'}
+                      />
+                      <label className="ml-2 block text-sm text-slate-900">
+                        Requiere evaluación {watchActivityType === 'topic' && '(obligatorio para temas)'}
+                      </label>
+                    </div>
+                  )}
                 </div>
 
-                {/* Modules and Lessons */}
-                <div className="border-t pt-6">
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-semibold text-slate-800">
-                      {editingCourse ? 'Editar Módulos y Lecciones' : 'Módulos y Lecciones'}
-                    </h3>
-                    <button
-                      type="button"
-                      onClick={() => appendModule({ 
-                        title: '', 
-                        description: '', 
-                        lessons: [{ title: '', content: '', video: null, duration_minutes: 0 }] 
-                      })}
-                      className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm"
-                    >
-                      + Agregar Módulo
-                    </button>
+                {/* Info box for selected type */}
+                {watchActivityType === 'topic' && (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <p className="text-sm text-green-800">
+                      <strong>Tema:</strong> Los participantes tendrán acceso directo a un botón "Tomar Evaluación". No se requieren módulos ni lecciones.
+                    </p>
                   </div>
+                )}
 
-                  {moduleFields.map((module, moduleIndex) => (
-                    <ModuleForm
-                      key={module.id}
-                      moduleIndex={moduleIndex}
-                      register={register}
-                      control={control}
-                      errors={errors}
-                      editingCourse={editingCourse}
-                      uploadProgress={uploadProgress}
-                      onRemove={() => removeModule(moduleIndex)}
-                      canRemove={moduleFields.length > 1}
-                    />
-                  ))}
-                </div>
+                {watchActivityType === 'attendance_only' && (
+                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                    <p className="text-sm text-orange-800">
+                      <strong>Lista de Asistencia:</strong> Los participantes solo firmarán asistencia. No se genera certificado ni constancia.
+                    </p>
+                  </div>
+                )}
+
+                {/* Modules and Lessons - Only for full_course */}
+                {watchActivityType === 'full_course' && (
+                  <div className="border-t pt-6">
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-lg font-semibold text-slate-800">
+                        {editingCourse ? 'Editar Módulos y Lecciones' : 'Módulos y Lecciones'}
+                      </h3>
+                      <button
+                        type="button"
+                        onClick={() => appendModule({
+                          title: '',
+                          description: '',
+                          lessons: [{ title: '', content: '', video: null, duration_minutes: 0 }]
+                        })}
+                        className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm"
+                      >
+                        + Agregar Módulo
+                      </button>
+                    </div>
+
+                    {moduleFields.map((module, moduleIndex) => (
+                      <ModuleForm
+                        key={module.id}
+                        moduleIndex={moduleIndex}
+                        register={register}
+                        control={control}
+                        errors={errors}
+                        editingCourse={editingCourse}
+                        uploadProgress={uploadProgress}
+                        onRemove={() => removeModule(moduleIndex)}
+                        canRemove={moduleFields.length > 1}
+                      />
+                    ))}
+                  </div>
+                )}
 
                 {/* Buttons */}
                 <div className="flex space-x-3 pt-6 border-t">

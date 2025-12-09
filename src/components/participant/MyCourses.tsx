@@ -13,6 +13,8 @@ interface Course {
   description: string | null
   image_url: string | null
   progress: number
+  activity_type: 'full_course' | 'topic' | 'attendance_only'
+  requires_evaluation: boolean
   modules: Module[]
 }
 
@@ -65,6 +67,8 @@ export default function MyCourses() {
             title,
             description,
             image_url,
+            activity_type,
+            requires_evaluation,
             modules (
               id,
               title,
@@ -330,6 +334,12 @@ export default function MyCourses() {
   const generateCertificate = async (course: Course) => {
     if (!user) return;
 
+    // Block certificate generation for attendance_only activities
+    if (course.activity_type === 'attendance_only') {
+      toast.error('No se generan certificados para listas de asistencia');
+      return;
+    }
+
     try {
       setGeneratingCertificate(true);
 
@@ -518,74 +528,128 @@ export default function MyCourses() {
 
       {/* Courses Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 cards-grid">
-        {courses.map((course) => (
-          <div key={course.id} className={`bg-white rounded-xl shadow-sm border overflow-hidden hover:shadow-md transition-all cursor-pointer ${
-            course.progress === 100 
-              ? 'ring-2 ring-green-200 border-green-300' 
-              : course.progress > 0 
-              ? 'ring-2 ring-blue-200 border-blue-300' 
-              : 'hover:border-slate-400'
-          }`}>
-            <div onClick={() => setSelectedCourse(course)}>
+        {courses.map((course) => {
+          const activityTypeConfig = {
+            full_course: { label: 'Curso', color: 'blue', icon: BookOpen },
+            topic: { label: 'Tema', color: 'green', icon: FileText },
+            attendance_only: { label: 'Lista', color: 'orange', icon: CheckCircle }
+          }
+          const config = activityTypeConfig[course.activity_type]
+          const Icon = config.icon
 
-              {course.image_url && (
-                <img 
-                  src={course.image_url} 
-                  alt={course.title}
-                  className="w-full h-32 md:h-48 object-cover relative"
-                />
-              )}
-              <div className="p-4 md:p-6">
-                <h3 className="text-base md:text-lg font-semibold text-slate-800 mb-2">
-                  {course.title}
-                </h3>
-                
-                {course.description && (
-                  <p className="text-slate-600 text-xs md:text-sm mb-4 line-clamp-2">
-                    {course.description}
-                  </p>
+          return (
+            <div key={course.id} className={`bg-white rounded-xl shadow-sm border overflow-hidden hover:shadow-md transition-all ${
+              course.activity_type === 'full_course' ? 'cursor-pointer' : ''
+            } ${
+              course.progress === 100
+                ? 'ring-2 ring-green-200 border-green-300'
+                : course.progress > 0
+                ? 'ring-2 ring-blue-200 border-blue-300'
+                : 'hover:border-slate-400'
+            }`}>
+              <div onClick={() => course.activity_type === 'full_course' && setSelectedCourse(course)}>
+                {course.image_url && (
+                  <img
+                    src={course.image_url}
+                    alt={course.title}
+                    className="w-full h-32 md:h-48 object-cover relative"
+                  />
                 )}
-
-                {/* Progress Bar */}
-                <div className="mb-4">
-                  <div className="flex justify-between text-xs md:text-sm text-slate-600 mb-1">
-                    <span>Progreso</span>
-                    <span>{course.progress}%</span>
+                <div className="p-4 md:p-6">
+                  <div className="flex items-start justify-between mb-2">
+                    <h3 className="text-base md:text-lg font-semibold text-slate-800 flex-1">
+                      {course.title}
+                    </h3>
+                    <span className={`ml-2 px-2 py-1 text-xs rounded-full bg-${config.color}-100 text-${config.color}-800 flex-shrink-0`}>
+                      {config.label}
+                    </span>
                   </div>
-                  <div className={`w-full rounded-full h-2 ${
-                    course.progress === 100 
-                      ? 'bg-green-100' 
-                      : course.progress > 0 
-                      ? 'bg-blue-100' 
-                      : 'bg-slate-200'
-                  }`}>
-                    <div 
-                      className={`h-2 rounded-full transition-all ${
-                        course.progress === 100 
-                          ? 'bg-green-500' 
-                          : course.progress > 0 
-                          ? 'bg-blue-500' 
-                          : 'bg-slate-400'
-                      }`}
-                      style={{ width: `${course.progress}%` }}
-                    />
-                  </div>
-                </div>
 
-                <div className="flex items-center text-xs md:text-sm text-slate-500">
-                  <BookOpen className="w-4 h-4 mr-1" />
-                  {course.modules.length} módulo{course.modules.length !== 1 ? 's' : ''}
-                  {course.progress === 100 && (
-                    <div className="ml-auto flex items-center text-green-600 text-xs">
-                      <Star className="w-4 h-4 mr-1 fill-current" />
-                      <span className="font-medium">Finalizado</span>
-                    </div>
+                  {course.description && (
+                    <p className="text-slate-600 text-xs md:text-sm mb-4 line-clamp-2">
+                      {course.description}
+                    </p>
+                  )}
+
+                  {/* Full Course: Progress Bar */}
+                  {course.activity_type === 'full_course' && (
+                    <>
+                      <div className="mb-4">
+                        <div className="flex justify-between text-xs md:text-sm text-slate-600 mb-1">
+                          <span>Progreso</span>
+                          <span>{course.progress}%</span>
+                        </div>
+                        <div className={`w-full rounded-full h-2 ${
+                          course.progress === 100
+                            ? 'bg-green-100'
+                            : course.progress > 0
+                            ? 'bg-blue-100'
+                            : 'bg-slate-200'
+                        }`}>
+                          <div
+                            className={`h-2 rounded-full transition-all ${
+                              course.progress === 100
+                                ? 'bg-green-500'
+                                : course.progress > 0
+                                ? 'bg-blue-500'
+                                : 'bg-slate-400'
+                            }`}
+                            style={{ width: `${course.progress}%` }}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex items-center text-xs md:text-sm text-slate-500">
+                        <BookOpen className="w-4 h-4 mr-1" />
+                        {course.modules.length} módulo{course.modules.length !== 1 ? 's' : ''}
+                        {course.progress === 100 && (
+                          <div className="ml-auto flex items-center text-green-600 text-xs">
+                            <Star className="w-4 h-4 mr-1 fill-current" />
+                            <span className="font-medium">Finalizado</span>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+
+                  {/* Topic: Direct Evaluation Button */}
+                  {course.activity_type === 'topic' && (
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation()
+                        const evalStatus = await checkEvaluationStatus(course.id)
+                        if (evalStatus.hasPassedEvaluation) {
+                          toast.success('Ya aprobaste la evaluación de este tema')
+                        } else if (evalStatus.canTakeEvaluation) {
+                          setShowEvaluation(course.id)
+                        } else {
+                          toast.error('No tienes más intentos disponibles')
+                        }
+                      }}
+                      className="w-full mt-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center text-sm"
+                    >
+                      <FileText className="w-4 h-4 mr-2" />
+                      Tomar Evaluación
+                    </button>
+                  )}
+
+                  {/* Attendance Only: Direct Sign Button */}
+                  {course.activity_type === 'attendance_only' && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setShowSignature(course.id)
+                      }}
+                      className="w-full mt-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center text-sm"
+                    >
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      Firmar Asistencia
+                    </button>
                   )}
                 </div>
               </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       {courses.length === 0 && (
@@ -625,8 +689,9 @@ export default function MyCourses() {
               </div>
             </div>
 
-            {/* Certificate Generation Banner */}
+            {/* Certificate Generation Banner - Only for full_course and topic */}
             {selectedCourse.progress === 100 &&
+             selectedCourse.activity_type !== 'attendance_only' &&
              (!evaluationStatuses[selectedCourse.id]?.required || evaluationStatuses[selectedCourse.id]?.hasPassed) && (
               <div className="bg-gradient-to-r from-yellow-50 to-yellow-100 border-b border-yellow-200 p-4 md:p-6">
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-3 md:space-y-0">
