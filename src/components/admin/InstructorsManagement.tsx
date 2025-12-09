@@ -215,25 +215,26 @@ export default function InstructorsManagement() {
 
       {/* Table */}
       <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-        <div ref={tableScrollRef} className="table-scroll-container">
-          <table className="w-full table-compact min-w-full">
-            <thead className="bg-slate-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                  Instructor
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                  Firma
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider col-date">
-                  Fecha de Registro
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider col-actions">
-                  Acciones
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-slate-200">
+        <div className="max-h-[70vh] overflow-y-auto overflow-x-auto border-t border-b border-slate-200 relative">
+          <div ref={tableScrollRef} className="table-scroll-container">
+            <table className="w-full table-compact min-w-full">
+              <thead className="bg-slate-50 sticky top-0 z-10 shadow-sm">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider bg-slate-50">
+                    Instructor
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider bg-slate-50">
+                    Firma
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider col-date bg-slate-50">
+                    Fecha de Registro
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider col-actions bg-slate-50">
+                    Acciones
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-slate-200">
               {instructors.map((instructor) => (
                 <tr key={instructor.id} className="hover:bg-slate-50">
                   <td className="px-4 py-4 whitespace-nowrap">
@@ -278,10 +279,11 @@ export default function InstructorsManagement() {
                   </td>
                 </tr>
               ))}
-            </tbody>
-          </table>
+              </tbody>
+            </table>
+          </div>
         </div>
-        
+
         {instructors.length === 0 && (
           <div className="text-center py-12">
             <User className="mx-auto h-12 w-12 text-slate-400" />

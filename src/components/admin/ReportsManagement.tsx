@@ -624,44 +624,44 @@ export default function ReportsManagement() {
       <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
         <div className="p-6">
           <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                 <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
                   <div className="flex items-center justify-between">
-                    <div>
+                    <div className="min-w-0 flex-1">
                       <p className="text-sm text-blue-600 font-medium">Total Asignaciones</p>
                       <p className="text-2xl font-bold text-blue-900">{participantCourses.length}</p>
                     </div>
-                    <BookOpen className="w-8 h-8 text-blue-600" />
+                    <BookOpen className="w-8 h-8 text-blue-600 flex-shrink-0 ml-2" />
                   </div>
                 </div>
 
                 <div className="bg-green-50 rounded-lg p-4 border border-green-200">
                   <div className="flex items-center justify-between">
-                    <div>
+                    <div className="min-w-0 flex-1">
                       <p className="text-sm text-green-600 font-medium">Cursos Completados</p>
                       <p className="text-2xl font-bold text-green-900">
                         {participantCourses.filter(p => p.progress === 100 && (p.requires_evaluation ? p.evaluation_status === 'passed' : true)).length}
                       </p>
                     </div>
-                    <CheckCircle className="w-8 h-8 text-green-600" />
+                    <CheckCircle className="w-8 h-8 text-green-600 flex-shrink-0 ml-2" />
                   </div>
                 </div>
 
                 <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
                   <div className="flex items-center justify-between">
-                    <div>
+                    <div className="min-w-0 flex-1">
                       <p className="text-sm text-yellow-600 font-medium">Certificados Generados</p>
                       <p className="text-2xl font-bold text-yellow-900">
                         {participantCourses.filter(p => p.certificate_status === 'generated').length}
                       </p>
                     </div>
-                    <Award className="w-8 h-8 text-yellow-600" />
+                    <Award className="w-8 h-8 text-yellow-600 flex-shrink-0 ml-2" />
                   </div>
                 </div>
 
                 <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
                   <div className="flex items-center justify-between">
-                    <div>
+                    <div className="min-w-0 flex-1">
                       <p className="text-sm text-slate-600 font-medium">Progreso Promedio</p>
                       <p className="text-2xl font-bold text-slate-900">
                         {participantCourses.length > 0
@@ -669,7 +669,7 @@ export default function ReportsManagement() {
                           : 0}%
                       </p>
                     </div>
-                    <TrendingUp className="w-8 h-8 text-slate-600" />
+                    <TrendingUp className="w-8 h-8 text-slate-600 flex-shrink-0 ml-2" />
                   </div>
                 </div>
               </div>
@@ -724,34 +724,35 @@ export default function ReportsManagement() {
                 </select>
               </div>
 
-              <div ref={tableScrollRef} className="table-scroll-container -mx-6 px-6">
-                <table className="min-w-full table-compact divide-y divide-slate-200">
-                  <thead className="bg-slate-50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap min-w-[200px]">
-                        Participante
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap min-w-[160px]">
-                        Empresa
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap min-w-[220px]">
-                        Curso
-                      </th>
-                      <th className="px-4 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap col-status">
-                        Progreso
-                      </th>
-                      <th className="px-4 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap col-status">
-                        Evaluación
-                      </th>
-                      <th className="px-4 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap col-status">
-                        Certificado
-                      </th>
-                      <th className="px-4 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap col-status">
-                        Estado
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-slate-200">
+              <div className="-mx-6 px-6 max-h-[70vh] overflow-y-auto overflow-x-auto border-t border-b border-slate-200 relative">
+                <div ref={tableScrollRef} className="table-scroll-container">
+                  <table className="min-w-full table-compact divide-y divide-slate-200">
+                    <thead className="bg-slate-50 sticky top-0 z-10 shadow-sm">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap min-w-[200px] bg-slate-50">
+                          Participante
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap min-w-[160px] bg-slate-50">
+                          Empresa
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap min-w-[220px] bg-slate-50">
+                          Curso
+                        </th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap col-status bg-slate-50">
+                          Progreso
+                        </th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap col-status bg-slate-50">
+                          Evaluación
+                        </th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap col-status bg-slate-50">
+                          Certificado
+                        </th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap col-status bg-slate-50">
+                          Estado
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-slate-200">
                     {filteredParticipantCourses.map((item, index) => (
                       <tr key={`${item.participant_id}-${item.course_id}-${index}`} className="hover:bg-slate-50">
                         <td className="px-4 py-3 whitespace-nowrap">
@@ -847,8 +848,9 @@ export default function ReportsManagement() {
                         </td>
                       </tr>
                     ))}
-                  </tbody>
-                </table>
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
               {filteredParticipantCourses.length === 0 && (
