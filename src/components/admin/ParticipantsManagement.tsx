@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
-import { Plus, CreditCard as Edit2, Trash2, Phone, Mail, User, Eye, EyeOff, Upload, Download, X } from 'lucide-react'
+import { Plus, CreditCard as Edit2, Trash2, Phone, Mail, User, Eye, EyeOff, Upload, Download, X, Search } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useForm } from 'react-hook-form'
 import { generateParticipantsTemplate, parseParticipantsFromExcel, ValidationError, ParsedParticipant } from '../../lib/excelTemplateGenerator'
@@ -52,6 +52,8 @@ export default function ParticipantsManagement() {
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
   const [selectedCompanyForBulk, setSelectedCompanyForBulk] = useState<string>('')
+  const [searchTerm, setSearchTerm] = useState('')
+  const [companyFilter, setCompanyFilter] = useState('all')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const tableScrollRef = React.useRef<HTMLDivElement>(null)
 
@@ -139,6 +141,21 @@ export default function ParticipantsManagement() {
       toast.error('Error al cargar empresas')
     }
   }
+
+  const filteredParticipants = participants.filter(participant => {
+    // Filter by search term
+    const matchesSearch = searchTerm === '' ||
+      participant.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      participant.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      participant.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (participant.dni && participant.dni.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (participant.company?.razon_social && participant.company.razon_social.toLowerCase().includes(searchTerm.toLowerCase()))
+
+    // Filter by company
+    const matchesCompany = companyFilter === 'all' || participant.company_id === companyFilter
+
+    return matchesSearch && matchesCompany
+  })
 
   const handleCreateOrUpdate = async (data: ParticipantFormData) => {
     try {
@@ -394,6 +411,35 @@ export default function ParticipantsManagement() {
         </div>
       </div>
 
+      {/* Filters */}
+      <div className="bg-white rounded-xl shadow-sm border p-4 sm:p-6 w-full">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
+            <input
+              type="text"
+              placeholder="Buscar por nombre, email, DNI o empresa..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+            />
+          </div>
+
+          <select
+            value={companyFilter}
+            onChange={(e) => setCompanyFilter(e.target.value)}
+            className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm truncate"
+          >
+            <option value="all">Todas las empresas</option>
+            {companies.map((company) => (
+              <option key={company.id} value={company.id}>
+                {company.razon_social}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
       {/* Table */}
       <div className="bg-white rounded-xl shadow-sm border w-full overflow-hidden">
         <div className="max-h-[70vh] overflow-auto w-full">
@@ -419,7 +465,16 @@ export default function ParticipantsManagement() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-slate-200">
-              {participants.map((participant) => (
+              {filteredParticipants.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
+                    {searchTerm || companyFilter !== 'all'
+                      ? 'No se encontraron participantes con los filtros aplicados'
+                      : 'No hay participantes registrados'}
+                  </td>
+                </tr>
+              ) : (
+                filteredParticipants.map((participant) => (
                 <tr key={participant.id} className="hover:bg-slate-50">
                   <td className="px-4 py-4 whitespace-nowrap">
                     <div className="flex items-center">
@@ -471,13 +526,14 @@ export default function ParticipantsManagement() {
                     </button>
                   </td>
                 </tr>
-              ))}
+              ))
+              )}
               </tbody>
             </table>
           </div>
         </div>
 
-        {participants.length === 0 && (
+        {participants.length === 0 && !isLoading && (
           <div className="text-center py-12">
             <User className="mx-auto h-12 w-12 text-slate-400" />
             <h3 className="mt-2 text-sm font-medium text-slate-900">No hay participantes</h3>
