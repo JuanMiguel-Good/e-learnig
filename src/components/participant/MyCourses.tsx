@@ -653,23 +653,52 @@ export default function MyCourses() {
 
                   {/* Topic: Direct Evaluation Button */}
                   {course.activity_type === 'topic' && (
-                    <button
-                      onClick={async (e) => {
-                        e.stopPropagation()
-                        const evalStatus = await checkEvaluationStatus(course.id)
-                        if (evalStatus.hasPassedEvaluation) {
-                          toast.success('Ya aprobaste la evaluación de este tema')
-                        } else if (evalStatus.canTakeEvaluation) {
-                          setShowEvaluation(course.id)
-                        } else {
-                          toast.error('No tienes más intentos disponibles')
-                        }
-                      }}
-                      className="w-full mt-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center text-sm"
-                    >
-                      <FileText className="w-4 h-4 mr-2" />
-                      Tomar Evaluación
-                    </button>
+                    <>
+                      {evaluationStatuses[course.id]?.hasPassed ? (
+                        <div className="space-y-2 mt-2">
+                          <div className="w-full px-4 py-2 bg-green-100 text-green-800 rounded-lg font-medium flex items-center justify-center text-sm">
+                            <CheckCircle className="w-4 h-4 mr-2" />
+                            Evaluación Aprobada
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              generateCertificate(course)
+                            }}
+                            disabled={generatingCertificate}
+                            className="w-full px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {generatingCertificate ? (
+                              <>
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                                Generando...
+                              </>
+                            ) : (
+                              <>
+                                <Award className="w-4 h-4 mr-2" />
+                                Generar Certificado
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      ) : evaluationStatuses[course.id]?.canTake ? (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setShowEvaluation(course.id)
+                          }}
+                          className="w-full mt-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center text-sm"
+                        >
+                          <FileText className="w-4 h-4 mr-2" />
+                          Tomar Evaluación
+                        </button>
+                      ) : (
+                        <div className="w-full mt-2 px-4 py-2 bg-red-100 text-red-800 rounded-lg font-medium flex items-center justify-center text-sm">
+                          <X className="w-4 h-4 mr-2" />
+                          Sin intentos disponibles
+                        </div>
+                      )}
+                    </>
                   )}
 
                   {/* Attendance Only: Direct Sign Button */}
