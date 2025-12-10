@@ -589,7 +589,7 @@ export default function CoursesManagement() {
                     {course.activity_type === 'full_course'
                       ? 'Curso'
                       : course.activity_type === 'topic'
-                      ? 'Tema'
+                      ? 'Evaluación'
                       : 'Lista'}
                   </span>
                   <span className={`px-2 py-1 text-xs rounded-full ${
@@ -705,7 +705,7 @@ export default function CoursesManagement() {
                   </div>
                   <div>
                     <h3 className="text-lg font-bold text-slate-800 mb-2">
-                      Tema
+                      Evaluación
                     </h3>
                     <p className="text-sm text-slate-600">
                       Solo evaluación, sin módulos ni lecciones
@@ -797,7 +797,7 @@ export default function CoursesManagement() {
                             <FileText className="w-5 h-5 text-green-600" />
                           </div>
                           <div>
-                            <p className="font-semibold text-slate-800">Tema</p>
+                            <p className="font-semibold text-slate-800">Evaluación</p>
                             <p className="text-xs text-slate-600">Solo evaluación</p>
                           </div>
                         </>

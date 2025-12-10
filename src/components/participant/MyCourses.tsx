@@ -571,7 +571,7 @@ export default function MyCourses() {
         {courses.map((course) => {
           const activityTypeConfig = {
             full_course: { label: 'Curso', color: 'blue', icon: BookOpen },
-            topic: { label: 'Tema', color: 'green', icon: FileText },
+            topic: { label: 'Evaluación', color: 'green', icon: FileText },
             attendance_only: { label: 'Lista', color: 'orange', icon: CheckCircle }
           }
           const config = activityTypeConfig[course.activity_type]
