@@ -61,6 +61,7 @@ export default function CoursesManagement() {
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<{ [key: string]: number }>({})
   const [loadingCourseData, setLoadingCourseData] = useState(false)
+  const [activityFilter, setActivityFilter] = useState<'all' | 'full_course' | 'topic' | 'attendance_only'>('all')
 
   const {
     register,
@@ -562,9 +563,56 @@ export default function CoursesManagement() {
         </button>
       </div>
 
+      {/* Activity Type Filters */}
+      <div className="flex flex-wrap gap-2">
+        <button
+          onClick={() => setActivityFilter('all')}
+          className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+            activityFilter === 'all'
+              ? 'bg-slate-800 text-white'
+              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+          }`}
+        >
+          Todos
+        </button>
+        <button
+          onClick={() => setActivityFilter('full_course')}
+          className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors flex items-center ${
+            activityFilter === 'full_course'
+              ? 'bg-blue-600 text-white'
+              : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+          }`}
+        >
+          <BookOpen className="w-4 h-4 mr-1.5" />
+          Cursos
+        </button>
+        <button
+          onClick={() => setActivityFilter('topic')}
+          className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors flex items-center ${
+            activityFilter === 'topic'
+              ? 'bg-green-600 text-white'
+              : 'bg-green-50 text-green-700 hover:bg-green-100'
+          }`}
+        >
+          <FileText className="w-4 h-4 mr-1.5" />
+          Evaluaciones
+        </button>
+        <button
+          onClick={() => setActivityFilter('attendance_only')}
+          className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors flex items-center ${
+            activityFilter === 'attendance_only'
+              ? 'bg-orange-600 text-white'
+              : 'bg-orange-50 text-orange-700 hover:bg-orange-100'
+          }`}
+        >
+          <CheckCircle className="w-4 h-4 mr-1.5" />
+          Listas de Asistencia
+        </button>
+      </div>
+
       {/* Courses Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {courses.map((course) => (
+        {courses.filter(course => activityFilter === 'all' || course.activity_type === activityFilter).map((course) => (
           <div key={course.id} className="bg-white rounded-xl shadow-sm border overflow-hidden">
             {course.image_url && (
               <img 
@@ -649,6 +697,16 @@ export default function CoursesManagement() {
           <BookOpen className="mx-auto h-12 w-12 text-slate-400" />
           <h3 className="mt-2 text-sm font-medium text-slate-900">No hay cursos</h3>
           <p className="mt-1 text-sm text-slate-500">Comienza creando tu primer curso.</p>
+        </div>
+      )}
+
+      {courses.length > 0 && courses.filter(course => activityFilter === 'all' || course.activity_type === activityFilter).length === 0 && (
+        <div className="text-center py-12">
+          <BookOpen className="mx-auto h-12 w-12 text-slate-400" />
+          <h3 className="mt-2 text-sm font-medium text-slate-900">
+            No hay {activityFilter === 'full_course' ? 'cursos' : activityFilter === 'topic' ? 'evaluaciones' : activityFilter === 'attendance_only' ? 'listas de asistencia' : 'actividades'} disponibles
+          </h3>
+          <p className="mt-1 text-sm text-slate-500">Intenta con otro filtro.</p>
         </div>
       )}
 
