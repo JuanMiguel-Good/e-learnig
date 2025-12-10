@@ -474,26 +474,16 @@ export default function MyCourses() {
     if (!user) return false;
 
     try {
-      // Check if user has recently signed (within 24 hours) for attendance_only activities
-      // Note: attendance_signatures doesn't have course_id for attendance_only,
-      // so we check if they signed recently
-      const { data: recentSignature } = await supabase
+      // Check if user has signed for this specific course
+      const { data: existingSignature } = await supabase
         .from('attendance_signatures')
-        .select('id, signed_at')
+        .select('id')
         .eq('user_id', user.id)
+        .eq('course_id', courseId)
         .is('evaluation_attempt_id', null)
-        .order('signed_at', { ascending: false })
-        .limit(1)
         .maybeSingle()
 
-      if (!recentSignature) return false;
-
-      // Check if signed within last 24 hours
-      const signedAt = new Date(recentSignature.signed_at)
-      const now = new Date()
-      const hoursDiff = (now.getTime() - signedAt.getTime()) / (1000 * 60 * 60)
-
-      return hoursDiff < 24; // Return true if signed within 24 hours
+      return !!existingSignature;
     } catch (error) {
       console.error('Error checking attendance signature status:', error)
       return false;

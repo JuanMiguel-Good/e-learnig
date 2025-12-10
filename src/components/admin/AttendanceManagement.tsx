@@ -155,6 +155,7 @@ export default function AttendanceManagement() {
               company_id
             )
           `)
+          .eq('course_id', selectedCourseId)
           .eq('users.company_id', selectedCompanyId)
           .gte('signed_at', fechaInicio)
           .lte('signed_at', fechaFin + 'T23:59:59')
@@ -428,6 +429,7 @@ export default function AttendanceManagement() {
             evaluation_attempt_id,
             user:users!inner(first_name, last_name, dni, area, company_id)
           `)
+          .eq('course_id', attendanceList.course_id)
           .eq('users.company_id', attendanceList.company_id)
           .gte('signed_at', startDate)
           .lte('signed_at', endDate)

@@ -60,27 +60,19 @@ export default function SignAttendance({ courseId, evaluationAttemptId, onComple
           return
         }
       } else {
-        // For attendance_only activities: check if recently signed for this course
-        const { data: recentSignature } = await supabase
+        // For attendance_only activities: check if already signed for this specific course
+        const { data: existingSignature } = await supabase
           .from('attendance_signatures')
-          .select('id, signed_at')
+          .select('id')
           .eq('user_id', user?.id)
+          .eq('course_id', courseId)
           .is('evaluation_attempt_id', null)
-          .order('signed_at', { ascending: false })
-          .limit(1)
           .maybeSingle()
 
-        if (recentSignature) {
-          const signedAt = new Date(recentSignature.signed_at)
-          const now = new Date()
-          const hoursDiff = (now.getTime() - signedAt.getTime()) / (1000 * 60 * 60)
-
-          // If signed within last 24 hours, consider it duplicate
-          if (hoursDiff < 24) {
-            toast.info('Ya has firmado recientemente')
-            onComplete()
-            return
-          }
+        if (existingSignature) {
+          toast.info('Ya has firmado para este curso')
+          onComplete()
+          return
         }
       }
     } catch (error) {
@@ -214,6 +206,7 @@ export default function SignAttendance({ courseId, evaluationAttemptId, onComple
         .insert([
           {
             user_id: user.id,
+            course_id: courseId,
             signature_data: signatureData,
             evaluation_attempt_id: evaluationAttemptId || null,
             attendance_list_id: null
