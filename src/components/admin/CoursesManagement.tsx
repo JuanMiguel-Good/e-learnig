@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { StorageService } from '../../lib/storage'
 import { Plus, CreditCard as Edit2, Trash2, Upload, BookOpen, User, Video, FileText, CheckCircle, AlertCircle, ExternalLink, Check, HelpCircle } from 'lucide-react'
@@ -60,6 +61,7 @@ interface CourseFormData {
 }
 
 export default function CoursesManagement() {
+  const navigate = useNavigate()
   const [courses, setCourses] = useState<Course[]>([])
   const [instructors, setInstructors] = useState<Instructor[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -767,7 +769,7 @@ export default function CoursesManagement() {
                         <p>Puntaje de aprobación: {evaluationStatuses[course.id].passingScore}%</p>
                       </div>
                       <button
-                        onClick={() => window.location.href = `/admin/evaluaciones?courseId=${course.id}`}
+                        onClick={() => navigate(`/admin/evaluations?courseId=${course.id}`)}
                         className="w-full flex items-center justify-center px-3 py-2 bg-green-50 text-green-700 hover:bg-green-100 rounded-lg text-sm font-medium transition-colors"
                       >
                         <ExternalLink className="w-4 h-4 mr-1.5" />
@@ -951,7 +953,7 @@ export default function CoursesManagement() {
                 <div className="space-y-3">
                   <button
                     onClick={() => {
-                      window.location.href = `/admin/evaluaciones?createFor=${selectedCourseForEvaluation.id}`
+                      navigate(`/admin/evaluations?createFor=${selectedCourseForEvaluation.id}`)
                     }}
                     className="w-full flex items-start p-4 bg-white border-2 border-blue-300 hover:border-blue-500 rounded-lg text-left transition-all hover:shadow-md"
                   >
