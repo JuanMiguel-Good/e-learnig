@@ -108,36 +108,36 @@ export default function CoursesManagement() {
 
   const loadData = async () => {
     try {
-      // Load courses with instructor info
-      const { data: coursesData, error: coursesError } = await supabase
-        .from('courses')
-        .select(`
-          *,
-          instructor:instructors(name)
-        `)
-        .order('created_at', { ascending: false })
+      const [coursesResult, instructorsResult] = await Promise.all([
+        supabase
+          .from('courses')
+          .select(`
+            *,
+            instructor:instructors(name)
+          `)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('instructors')
+          .select('id, name')
+          .order('name')
+      ])
 
-      if (coursesError) throw coursesError
+      if (coursesResult.error) throw coursesResult.error
+      if (instructorsResult.error) throw instructorsResult.error
 
-      // Load instructors
-      const { data: instructorsData, error: instructorsError } = await supabase
-        .from('instructors')
-        .select('id, name')
-        .order('name')
+      const coursesData = coursesResult.data || []
+      const instructorsData = instructorsResult.data || []
 
-      if (instructorsError) throw instructorsError
+      setCourses(coursesData)
+      setInstructors(instructorsData)
+      setIsLoading(false)
 
-      setCourses(coursesData || [])
-      setInstructors(instructorsData || [])
-
-      // Load evaluation statuses for courses that require evaluation
-      if (coursesData && coursesData.length > 0) {
-        await loadEvaluationStatuses(coursesData)
+      if (coursesData.length > 0) {
+        loadEvaluationStatuses(coursesData)
       }
     } catch (error) {
       console.error('Error loading data:', error)
       toast.error('Error al cargar datos')
-    } finally {
       setIsLoading(false)
     }
   }
@@ -145,44 +145,53 @@ export default function CoursesManagement() {
   const loadEvaluationStatuses = async (courses: Course[]) => {
     try {
       const coursesRequiringEval = courses.filter(c => c.requires_evaluation)
+      if (coursesRequiringEval.length === 0) return
+
+      const courseIds = coursesRequiringEval.map(c => c.id)
       const statuses: { [courseId: string]: EvaluationStatus } = {}
 
-      for (const course of coursesRequiringEval) {
-        const { data: evaluation, error } = await supabase
-          .from('evaluations')
-          .select('id, title, passing_score')
-          .eq('course_id', course.id)
-          .maybeSingle()
+      const { data: evaluations, error: evalError } = await supabase
+        .from('evaluations')
+        .select('id, title, passing_score, course_id')
+        .in('course_id', courseIds)
 
-        if (error) {
-          console.error(`Error loading evaluation for course ${course.id}:`, error)
-          continue
-        }
+      if (evalError) {
+        console.error('Error loading evaluations:', evalError)
+        return
+      }
 
-        if (evaluation) {
-          // Load question count
-          const { count, error: countError } = await supabase
+      if (evaluations && evaluations.length > 0) {
+        const evaluationIds = evaluations.map(e => e.id)
+
+        const questionCountsPromises = evaluationIds.map(evalId =>
+          supabase
             .from('questions')
             .select('*', { count: 'exact', head: true })
-            .eq('evaluation_id', evaluation.id)
+            .eq('evaluation_id', evalId)
+        )
 
-          if (countError) {
-            console.error(`Error counting questions for evaluation ${evaluation.id}:`, countError)
-          }
+        const questionCountsResults = await Promise.all(questionCountsPromises)
 
-          statuses[course.id] = {
+        evaluations.forEach((evaluation, index) => {
+          const questionCount = questionCountsResults[index].count || 0
+
+          statuses[evaluation.course_id] = {
             hasEvaluation: true,
             evaluationId: evaluation.id,
-            questionCount: count || 0,
+            questionCount: questionCount,
             passingScore: evaluation.passing_score,
             title: evaluation.title
           }
-        } else {
+        })
+      }
+
+      coursesRequiringEval.forEach(course => {
+        if (!statuses[course.id]) {
           statuses[course.id] = {
             hasEvaluation: false
           }
         }
-      }
+      })
 
       setEvaluationStatuses(statuses)
     } catch (error) {
