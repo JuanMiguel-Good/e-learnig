@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { StorageService } from '../../lib/storage'
-import { Plus, CreditCard as Edit2, Trash2, Upload, BookOpen, User, Video, FileText, CheckCircle } from 'lucide-react'
+import { Plus, CreditCard as Edit2, Trash2, Upload, BookOpen, User, Video, FileText, CheckCircle, AlertCircle, ExternalLink, Check, HelpCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useForm, useFieldArray } from 'react-hook-form'
 
@@ -19,6 +19,14 @@ interface Course {
   instructor?: {
     name: string
   }
+}
+
+interface EvaluationStatus {
+  hasEvaluation: boolean
+  evaluationId?: string
+  questionCount?: number
+  passingScore?: number
+  title?: string
 }
 
 interface Instructor {
@@ -62,6 +70,9 @@ export default function CoursesManagement() {
   const [uploadProgress, setUploadProgress] = useState<{ [key: string]: number }>({})
   const [loadingCourseData, setLoadingCourseData] = useState(false)
   const [activityFilter, setActivityFilter] = useState<'all' | 'full_course' | 'topic' | 'attendance_only'>('all')
+  const [evaluationStatuses, setEvaluationStatuses] = useState<{ [courseId: string]: EvaluationStatus }>({})
+  const [showQuickEvaluationModal, setShowQuickEvaluationModal] = useState(false)
+  const [selectedCourseForEvaluation, setSelectedCourseForEvaluation] = useState<Course | null>(null)
 
   const {
     register,
@@ -116,6 +127,11 @@ export default function CoursesManagement() {
 
       setCourses(coursesData || [])
       setInstructors(instructorsData || [])
+
+      // Load evaluation statuses for courses that require evaluation
+      if (coursesData && coursesData.length > 0) {
+        await loadEvaluationStatuses(coursesData)
+      }
     } catch (error) {
       console.error('Error loading data:', error)
       toast.error('Error al cargar datos')
@@ -124,8 +140,72 @@ export default function CoursesManagement() {
     }
   }
 
+  const loadEvaluationStatuses = async (courses: Course[]) => {
+    try {
+      const coursesRequiringEval = courses.filter(c => c.requires_evaluation)
+      const statuses: { [courseId: string]: EvaluationStatus } = {}
+
+      for (const course of coursesRequiringEval) {
+        const { data: evaluation, error } = await supabase
+          .from('evaluations')
+          .select('id, title, passing_score')
+          .eq('course_id', course.id)
+          .maybeSingle()
+
+        if (error) {
+          console.error(`Error loading evaluation for course ${course.id}:`, error)
+          continue
+        }
+
+        if (evaluation) {
+          // Load question count
+          const { count, error: countError } = await supabase
+            .from('questions')
+            .select('*', { count: 'exact', head: true })
+            .eq('evaluation_id', evaluation.id)
+
+          if (countError) {
+            console.error(`Error counting questions for evaluation ${evaluation.id}:`, countError)
+          }
+
+          statuses[course.id] = {
+            hasEvaluation: true,
+            evaluationId: evaluation.id,
+            questionCount: count || 0,
+            passingScore: evaluation.passing_score,
+            title: evaluation.title
+          }
+        } else {
+          statuses[course.id] = {
+            hasEvaluation: false
+          }
+        }
+      }
+
+      setEvaluationStatuses(statuses)
+    } catch (error) {
+      console.error('Error loading evaluation statuses:', error)
+    }
+  }
+
   const handleCreateOrUpdate = async (data: CourseFormData) => {
     try {
+      // Validation: Check if course requires evaluation and is being activated
+      if (data.is_active && data.requires_evaluation && editingCourse) {
+        const evalStatus = evaluationStatuses[editingCourse.id]
+        if (!evalStatus?.hasEvaluation) {
+          const confirmActivate = window.confirm(
+            'Este curso no tiene una evaluación configurada. Se recomienda crear la evaluación antes de activarlo.\n\n¿Deseas continuar de todas formas?'
+          )
+          if (!confirmActivate) return
+        } else if (evalStatus.questionCount < 3) {
+          const confirmActivate = window.confirm(
+            `La evaluación solo tiene ${evalStatus.questionCount} pregunta(s). Se recomienda tener al menos 3 preguntas.\n\n¿Deseas continuar de todas formas?`
+          )
+          if (!confirmActivate) return
+        }
+      }
+
       setUploading(true)
       setUploadProgress({})
       let imageUrl = editingCourse?.image_url || null
@@ -666,14 +746,59 @@ export default function CoursesManagement() {
                 <p className="text-slate-500 text-sm">
                   <span className="font-medium">Duración:</span> {course.hours} horas
                 </p>
-                {course.requires_evaluation && (
-                  <p className="text-blue-600 text-sm font-medium">
-                    ✓ Requiere evaluación
-                  </p>
-                )}
               </div>
 
-              <div className="flex justify-end space-x-2">
+              {/* Evaluation Status Section */}
+              {course.requires_evaluation && (
+                <div className="mt-4 pt-4 border-t border-slate-200">
+                  {evaluationStatuses[course.id]?.hasEvaluation ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center text-green-600 text-sm font-medium">
+                          <Check className="w-4 h-4 mr-1.5" />
+                          Evaluación Configurada
+                        </div>
+                      </div>
+                      <div className="text-xs text-slate-600 space-y-1">
+                        <p className="flex items-center">
+                          <HelpCircle className="w-3 h-3 mr-1" />
+                          {evaluationStatuses[course.id].questionCount || 0} preguntas
+                        </p>
+                        <p>Puntaje de aprobación: {evaluationStatuses[course.id].passingScore}%</p>
+                      </div>
+                      <button
+                        onClick={() => window.location.href = `/admin/evaluaciones?courseId=${course.id}`}
+                        className="w-full flex items-center justify-center px-3 py-2 bg-green-50 text-green-700 hover:bg-green-100 rounded-lg text-sm font-medium transition-colors"
+                      >
+                        <ExternalLink className="w-4 h-4 mr-1.5" />
+                        Ver/Editar Evaluación
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="flex items-center text-amber-600 text-sm font-medium">
+                        <AlertCircle className="w-4 h-4 mr-1.5" />
+                        Sin Evaluación
+                      </div>
+                      <p className="text-xs text-slate-600">
+                        Este curso requiere una evaluación para ser completado
+                      </p>
+                      <button
+                        onClick={() => {
+                          setSelectedCourseForEvaluation(course)
+                          setShowQuickEvaluationModal(true)
+                        }}
+                        className="w-full flex items-center justify-center px-3 py-2 bg-amber-50 text-amber-700 hover:bg-amber-100 rounded-lg text-sm font-medium transition-colors"
+                      >
+                        <Plus className="w-4 h-4 mr-1.5" />
+                        Crear Evaluación
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="flex justify-end space-x-2 mt-4">
                 <button
                   onClick={() => handleEdit(course)}
                   className="text-slate-600 hover:text-slate-900"
@@ -801,6 +926,123 @@ export default function CoursesManagement() {
               <button
                 onClick={() => setShowTypeSelector(false)}
                 className="px-6 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-medium transition-colors"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Evaluation Creation Modal */}
+      {showQuickEvaluationModal && selectedCourseForEvaluation && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full p-8 my-8">
+            <h2 className="text-2xl font-bold text-slate-800 mb-2">
+              Crear Evaluación para {selectedCourseForEvaluation.title}
+            </h2>
+            <p className="text-slate-600 mb-6">
+              Puedes crear una evaluación básica ahora o configurarla completamente después
+            </p>
+
+            <div className="space-y-6">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h3 className="font-semibold text-blue-900 mb-2">Opciones de Creación</h3>
+                <div className="space-y-3">
+                  <button
+                    onClick={() => {
+                      window.location.href = `/admin/evaluaciones?createFor=${selectedCourseForEvaluation.id}`
+                    }}
+                    className="w-full flex items-start p-4 bg-white border-2 border-blue-300 hover:border-blue-500 rounded-lg text-left transition-all hover:shadow-md"
+                  >
+                    <div className="flex-shrink-0 w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mr-4">
+                      <FileText className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-slate-800 mb-1">
+                        Configuración Completa (Recomendado)
+                      </h4>
+                      <p className="text-sm text-slate-600">
+                        Ir a la sección de Evaluaciones para crear la evaluación con todas las preguntas
+                      </p>
+                    </div>
+                    <ExternalLink className="w-5 h-5 text-blue-600 flex-shrink-0 ml-2" />
+                  </button>
+
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-slate-300"></div>
+                    </div>
+                    <div className="relative flex justify-center text-sm">
+                      <span className="px-2 bg-white text-slate-500">o</span>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={async () => {
+                      try {
+                        const { data: newEval, error } = await supabase
+                          .from('evaluations')
+                          .insert([{
+                            course_id: selectedCourseForEvaluation.id,
+                            title: `Evaluación - ${selectedCourseForEvaluation.title}`,
+                            description: 'Evaluación pendiente de configurar',
+                            passing_score: 60,
+                            max_attempts: 3,
+                            is_active: false
+                          }])
+                          .select()
+                          .single()
+
+                        if (error) throw error
+
+                        toast.success('Evaluación creada. Configúrala en la sección de Evaluaciones')
+                        setShowQuickEvaluationModal(false)
+                        setSelectedCourseForEvaluation(null)
+                        await loadData()
+                      } catch (error: any) {
+                        console.error('Error creating evaluation:', error)
+                        toast.error('Error al crear la evaluación')
+                      }
+                    }}
+                    className="w-full flex items-start p-4 bg-white border-2 border-slate-300 hover:border-slate-500 rounded-lg text-left transition-all hover:shadow-md"
+                  >
+                    <div className="flex-shrink-0 w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center mr-4">
+                      <Plus className="w-5 h-5 text-slate-600" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-slate-800 mb-1">
+                        Creación Rápida
+                      </h4>
+                      <p className="text-sm text-slate-600">
+                        Crear evaluación básica ahora y agregar preguntas después
+                      </p>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                <div className="flex items-start">
+                  <AlertCircle className="w-5 h-5 text-amber-600 mr-3 mt-0.5 flex-shrink-0" />
+                  <div className="text-sm text-amber-800">
+                    <p className="font-semibold mb-1">Nota Importante</p>
+                    <p>
+                      La evaluación debe tener al menos 3 preguntas para poder ser activada.
+                      Recuerda configurarla completamente antes de asignar el curso a participantes.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowQuickEvaluationModal(false)
+                  setSelectedCourseForEvaluation(null)
+                }}
+                className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-medium transition-colors"
               >
                 Cancelar
               </button>

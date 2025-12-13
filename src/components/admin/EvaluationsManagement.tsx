@@ -88,6 +88,20 @@ export default function EvaluationsManagement() {
     loadData()
   }, [])
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const createFor = params.get('createFor')
+    const courseId = params.get('courseId')
+
+    if (createFor) {
+      setValue('course_id', createFor)
+      setIsModalOpen(true)
+      window.history.replaceState({}, '', window.location.pathname)
+    } else if (courseId) {
+      setSearchTerm(courseId)
+    }
+  }, [setValue])
+
   const loadData = async () => {
     try {
       // Load evaluations with course info
@@ -123,6 +137,21 @@ export default function EvaluationsManagement() {
 
   const handleCreateOrUpdate = async (data: EvaluationFormData) => {
     try {
+      // Validation: Ensure at least 3 questions
+      if (data.questions.length < 3) {
+        toast.error('La evaluación debe tener al menos 3 preguntas')
+        return
+      }
+
+      // Validation: Ensure all questions have at least one correct answer
+      for (let i = 0; i < data.questions.length; i++) {
+        const hasCorrectAnswer = data.questions[i].options.some(opt => opt.is_correct)
+        if (!hasCorrectAnswer) {
+          toast.error(`La pregunta ${i + 1} debe tener al menos una respuesta correcta`)
+          return
+        }
+      }
+
       if (editingEvaluation) {
         // Update existing evaluation
         const { error: evalError } = await supabase
@@ -321,9 +350,10 @@ export default function EvaluationsManagement() {
     })
   }
 
-  const filteredEvaluations = evaluations.filter(evaluation => 
+  const filteredEvaluations = evaluations.filter(evaluation =>
     evaluation.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    evaluation.course.title.toLowerCase().includes(searchTerm.toLowerCase())
+    evaluation.course.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    evaluation.course_id === searchTerm
   )
 
   if (isLoading) {
@@ -616,9 +646,19 @@ export default function EvaluationsManagement() {
                 {/* Questions */}
                 <div className="border-t pt-6">
                   <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-semibold text-slate-800">
-                      Preguntas
-                    </h3>
+                    <div className="flex items-center gap-3">
+                      <h3 className="text-lg font-semibold text-slate-800">
+                        Preguntas
+                      </h3>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        questionFields.length >= 3
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-amber-100 text-amber-700'
+                      }`}>
+                        {questionFields.length} {questionFields.length === 1 ? 'pregunta' : 'preguntas'}
+                        {questionFields.length < 3 && ' (mínimo 3)'}
+                      </span>
+                    </div>
                     <button
                       type="button"
                       onClick={() => appendQuestion({
