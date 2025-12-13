@@ -44,7 +44,7 @@ export default function MyCourses() {
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null)
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null)
   const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set())
-  const [generatingCertificate, setGeneratingCertificate] = useState(false)
+  const [generatingCertificate, setGeneratingCertificate] = useState<string | null>(null)
   const [showEvaluation, setShowEvaluation] = useState<string | null>(null)
   const [showSignature, setShowSignature] = useState<string | null>(null)
   const [evaluationAttemptId, setEvaluationAttemptId] = useState<string | null>(null)
@@ -353,11 +353,11 @@ export default function MyCourses() {
     }
 
     try {
-      setGeneratingCertificate(true);
+      setGeneratingCertificate(course.id);
 
       // Check evaluation status first
       const evaluationStatus = await checkEvaluationStatus(course.id);
-      
+
       if (evaluationStatus.requiresEvaluation && !evaluationStatus.hasPassedEvaluation) {
         if (evaluationStatus.canTakeEvaluation) {
           toast.error('Debes aprobar la evaluación antes de generar el certificado');
@@ -370,9 +370,10 @@ export default function MyCourses() {
       }
 
       // Check if signature is required
-      const signatureRequired = await checkSignatureStatus(course.id);
-      if (signatureRequired) {
+      const signatureStatus = await checkSignatureStatus(course.id);
+      if (signatureStatus.needsSignature) {
         toast.error('Debes firmar la lista de asistencia antes de generar el certificado');
+        setEvaluationAttemptId(signatureStatus.attemptId);
         setShowSignature(course.id);
         return;
       }
@@ -399,7 +400,7 @@ export default function MyCourses() {
 
       // Generate certificate
       const certificateBase64 = await CertificateGenerator.generateCertificate(certificateData)
-      
+
       // Save certificate
       const certificateUrl = await CertificateGenerator.saveCertificate(
         user.id,
@@ -409,7 +410,7 @@ export default function MyCourses() {
 
       if (certificateUrl) {
         toast.success('¡Certificado generado exitosamente!')
-        
+
         // Download the certificate
         window.open(certificateUrl, '_blank')
       };
@@ -417,12 +418,12 @@ export default function MyCourses() {
       console.error('Error generating certificate:', error)
       toast.error('Error al generar certificado')
     } finally {
-      setGeneratingCertificate(false)
+      setGeneratingCertificate(null)
     }
   }
 
-  const checkSignatureStatus = async (courseId: string) => {
-    if (!user) return false;
+  const checkSignatureStatus = async (courseId: string): Promise<{ needsSignature: boolean, attemptId: string | null }> => {
+    if (!user) return { needsSignature: false, attemptId: null };
 
     try {
       // Check if course requires evaluation
@@ -433,7 +434,7 @@ export default function MyCourses() {
         .single()
 
       // If course doesn't require evaluation, no signature needed
-      if (!courseData?.requires_evaluation) return false;
+      if (!courseData?.requires_evaluation) return { needsSignature: false, attemptId: null };
 
       // Get the evaluation for this course
       const { data: evaluationData } = await supabase
@@ -443,7 +444,7 @@ export default function MyCourses() {
         .eq('is_active', true)
         .maybeSingle()
 
-      if (!evaluationData) return false;
+      if (!evaluationData) return { needsSignature: false, attemptId: null };
 
       // Check if user has a passed evaluation attempt
       const { data: passedAttempt } = await supabase
@@ -454,7 +455,7 @@ export default function MyCourses() {
         .eq('passed', true)
         .maybeSingle()
 
-      if (!passedAttempt) return false; // No passed attempt, no signature required yet
+      if (!passedAttempt) return { needsSignature: false, attemptId: null };
 
       // Check if user has already signed for this evaluation attempt
       const { data: existingSignature } = await supabase
@@ -462,12 +463,16 @@ export default function MyCourses() {
         .select('id')
         .eq('evaluation_attempt_id', passedAttempt.id)
         .eq('user_id', user.id)
+        .eq('course_id', courseId)
         .maybeSingle()
 
-      return !existingSignature; // Return true if signature is required but not done
+      return {
+        needsSignature: !existingSignature,
+        attemptId: passedAttempt.id
+      };
     } catch (error) {
       console.error('Error checking signature status:', error)
-      return false;
+      return { needsSignature: false, attemptId: null };
     }
   }
 
@@ -713,10 +718,10 @@ export default function MyCourses() {
                               e.stopPropagation()
                               generateCertificate(course)
                             }}
-                            disabled={generatingCertificate}
+                            disabled={generatingCertificate === course.id}
                             className="w-full px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                           >
-                            {generatingCertificate ? (
+                            {generatingCertificate === course.id ? (
                               <>
                                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                                 Generando...
@@ -842,10 +847,10 @@ export default function MyCourses() {
                   </div>
                   <button
                     onClick={() => generateCertificate(selectedCourse)}
-                    disabled={generatingCertificate}
+                    disabled={generatingCertificate === selectedCourse.id}
                     className="px-4 md:px-6 py-2 md:py-3 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-sm md:text-base"
                   >
-                    {generatingCertificate ? (
+                    {generatingCertificate === selectedCourse.id ? (
                       <>
                         <div className="animate-spin rounded-full h-4 w-4 md:h-5 md:w-5 border-b-2 border-white mr-2"></div>
                         Generando...
