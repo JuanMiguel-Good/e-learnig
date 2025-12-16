@@ -659,6 +659,7 @@ export default function EvaluationsManagement() {
                     setShowAIGenerator(false)
                     setCreationMode('manual')
                   }}
+                  initialMode={creationMode === 'ai-file' ? 'file' : 'text'}
                 />
               ) : (
                 <form onSubmit={handleSubmit(handleCreateOrUpdate)} className="space-y-6">

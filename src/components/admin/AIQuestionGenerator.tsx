@@ -10,10 +10,11 @@ interface AIQuestionGeneratorProps {
   userId: string
   onQuestionsGenerated: (questions: GeneratedQuestion[]) => void
   onCancel: () => void
+  initialMode?: GenerationMode
 }
 
-export default function AIQuestionGenerator({ userId, onQuestionsGenerated, onCancel }: AIQuestionGeneratorProps) {
-  const [mode, setMode] = useState<GenerationMode>('text')
+export default function AIQuestionGenerator({ userId, onQuestionsGenerated, onCancel, initialMode = 'text' }: AIQuestionGeneratorProps) {
+  const [mode, setMode] = useState<GenerationMode>(initialMode)
   const [textContent, setTextContent] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [extractedText, setExtractedText] = useState('')
