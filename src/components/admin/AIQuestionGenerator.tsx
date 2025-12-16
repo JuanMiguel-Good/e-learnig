@@ -196,31 +196,6 @@ export default function AIQuestionGenerator({ userId, onQuestionsGenerated, onCa
         </p>
       </div>
 
-      <div className="flex gap-2 p-1 bg-gray-100 rounded-lg">
-        <button
-          onClick={() => setMode('text')}
-          className={`flex-1 py-2 px-4 rounded-md font-medium transition-colors flex items-center justify-center gap-2 ${
-            mode === 'text'
-              ? 'bg-white text-blue-600 shadow-sm'
-              : 'text-gray-600 hover:text-gray-900'
-          }`}
-        >
-          <FileText className="w-4 h-4" />
-          Desde Texto
-        </button>
-        <button
-          onClick={() => setMode('file')}
-          className={`flex-1 py-2 px-4 rounded-md font-medium transition-colors flex items-center justify-center gap-2 ${
-            mode === 'file'
-              ? 'bg-white text-blue-600 shadow-sm'
-              : 'text-gray-600 hover:text-gray-900'
-          }`}
-        >
-          <Upload className="w-4 h-4" />
-          Desde Archivo
-        </button>
-      </div>
-
       {mode === 'text' ? (
         <div className="space-y-2">
           <label className="block text-sm font-medium text-gray-700">
