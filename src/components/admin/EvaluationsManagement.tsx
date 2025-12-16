@@ -1,8 +1,11 @@
 import React, { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import { Plus, CreditCard as Edit2, Trash2, BookOpen, Search, HelpCircle, CheckCircle, X, Eye } from 'lucide-react'
+import { Plus, CreditCard as Edit2, Trash2, BookOpen, Search, HelpCircle, CheckCircle, X, Eye, FileText, Upload, Sparkles, Edit } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useForm, useFieldArray } from 'react-hook-form'
+import { useAuth } from '../../contexts/AuthContext'
+import AIQuestionGenerator from './AIQuestionGenerator'
+import { GeneratedQuestion } from '../../lib/aiService'
 
 interface Course {
   id: string
@@ -18,6 +21,7 @@ interface QuestionOption {
 interface Question {
   question_text: string
   options: QuestionOption[]
+  generated_by_ai?: boolean
 }
 
 interface EvaluationFormData {
@@ -44,7 +48,10 @@ interface Evaluation {
   questions?: any[]
 }
 
+type CreationMode = 'manual' | 'ai-text' | 'ai-file'
+
 export default function EvaluationsManagement() {
+  const { user } = useAuth()
   const [evaluations, setEvaluations] = useState<Evaluation[]>([])
   const [courses, setCourses] = useState<Course[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -52,6 +59,8 @@ export default function EvaluationsManagement() {
   const [editingEvaluation, setEditingEvaluation] = useState<Evaluation | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [viewingQuestions, setViewingQuestions] = useState<Evaluation | null>(null)
+  const [creationMode, setCreationMode] = useState<CreationMode>('manual')
+  const [showAIGenerator, setShowAIGenerator] = useState(false)
 
   const {
     register,
@@ -223,7 +232,8 @@ export default function EvaluationsManagement() {
             evaluation_id: evaluationId,
             question_text: questionData.question_text,
             order_index: questionIndex,
-            points: 1
+            points: 1,
+            generated_by_ai: questionData.generated_by_ai || false
           }
         ])
         .select()
@@ -299,6 +309,29 @@ export default function EvaluationsManagement() {
     })
 
     setIsModalOpen(true)
+  }
+
+  const handleAIQuestionsGenerated = (generatedQuestions: GeneratedQuestion[]) => {
+    const formattedQuestions = generatedQuestions.map(q => ({
+      question_text: q.question_text,
+      options: q.options,
+      generated_by_ai: true
+    }))
+
+    setValue('questions', formattedQuestions)
+    setShowAIGenerator(false)
+    setCreationMode('manual')
+
+    toast.success(`${generatedQuestions.length} preguntas cargadas. Puedes editarlas antes de guardar.`)
+  }
+
+  const handleModeChange = (mode: CreationMode) => {
+    setCreationMode(mode)
+    if (mode === 'ai-text' || mode === 'ai-file') {
+      setShowAIGenerator(true)
+    } else {
+      setShowAIGenerator(false)
+    }
   }
 
   const handleDelete = async (evaluation: Evaluation) => {
@@ -549,7 +582,86 @@ export default function EvaluationsManagement() {
                 {editingEvaluation ? 'Editar Evaluación' : 'Crear Evaluación'}
               </h2>
 
-              <form onSubmit={handleSubmit(handleCreateOrUpdate)} className="space-y-6">
+              {!editingEvaluation && !showAIGenerator && (
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-slate-700 mb-3">
+                    Método de Creación
+                  </label>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => handleModeChange('manual')}
+                      className={`p-4 border-2 rounded-lg transition-all ${
+                        creationMode === 'manual'
+                          ? 'border-blue-600 bg-blue-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="flex flex-col items-center gap-2">
+                        <Edit className={`w-6 h-6 ${creationMode === 'manual' ? 'text-blue-600' : 'text-gray-400'}`} />
+                        <span className={`text-sm font-medium ${creationMode === 'manual' ? 'text-blue-600' : 'text-gray-700'}`}>
+                          Manual
+                        </span>
+                        <span className="text-xs text-gray-500 text-center">
+                          Crear preguntas manualmente
+                        </span>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleModeChange('ai-text')}
+                      className={`p-4 border-2 rounded-lg transition-all ${
+                        creationMode === 'ai-text'
+                          ? 'border-blue-600 bg-blue-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="flex flex-col items-center gap-2">
+                        <FileText className={`w-6 h-6 ${creationMode === 'ai-text' ? 'text-blue-600' : 'text-gray-400'}`} />
+                        <span className={`text-sm font-medium ${creationMode === 'ai-text' ? 'text-blue-600' : 'text-gray-700'}`}>
+                          IA desde Texto
+                        </span>
+                        <span className="text-xs text-gray-500 text-center">
+                          Generar desde contenido escrito
+                        </span>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleModeChange('ai-file')}
+                      className={`p-4 border-2 rounded-lg transition-all ${
+                        creationMode === 'ai-file'
+                          ? 'border-blue-600 bg-blue-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="flex flex-col items-center gap-2">
+                        <Upload className={`w-6 h-6 ${creationMode === 'ai-file' ? 'text-blue-600' : 'text-gray-400'}`} />
+                        <span className={`text-sm font-medium ${creationMode === 'ai-file' ? 'text-blue-600' : 'text-gray-700'}`}>
+                          IA desde Archivo
+                        </span>
+                        <span className="text-xs text-gray-500 text-center">
+                          Generar desde PDF o TXT
+                        </span>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {showAIGenerator && user ? (
+                <AIQuestionGenerator
+                  userId={user.id}
+                  onQuestionsGenerated={handleAIQuestionsGenerated}
+                  onCancel={() => {
+                    setShowAIGenerator(false)
+                    setCreationMode('manual')
+                  }}
+                />
+              ) : (
+                <form onSubmit={handleSubmit(handleCreateOrUpdate)} className="space-y-6">
                 {/* Basic Info */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
@@ -687,6 +799,7 @@ export default function EvaluationsManagement() {
                       canRemove={questionFields.length > 1}
                       setValue={setValue}
                       watch={watch}
+                      isAIGenerated={watch(`questions.${questionIndex}.generated_by_ai`)}
                     />
                   ))}
                 </div>
@@ -717,6 +830,7 @@ export default function EvaluationsManagement() {
                   </button>
                 </div>
               </form>
+              )}
             </div>
           </div>
         </div>
@@ -735,9 +849,10 @@ interface QuestionFormProps {
   canRemove: boolean
   setValue: any
   watch: any
+  isAIGenerated?: boolean
 }
 
-function QuestionForm({ questionIndex, register, control, errors, onRemove, canRemove, setValue, watch }: QuestionFormProps) {
+function QuestionForm({ questionIndex, register, control, errors, onRemove, canRemove, setValue, watch, isAIGenerated }: QuestionFormProps) {
   const questionOptions = watch(`questions.${questionIndex}.options`) || []
 
   const handleCorrectAnswerChange = (optionIndex: number) => {
@@ -750,7 +865,15 @@ function QuestionForm({ questionIndex, register, control, errors, onRemove, canR
   return (
     <div className="border rounded-lg p-4 mb-4 bg-slate-50">
       <div className="flex justify-between items-start mb-4">
-        <h4 className="text-md font-medium text-slate-800">Pregunta {questionIndex + 1}</h4>
+        <div className="flex items-center gap-2">
+          <h4 className="text-md font-medium text-slate-800">Pregunta {questionIndex + 1}</h4>
+          {isAIGenerated && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
+              <Sparkles className="w-3 h-3" />
+              Generada con IA
+            </span>
+          )}
+        </div>
         {canRemove && (
           <button
             type="button"
@@ -761,6 +884,11 @@ function QuestionForm({ questionIndex, register, control, errors, onRemove, canR
           </button>
         )}
       </div>
+      {/* Hidden input for generated_by_ai flag */}
+      <input
+        type="hidden"
+        {...register(`questions.${questionIndex}.generated_by_ai`)}
+      />
 
       <div className="space-y-4">
         {/* Question Text */}

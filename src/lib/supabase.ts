@@ -332,6 +332,146 @@ export type Database = {
           updated_at?: string
         }
       }
+      evaluations: {
+        Row: {
+          id: string
+          course_id: string
+          title: string
+          description: string | null
+          passing_score: number
+          max_attempts: number
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          course_id: string
+          title: string
+          description?: string | null
+          passing_score?: number
+          max_attempts?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          course_id?: string
+          title?: string
+          description?: string | null
+          passing_score?: number
+          max_attempts?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      questions: {
+        Row: {
+          id: string
+          evaluation_id: string
+          question_text: string
+          order_index: number
+          points: number
+          generated_by_ai: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          evaluation_id: string
+          question_text: string
+          order_index: number
+          points?: number
+          generated_by_ai?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          evaluation_id?: string
+          question_text?: string
+          order_index?: number
+          points?: number
+          generated_by_ai?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      question_options: {
+        Row: {
+          id: string
+          question_id: string
+          option_text: string
+          is_correct: boolean
+          order_index: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          question_id: string
+          option_text: string
+          is_correct?: boolean
+          order_index: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          question_id?: string
+          option_text?: string
+          is_correct?: boolean
+          order_index?: number
+          created_at?: string
+        }
+      }
+      ai_generation_logs: {
+        Row: {
+          id: string
+          user_id: string | null
+          evaluation_id: string | null
+          content_source: 'manual_text' | 'file_upload'
+          file_type: string | null
+          content_length: number
+          questions_requested: number
+          questions_generated: number
+          tokens_used: number | null
+          generation_time_ms: number
+          success: boolean
+          error_message: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id?: string | null
+          evaluation_id?: string | null
+          content_source: 'manual_text' | 'file_upload'
+          file_type?: string | null
+          content_length?: number
+          questions_requested: number
+          questions_generated?: number
+          tokens_used?: number | null
+          generation_time_ms: number
+          success?: boolean
+          error_message?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string | null
+          evaluation_id?: string | null
+          content_source?: 'manual_text' | 'file_upload'
+          file_type?: string | null
+          content_length?: number
+          questions_requested?: number
+          questions_generated?: number
+          tokens_used?: number | null
+          generation_time_ms?: number
+          success?: boolean
+          error_message?: string | null
+          created_at?: string
+        }
+      }
     }
     Functions: {
       calculate_course_progress: {
