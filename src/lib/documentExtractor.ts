@@ -1,8 +1,9 @@
 import * as pdfjsLib from 'pdfjs-dist'
 
-// Configure PDF.js worker
+// Configure PDF.js worker to use local file
 if (typeof window !== 'undefined') {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`
+  // Use the worker file that will be copied to the dist folder
+  pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs'
 }
 
 const MAX_FILE_SIZE_MB = 10
