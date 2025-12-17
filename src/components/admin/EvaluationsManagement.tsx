@@ -334,6 +334,37 @@ export default function EvaluationsManagement() {
     }
   }
 
+  const handleToggleActive = async (evaluation: Evaluation) => {
+    try {
+      const newActiveState = !evaluation.is_active
+
+      if (newActiveState) {
+        // First, deactivate all other evaluations for this course
+        const { error: deactivateError } = await supabase
+          .from('evaluations')
+          .update({ is_active: false })
+          .eq('course_id', evaluation.course_id)
+          .neq('id', evaluation.id)
+
+        if (deactivateError) throw deactivateError
+      }
+
+      // Then activate/deactivate this evaluation
+      const { error: updateError } = await supabase
+        .from('evaluations')
+        .update({ is_active: newActiveState })
+        .eq('id', evaluation.id)
+
+      if (updateError) throw updateError
+
+      toast.success(`Evaluación ${newActiveState ? 'activada' : 'desactivada'} correctamente`)
+      await loadData()
+    } catch (error: any) {
+      console.error('Error toggling evaluation status:', error)
+      toast.error(error.message || 'Error al cambiar estado de evaluación')
+    }
+  }
+
   const handleDelete = async (evaluation: Evaluation) => {
     if (!confirm(`¿Estás seguro de eliminar la evaluación "${evaluation.title}"?`)) {
       return
@@ -544,6 +575,19 @@ export default function EvaluationsManagement() {
                         >
                           <Edit2 className="w-4 h-4 mx-auto lg:mr-2" />
                           <span className="hidden lg:inline">Editar</span>
+                        </button>
+                        <button
+                          onClick={() => handleToggleActive(evaluation)}
+                          className={`flex-1 lg:flex-none px-3 py-2 rounded-lg transition-colors text-sm ${
+                            evaluation.is_active
+                              ? 'text-orange-600 hover:text-orange-900 hover:bg-orange-100'
+                              : 'text-green-600 hover:text-green-900 hover:bg-green-100'
+                          }`}
+                        >
+                          <CheckCircle className="w-4 h-4 mx-auto lg:mr-2" />
+                          <span className="hidden lg:inline">
+                            {evaluation.is_active ? 'Desactivar' : 'Activar'}
+                          </span>
                         </button>
                         <button
                           onClick={() => handleDelete(evaluation)}
