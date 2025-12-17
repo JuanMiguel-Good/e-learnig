@@ -290,24 +290,6 @@ export default function AIQuestionGenerator({ userId, onQuestionsGenerated, onCa
               </div>
             )}
           </div>
-
-          {extractedText && (
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">
-                Vista Previa del Texto Extraído
-              </label>
-              <div className="max-h-48 overflow-y-auto p-4 bg-gray-50 border border-gray-200 rounded-lg">
-                <p className="text-sm text-gray-700 whitespace-pre-wrap">
-                  {extractedText.substring(0, 1000)}
-                  {extractedText.length > 1000 && '...'}
-                </p>
-              </div>
-              <div className="flex items-center justify-between text-sm text-gray-500">
-                <span>{extractedText.length} caracteres extraídos</span>
-                <span>~{tokenEstimate.toLocaleString()} tokens</span>
-              </div>
-            </div>
-          )}
         </div>
       )}
 
