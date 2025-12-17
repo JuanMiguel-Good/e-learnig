@@ -46,6 +46,9 @@ export default function MyCourses() {
   const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set())
   const [generatingCertificate, setGeneratingCertificate] = useState<string | null>(null)
   const [showEvaluation, setShowEvaluation] = useState<string | null>(null)
+  const [selectedEvaluationId, setSelectedEvaluationId] = useState<string | null>(null)
+  const [showEvaluationSelector, setShowEvaluationSelector] = useState<string | null>(null)
+  const [courseEvaluations, setCourseEvaluations] = useState<{ [key: string]: any[] }>({})
   const [showSignature, setShowSignature] = useState<string | null>(null)
   const [evaluationAttemptId, setEvaluationAttemptId] = useState<string | null>(null)
   const [evaluationStatuses, setEvaluationStatuses] = useState<{ [key: string]: { canTake: boolean, hasPassed: boolean, required: boolean } }>({})
@@ -154,6 +157,8 @@ export default function MyCourses() {
 
       // Load evaluation statuses for all courses
       const statuses: { [key: string]: { canTake: boolean, hasPassed: boolean, required: boolean } } = {}
+      const evaluationsMap: { [key: string]: any[] } = {}
+
       for (const course of processedCourses) {
         const evalStatus = await checkEvaluationStatus(course.id)
         statuses[course.id] = {
@@ -161,8 +166,15 @@ export default function MyCourses() {
           hasPassed: evalStatus.hasPassedEvaluation,
           required: evalStatus.requiresEvaluation
         }
+
+        // Load all active evaluations for this course
+        if (course.requires_evaluation) {
+          const evals = await loadCourseEvaluations(course.id)
+          evaluationsMap[course.id] = evals
+        }
       }
       setEvaluationStatuses(statuses)
+      setCourseEvaluations(evaluationsMap)
 
       // Load signature statuses for attendance_only courses
       const sigStatuses: { [key: string]: boolean } = {}
@@ -298,45 +310,104 @@ export default function MyCourses() {
     }
   }
 
+  const loadCourseEvaluations = async (courseId: string) => {
+    if (!user) return []
+
+    try {
+      const { data: evaluationsData, error } = await supabase
+        .from('evaluations')
+        .select('id, title, description, passing_score, max_attempts, is_active')
+        .eq('course_id', courseId)
+        .eq('is_active', true)
+        .order('created_at', { ascending: true })
+
+      if (error) throw error
+
+      // For each evaluation, get user attempts
+      const evaluationsWithStatus = await Promise.all(
+        (evaluationsData || []).map(async (evaluation) => {
+          const { data: attemptsData } = await supabase
+            .from('evaluation_attempts')
+            .select('passed, attempt_number, score')
+            .eq('user_id', user.id)
+            .eq('evaluation_id', evaluation.id)
+            .order('attempt_number', { ascending: false })
+
+          const hasPassedEvaluation = attemptsData?.some(attempt => attempt.passed) || false
+          const canTakeEvaluation = !hasPassedEvaluation &&
+            (attemptsData?.length || 0) < evaluation.max_attempts
+          const attemptCount = attemptsData?.length || 0
+
+          return {
+            ...evaluation,
+            hasPassedEvaluation,
+            canTakeEvaluation,
+            attemptCount,
+            lastScore: attemptsData?.[0]?.score || null
+          }
+        })
+      )
+
+      return evaluationsWithStatus
+    } catch (error) {
+      console.error('Error loading course evaluations:', error)
+      return []
+    }
+  }
+
   const checkEvaluationStatus = async (courseId: string) => {
     if (!user) return { canTakeEvaluation: false, hasPassedEvaluation: false, requiresEvaluation: false }
-    
+
     try {
       // Check if course requires evaluation
       const { data: courseData } = await supabase
         .from('courses')
         .select('requires_evaluation')
         .eq('id', courseId)
-        .single()
-      
+        .maybeSingle()
+
       if (!courseData?.requires_evaluation) {
         return { canTakeEvaluation: false, hasPassedEvaluation: false, requiresEvaluation: false }
       }
-      
-      // Get evaluation for this course
-      const { data: evaluationData } = await supabase
+
+      // Get ALL active evaluations for this course
+      const { data: evaluationsData } = await supabase
         .from('evaluations')
         .select('id, max_attempts')
         .eq('course_id', courseId)
         .eq('is_active', true)
-        .single()
-      
-      if (!evaluationData) {
+
+      if (!evaluationsData || evaluationsData.length === 0) {
         return { canTakeEvaluation: false, hasPassedEvaluation: false, requiresEvaluation: true }
       }
-      
-      // Check user attempts
-      const { data: attemptsData } = await supabase
-        .from('evaluation_attempts')
-        .select('passed, attempt_number')
-        .eq('user_id', user.id)
-        .eq('evaluation_id', evaluationData.id)
-      
-      const hasPassedEvaluation = attemptsData?.some(attempt => attempt.passed) || false
-      const canTakeEvaluation = !hasPassedEvaluation && 
-        (attemptsData?.length || 0) < evaluationData.max_attempts
-      
-      return { canTakeEvaluation, hasPassedEvaluation, requiresEvaluation: true }
+
+      // Check if user passed AT LEAST ONE active evaluation
+      let hasPassedAtLeastOne = false
+      let canTakeAtLeastOne = false
+
+      for (const evaluation of evaluationsData) {
+        const { data: attemptsData } = await supabase
+          .from('evaluation_attempts')
+          .select('passed, attempt_number')
+          .eq('user_id', user.id)
+          .eq('evaluation_id', evaluation.id)
+
+        const hasPassed = attemptsData?.some(attempt => attempt.passed) || false
+        const canTake = !hasPassed && (attemptsData?.length || 0) < evaluation.max_attempts
+
+        if (hasPassed) {
+          hasPassedAtLeastOne = true
+        }
+        if (canTake) {
+          canTakeAtLeastOne = true
+        }
+      }
+
+      return {
+        canTakeEvaluation: canTakeAtLeastOne,
+        hasPassedEvaluation: hasPassedAtLeastOne,
+        requiresEvaluation: true
+      }
     } catch (error) {
       console.error('Error checking evaluation status:', error)
       return { canTakeEvaluation: false, hasPassedEvaluation: false, requiresEvaluation: false }
@@ -517,22 +588,27 @@ export default function MyCourses() {
   }
 
   // Show evaluation if requested
-  if (showEvaluation) {
+  if (showEvaluation && selectedEvaluationId) {
     return (
       <TakeEvaluation
-        courseId={showEvaluation}
+        evaluationId={selectedEvaluationId}
         onComplete={(attemptId) => {
           if (attemptId) {
             // Si aprobó, redirigir a firma
             setEvaluationAttemptId(attemptId)
             setShowSignature(showEvaluation)
             setShowEvaluation(null)
+            setSelectedEvaluationId(null)
           } else {
             setShowEvaluation(null)
+            setSelectedEvaluationId(null)
             loadCourses() // Reload to update progress
           }
         }}
-        onBack={() => setShowEvaluation(null)}
+        onBack={() => {
+          setShowEvaluation(null)
+          setSelectedEvaluationId(null)
+        }}
       />
     )
   }
@@ -704,7 +780,7 @@ export default function MyCourses() {
                     </>
                   )}
 
-                  {/* Topic: Direct Evaluation Button */}
+                  {/* Topic: Evaluation Selector Button */}
                   {course.activity_type === 'topic' && (
                     <>
                       {evaluationStatuses[course.id]?.hasPassed ? (
@@ -738,12 +814,12 @@ export default function MyCourses() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
-                            setShowEvaluation(course.id)
+                            setShowEvaluationSelector(course.id)
                           }}
                           className="w-full mt-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center text-sm"
                         >
                           <FileText className="w-4 h-4 mr-2" />
-                          Tomar Evaluación
+                          Ver Evaluaciones
                         </button>
                       ) : (
                         <div className="w-full mt-2 px-4 py-2 bg-red-100 text-red-800 rounded-lg font-medium flex items-center justify-center text-sm">
@@ -796,6 +872,111 @@ export default function MyCourses() {
             No hay {activityFilter === 'full_course' ? 'cursos' : activityFilter === 'topic' ? 'evaluaciones' : activityFilter === 'attendance_only' ? 'listas de asistencia' : 'actividades'} disponibles
           </h3>
           <p className="mt-1 text-xs md:text-sm text-slate-500">Intenta con otro filtro.</p>
+        </div>
+      )}
+
+      {/* Evaluation Selector Modal */}
+      {showEvaluationSelector && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto no-scrollbar">
+          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b sticky top-0 bg-white">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-800">Selecciona una Evaluación</h2>
+                  <p className="text-sm text-slate-600 mt-1">
+                    Elige la evaluación que deseas tomar
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowEvaluationSelector(null)}
+                  className="text-slate-400 hover:text-slate-600"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {courseEvaluations[showEvaluationSelector]?.map((evaluation) => (
+                <div
+                  key={evaluation.id}
+                  className={`border rounded-lg p-4 ${
+                    evaluation.hasPassedEvaluation
+                      ? 'bg-green-50 border-green-200'
+                      : evaluation.canTakeEvaluation
+                      ? 'bg-white hover:bg-slate-50 cursor-pointer'
+                      : 'bg-slate-50 border-slate-200 opacity-60'
+                  }`}
+                  onClick={() => {
+                    if (evaluation.canTakeEvaluation) {
+                      setSelectedEvaluationId(evaluation.id)
+                      setShowEvaluation(showEvaluationSelector)
+                      setShowEvaluationSelector(null)
+                    }
+                  }}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-slate-800 mb-1">
+                        {evaluation.title}
+                      </h3>
+                      {evaluation.description && (
+                        <p className="text-sm text-slate-600 mb-2">
+                          {evaluation.description}
+                        </p>
+                      )}
+
+                      <div className="flex flex-wrap gap-2 text-xs">
+                        <span className="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-800 rounded-full">
+                          <CheckCircle className="w-3 h-3 mr-1" />
+                          {evaluation.passing_score}% para aprobar
+                        </span>
+                        <span className="inline-flex items-center px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full">
+                          <Clock className="w-3 h-3 mr-1" />
+                          {evaluation.attemptCount}/{evaluation.max_attempts} intentos
+                        </span>
+                        {evaluation.lastScore !== null && (
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full ${
+                            evaluation.lastScore >= evaluation.passing_score
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-red-100 text-red-800'
+                          }`}>
+                            Último: {evaluation.lastScore}%
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="ml-4 flex-shrink-0">
+                      {evaluation.hasPassedEvaluation ? (
+                        <div className="flex flex-col items-center">
+                          <CheckCircle className="w-8 h-8 text-green-600 mb-1" />
+                          <span className="text-xs font-medium text-green-800">Aprobada</span>
+                        </div>
+                      ) : evaluation.canTakeEvaluation ? (
+                        <div className="flex flex-col items-center">
+                          <PlayCircle className="w-8 h-8 text-blue-600 mb-1" />
+                          <span className="text-xs font-medium text-blue-800">Disponible</span>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center">
+                          <X className="w-8 h-8 text-red-600 mb-1" />
+                          <span className="text-xs font-medium text-red-800">Sin intentos</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {(!courseEvaluations[showEvaluationSelector] || courseEvaluations[showEvaluationSelector].length === 0) && (
+                <div className="text-center py-8">
+                  <FileText className="mx-auto h-12 w-12 text-slate-400 mb-3" />
+                  <p className="text-slate-600">No hay evaluaciones disponibles</p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
@@ -885,17 +1066,17 @@ export default function MyCourses() {
                       const evaluationStatus = await checkEvaluationStatus(selectedCourse.id);
                       if (evaluationStatus.requiresEvaluation) {
                         if (evaluationStatus.hasPassedEvaluation) {
-                          toast.success('Ya aprobaste la evaluación de este curso');
+                          toast.success('Ya aprobaste una evaluación de este curso');
                         } else if (evaluationStatus.canTakeEvaluation) {
-                          setShowEvaluation(selectedCourse.id);
+                          setShowEvaluationSelector(selectedCourse.id);
                         } else {
-                          toast.error('No tienes más intentos disponibles para esta evaluación');
+                          toast.error('No tienes más intentos disponibles');
                         }
                       }
                     }}
                     className="px-4 md:px-6 py-2 md:py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center text-sm md:text-base"
                   >
-                    Tomar Evaluación
+                    Ver Evaluaciones
                   </button>
                 </div>
               </div>

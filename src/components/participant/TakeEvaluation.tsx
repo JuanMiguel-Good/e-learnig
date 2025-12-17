@@ -34,12 +34,12 @@ interface EvaluationAttempt {
 }
 
 interface TakeEvaluationProps {
-  courseId: string
+  evaluationId: string
   onComplete: (evaluationAttemptId?: string) => void
   onBack: () => void
 }
 
-export default function TakeEvaluation({ courseId, onComplete, onBack }: TakeEvaluationProps) {
+export default function TakeEvaluation({ evaluationId, onComplete, onBack }: TakeEvaluationProps) {
   const { user } = useAuth()
   const [evaluation, setEvaluation] = useState<Evaluation | null>(null)
   const [attempts, setAttempts] = useState<EvaluationAttempt[]>([])
@@ -51,14 +51,14 @@ export default function TakeEvaluation({ courseId, onComplete, onBack }: TakeEva
   const [hasPassedEvaluation, setHasPassedEvaluation] = useState(false)
 
   useEffect(() => {
-    if (user && courseId) {
+    if (user && evaluationId) {
       loadEvaluationData()
     }
-  }, [user, courseId])
+  }, [user, evaluationId])
 
   const loadEvaluationData = async () => {
     try {
-      // Get evaluation for this course
+      // Get specific evaluation by ID
       const { data: evaluationData, error: evaluationError } = await supabase
         .from('evaluations')
         .select(`
@@ -68,18 +68,15 @@ export default function TakeEvaluation({ courseId, onComplete, onBack }: TakeEva
             options:question_options (*)
           )
         `)
-        .eq('course_id', courseId)
-        .eq('is_active', true)
-        .single()
+        .eq('id', evaluationId)
+        .maybeSingle()
 
-      if (evaluationError) {
-        if (evaluationError.code === 'PGRST116') {
-          // No evaluation found
-          toast.error('No hay evaluación disponible para este curso')
-          onBack()
-          return
-        }
-        throw evaluationError
+      if (evaluationError) throw evaluationError
+
+      if (!evaluationData) {
+        toast.error('No se encontró la evaluación')
+        onBack()
+        return
       }
 
       // Sort questions and options
