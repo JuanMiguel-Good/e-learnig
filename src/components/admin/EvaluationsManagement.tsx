@@ -640,106 +640,6 @@ export default function EvaluationsManagement() {
                 {editingEvaluation ? 'Editar Evaluación' : 'Crear Evaluación'}
               </h2>
 
-              {!editingEvaluation && !showAIGenerator && (
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-slate-700 mb-3">
-                    Método de Creación
-                  </label>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <button
-                      type="button"
-                      onClick={() => handleModeChange('manual')}
-                      className={`p-5 border-2 rounded-xl transition-all duration-300 ${
-                        creationMode === 'manual'
-                          ? 'border-slate-600 bg-slate-50 shadow-md'
-                          : 'border-gray-200 hover:border-gray-300 hover:shadow-sm'
-                      }`}
-                    >
-                      <div className="flex flex-col items-center gap-2">
-                        <Edit className={`w-7 h-7 ${creationMode === 'manual' ? 'text-slate-700' : 'text-gray-400'}`} />
-                        <span className={`text-sm font-semibold ${creationMode === 'manual' ? 'text-slate-700' : 'text-gray-700'}`}>
-                          Manual
-                        </span>
-                        <span className="text-xs text-gray-500 text-center">
-                          Crear preguntas manualmente
-                        </span>
-                      </div>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleModeChange('ai-text')}
-                      className={`relative p-5 border-2 rounded-xl transition-all duration-300 overflow-hidden group ${
-                        creationMode === 'ai-text'
-                          ? 'border-transparent shadow-lg'
-                          : 'border-gray-200 hover:border-transparent hover:shadow-md'
-                      }`}
-                      style={creationMode === 'ai-text' ? {
-                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-                      } : {}}
-                    >
-                      {creationMode !== 'ai-text' && (
-                        <div className="absolute inset-0 bg-gradient-to-br from-violet-500 via-fuchsia-500 to-pink-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                      )}
-                      <div className="relative flex flex-col items-center gap-2">
-                        <div className="relative">
-                          <Sparkles className={`w-7 h-7 ${creationMode === 'ai-text' ? 'text-white' : 'text-gray-400 group-hover:text-white'} transition-colors`} />
-                          {creationMode === 'ai-text' && (
-                            <div className="absolute -top-1 -right-1">
-                              <div className="w-2 h-2 bg-yellow-300 rounded-full animate-ping" />
-                              <div className="absolute top-0 w-2 h-2 bg-yellow-400 rounded-full" />
-                            </div>
-                          )}
-                        </div>
-                        <span className={`text-sm font-semibold ${creationMode === 'ai-text' ? 'text-white' : 'text-gray-700 group-hover:text-white'} transition-colors`}>
-                          IA desde Texto
-                        </span>
-                        <span className={`text-xs text-center ${creationMode === 'ai-text' ? 'text-white/90' : 'text-gray-500 group-hover:text-white/90'} transition-colors`}>
-                          Generar desde contenido escrito
-                        </span>
-                      </div>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleModeChange('ai-file')}
-                      className={`relative p-5 border-2 rounded-xl transition-all duration-300 overflow-hidden group ${
-                        creationMode === 'ai-file'
-                          ? 'border-transparent shadow-lg'
-                          : 'border-gray-200 hover:border-transparent hover:shadow-md'
-                      }`}
-                      style={creationMode === 'ai-file' ? {
-                        background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)'
-                      } : {}}
-                    >
-                      {creationMode !== 'ai-file' && (
-                        <div className="absolute inset-0 bg-gradient-to-br from-pink-500 via-rose-500 to-orange-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                      )}
-                      <div className="relative flex flex-col items-center gap-2">
-                        <div className="relative">
-                          <div className="relative">
-                            <Sparkles className={`w-7 h-7 ${creationMode === 'ai-file' ? 'text-white' : 'text-gray-400 group-hover:text-white'} transition-colors absolute`} />
-                            <Upload className={`w-7 h-7 ${creationMode === 'ai-file' ? 'text-white' : 'text-gray-400 group-hover:text-white'} transition-colors`} style={{ transform: 'scale(0.7)' }} />
-                          </div>
-                          {creationMode === 'ai-file' && (
-                            <div className="absolute -top-1 -right-1">
-                              <div className="w-2 h-2 bg-yellow-300 rounded-full animate-ping" />
-                              <div className="absolute top-0 w-2 h-2 bg-yellow-400 rounded-full" />
-                            </div>
-                          )}
-                        </div>
-                        <span className={`text-sm font-semibold ${creationMode === 'ai-file' ? 'text-white' : 'text-gray-700 group-hover:text-white'} transition-colors`}>
-                          IA desde Archivo
-                        </span>
-                        <span className={`text-xs text-center ${creationMode === 'ai-file' ? 'text-white/90' : 'text-gray-500 group-hover:text-white/90'} transition-colors`}>
-                          Generar desde PDF o TXT
-                        </span>
-                      </div>
-                    </button>
-                  </div>
-                </div>
-              )}
-
               {showAIGenerator && user ? (
                 <AIQuestionGenerator
                   userId={user.id}
@@ -844,6 +744,107 @@ export default function EvaluationsManagement() {
                     )}
                   </div>
                 </div>
+
+                {/* Creation Method Selection */}
+                {!editingEvaluation && (
+                  <div className="border-t pt-6">
+                    <label className="block text-sm font-medium text-slate-700 mb-3">
+                      Método de Creación
+                    </label>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <button
+                        type="button"
+                        onClick={() => handleModeChange('manual')}
+                        className={`p-5 border-2 rounded-xl transition-all duration-300 ${
+                          creationMode === 'manual'
+                            ? 'border-slate-600 bg-slate-50 shadow-md'
+                            : 'border-gray-200 hover:border-gray-300 hover:shadow-sm'
+                        }`}
+                      >
+                        <div className="flex flex-col items-center gap-2">
+                          <Edit className={`w-7 h-7 ${creationMode === 'manual' ? 'text-slate-700' : 'text-gray-400'}`} />
+                          <span className={`text-sm font-semibold ${creationMode === 'manual' ? 'text-slate-700' : 'text-gray-700'}`}>
+                            Manual
+                          </span>
+                          <span className="text-xs text-gray-500 text-center">
+                            Crear preguntas manualmente
+                          </span>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleModeChange('ai-text')}
+                        className={`relative p-5 border-2 rounded-xl transition-all duration-300 overflow-hidden group ${
+                          creationMode === 'ai-text'
+                            ? 'border-transparent shadow-lg'
+                            : 'border-gray-200 hover:border-transparent hover:shadow-md'
+                        }`}
+                        style={creationMode === 'ai-text' ? {
+                          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+                        } : {}}
+                      >
+                        {creationMode !== 'ai-text' && (
+                          <div className="absolute inset-0 bg-gradient-to-br from-violet-500 via-fuchsia-500 to-pink-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                        )}
+                        <div className="relative flex flex-col items-center gap-2">
+                          <div className="relative">
+                            <Sparkles className={`w-7 h-7 ${creationMode === 'ai-text' ? 'text-white' : 'text-gray-400 group-hover:text-white'} transition-colors`} />
+                            {creationMode === 'ai-text' && (
+                              <div className="absolute -top-1 -right-1">
+                                <div className="w-2 h-2 bg-yellow-300 rounded-full animate-ping" />
+                                <div className="absolute top-0 w-2 h-2 bg-yellow-400 rounded-full" />
+                              </div>
+                            )}
+                          </div>
+                          <span className={`text-sm font-semibold ${creationMode === 'ai-text' ? 'text-white' : 'text-gray-700 group-hover:text-white'} transition-colors`}>
+                            IA desde Texto
+                          </span>
+                          <span className={`text-xs text-center ${creationMode === 'ai-text' ? 'text-white/90' : 'text-gray-500 group-hover:text-white/90'} transition-colors`}>
+                            Generar desde contenido escrito
+                          </span>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleModeChange('ai-file')}
+                        className={`relative p-5 border-2 rounded-xl transition-all duration-300 overflow-hidden group ${
+                          creationMode === 'ai-file'
+                            ? 'border-transparent shadow-lg'
+                            : 'border-gray-200 hover:border-transparent hover:shadow-md'
+                        }`}
+                        style={creationMode === 'ai-file' ? {
+                          background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)'
+                        } : {}}
+                      >
+                        {creationMode !== 'ai-file' && (
+                          <div className="absolute inset-0 bg-gradient-to-br from-pink-500 via-rose-500 to-orange-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                        )}
+                        <div className="relative flex flex-col items-center gap-2">
+                          <div className="relative">
+                            <div className="relative">
+                              <Sparkles className={`w-7 h-7 ${creationMode === 'ai-file' ? 'text-white' : 'text-gray-400 group-hover:text-white'} transition-colors absolute`} />
+                              <Upload className={`w-7 h-7 ${creationMode === 'ai-file' ? 'text-white' : 'text-gray-400 group-hover:text-white'} transition-colors`} style={{ transform: 'scale(0.7)' }} />
+                            </div>
+                            {creationMode === 'ai-file' && (
+                              <div className="absolute -top-1 -right-1">
+                                <div className="w-2 h-2 bg-yellow-300 rounded-full animate-ping" />
+                                <div className="absolute top-0 w-2 h-2 bg-yellow-400 rounded-full" />
+                              </div>
+                            )}
+                          </div>
+                          <span className={`text-sm font-semibold ${creationMode === 'ai-file' ? 'text-white' : 'text-gray-700 group-hover:text-white'} transition-colors`}>
+                            IA desde Archivo
+                          </span>
+                          <span className={`text-xs text-center ${creationMode === 'ai-file' ? 'text-white/90' : 'text-gray-500 group-hover:text-white/90'} transition-colors`}>
+                            Generar desde PDF o TXT
+                          </span>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Questions */}
                 <div className="border-t pt-6">
