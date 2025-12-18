@@ -951,7 +951,13 @@ export default function MyCourses() {
                         if (evaluationStatus.hasPassedEvaluation) {
                           toast.success('Ya aprobaste una evaluación de este curso');
                         } else if (evaluationStatus.canTakeEvaluation) {
-                          setShowEvaluationSelector(selectedCourse.id);
+                          const activeEvaluation = courseEvaluations[selectedCourse.id]?.[0];
+                          if (activeEvaluation) {
+                            setSelectedEvaluationId(activeEvaluation.id);
+                            setShowEvaluation(selectedCourse.id);
+                          } else {
+                            toast.error('No hay evaluación activa disponible');
+                          }
                         } else {
                           toast.error('No tienes más intentos disponibles');
                         }
@@ -959,7 +965,7 @@ export default function MyCourses() {
                     }}
                     className="px-4 md:px-6 py-2 md:py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center text-sm md:text-base"
                   >
-                    Ver Evaluaciones
+                    Tomar Evaluación
                   </button>
                 </div>
               </div>
