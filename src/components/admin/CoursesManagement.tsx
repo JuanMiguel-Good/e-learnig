@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { StorageService } from '../../lib/storage'
-import { Plus, CreditCard as Edit2, Trash2, Upload, BookOpen, User, Video, FileText, CheckCircle, AlertCircle, ExternalLink, Check, HelpCircle } from 'lucide-react'
+import { Plus, CreditCard as Edit2, Trash2, Upload, BookOpen, User, Video, FileText, CheckCircle, AlertCircle, ExternalLink, Check, HelpCircle, ChevronDown } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useForm, useFieldArray } from 'react-hook-form'
 
@@ -76,6 +76,7 @@ export default function CoursesManagement() {
   const [evaluationStatuses, setEvaluationStatuses] = useState<{ [courseId: string]: EvaluationStatus }>({})
   const [showQuickEvaluationModal, setShowQuickEvaluationModal] = useState(false)
   const [selectedCourseForEvaluation, setSelectedCourseForEvaluation] = useState<Course | null>(null)
+  const [collapsedEvaluations, setCollapsedEvaluations] = useState<Set<string>>(new Set())
 
   const {
     register,
@@ -102,6 +103,18 @@ export default function CoursesManagement() {
     control,
     name: 'modules'
   })
+
+  const toggleEvaluationCollapse = (courseId: string) => {
+    setCollapsedEvaluations(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(courseId)) {
+        newSet.delete(courseId)
+      } else {
+        newSet.add(courseId)
+      }
+      return newSet
+    })
+  }
 
   useEffect(() => {
     loadData()
@@ -158,6 +171,7 @@ export default function CoursesManagement() {
 
       if (coursesData.length > 0) {
         loadEvaluationStatuses(coursesData)
+        setCollapsedEvaluations(new Set(coursesData.filter(c => c.requires_evaluation).map(c => c.id)))
       }
     } catch (error) {
       console.error('Error loading data:', error)
@@ -792,46 +806,72 @@ export default function CoursesManagement() {
                 <div className="mt-4 pt-4 border-t border-slate-200">
                   {evaluationStatuses[course.id]?.hasEvaluation ? (
                     <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center text-green-600 text-sm font-medium">
+                      <button
+                        onClick={() => toggleEvaluationCollapse(course.id)}
+                        className="w-full flex items-center justify-between text-green-600 text-sm font-medium hover:text-green-700 transition-colors"
+                      >
+                        <div className="flex items-center">
                           <Check className="w-4 h-4 mr-1.5" />
                           Evaluación Configurada
                         </div>
-                      </div>
-                      <div className="text-xs text-slate-600 space-y-1">
-                        <p className="flex items-center">
-                          <HelpCircle className="w-3 h-3 mr-1" />
-                          {evaluationStatuses[course.id].questionCount || 0} preguntas
-                        </p>
-                        <p>Puntaje de aprobación: {evaluationStatuses[course.id].passingScore}%</p>
-                      </div>
-                      <button
-                        onClick={() => navigate(`/admin/evaluations?courseId=${course.id}`)}
-                        className="w-full flex items-center justify-center px-3 py-2 bg-green-50 text-green-700 hover:bg-green-100 rounded-lg text-sm font-medium transition-colors"
-                      >
-                        <ExternalLink className="w-4 h-4 mr-1.5" />
-                        Ver/Editar Evaluación
+                        <ChevronDown
+                          className={`w-4 h-4 transition-transform ${
+                            collapsedEvaluations.has(course.id) ? '' : 'rotate-180'
+                          }`}
+                        />
                       </button>
+                      {!collapsedEvaluations.has(course.id) && (
+                        <>
+                          <div className="text-xs text-slate-600 space-y-1">
+                            <p className="flex items-center">
+                              <HelpCircle className="w-3 h-3 mr-1" />
+                              {evaluationStatuses[course.id].questionCount || 0} preguntas
+                            </p>
+                            <p>Puntaje de aprobación: {evaluationStatuses[course.id].passingScore}%</p>
+                          </div>
+                          <button
+                            onClick={() => navigate(`/admin/evaluations?courseId=${course.id}`)}
+                            className="w-full flex items-center justify-center px-3 py-2 bg-green-50 text-green-700 hover:bg-green-100 rounded-lg text-sm font-medium transition-colors"
+                          >
+                            <ExternalLink className="w-4 h-4 mr-1.5" />
+                            Ver/Editar Evaluación
+                          </button>
+                        </>
+                      )}
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      <div className="flex items-center text-amber-600 text-sm font-medium">
-                        <AlertCircle className="w-4 h-4 mr-1.5" />
-                        Sin Evaluación
-                      </div>
-                      <p className="text-xs text-slate-600">
-                        Este curso requiere una evaluación para ser completado
-                      </p>
                       <button
-                        onClick={() => {
-                          setSelectedCourseForEvaluation(course)
-                          setShowQuickEvaluationModal(true)
-                        }}
-                        className="w-full flex items-center justify-center px-3 py-2 bg-amber-50 text-amber-700 hover:bg-amber-100 rounded-lg text-sm font-medium transition-colors"
+                        onClick={() => toggleEvaluationCollapse(course.id)}
+                        className="w-full flex items-center justify-between text-amber-600 text-sm font-medium hover:text-amber-700 transition-colors"
                       >
-                        <Plus className="w-4 h-4 mr-1.5" />
-                        Crear Evaluación
+                        <div className="flex items-center">
+                          <AlertCircle className="w-4 h-4 mr-1.5" />
+                          Sin Evaluación
+                        </div>
+                        <ChevronDown
+                          className={`w-4 h-4 transition-transform ${
+                            collapsedEvaluations.has(course.id) ? '' : 'rotate-180'
+                          }`}
+                        />
                       </button>
+                      {!collapsedEvaluations.has(course.id) && (
+                        <>
+                          <p className="text-xs text-slate-600">
+                            Este curso requiere una evaluación para ser completado
+                          </p>
+                          <button
+                            onClick={() => {
+                              setSelectedCourseForEvaluation(course)
+                              setShowQuickEvaluationModal(true)
+                            }}
+                            className="w-full flex items-center justify-center px-3 py-2 bg-amber-50 text-amber-700 hover:bg-amber-100 rounded-lg text-sm font-medium transition-colors"
+                          >
+                            <Plus className="w-4 h-4 mr-1.5" />
+                            Crear Evaluación
+                          </button>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
