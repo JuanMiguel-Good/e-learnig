@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { StorageService } from '../../lib/storage'
 import { Plus, CreditCard as Edit2, Trash2, Upload, BookOpen, User, Video, FileText, CheckCircle, AlertCircle, ExternalLink, Check, HelpCircle } from 'lucide-react'
@@ -62,6 +62,7 @@ interface CourseFormData {
 
 export default function CoursesManagement() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [courses, setCourses] = useState<Course[]>([])
   const [instructors, setInstructors] = useState<Instructor[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -105,6 +106,23 @@ export default function CoursesManagement() {
   useEffect(() => {
     loadData()
   }, [])
+
+  useEffect(() => {
+    const state = location.state as { scrollToCourseId?: string }
+    if (state?.scrollToCourseId && courses.length > 0) {
+      setTimeout(() => {
+        const courseElement = document.getElementById(`course-${state.scrollToCourseId}`)
+        if (courseElement) {
+          courseElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          courseElement.classList.add('ring-2', 'ring-blue-500', 'ring-offset-2')
+          setTimeout(() => {
+            courseElement.classList.remove('ring-2', 'ring-blue-500', 'ring-offset-2')
+          }, 2000)
+        }
+      }, 100)
+      window.history.replaceState({}, document.title)
+    }
+  }, [location.state, courses])
 
   const loadData = async () => {
     try {
@@ -704,7 +722,11 @@ export default function CoursesManagement() {
       {/* Courses Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {courses.filter(course => activityFilter === 'all' || course.activity_type === activityFilter).map((course) => (
-          <div key={course.id} className="bg-white rounded-xl shadow-sm border overflow-hidden">
+          <div
+            key={course.id}
+            id={`course-${course.id}`}
+            className="bg-white rounded-xl shadow-sm border overflow-hidden transition-all"
+          >
             {course.image_url && (
               <img 
                 src={course.image_url} 

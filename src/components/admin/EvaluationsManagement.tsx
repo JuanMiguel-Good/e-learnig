@@ -525,33 +525,27 @@ export default function EvaluationsManagement() {
             {expandedCourses.has(courseId) && (
               <div className="border-t bg-slate-50">
                 {courseEvaluations.map((evaluation) => (
-                  <div key={evaluation.id} className="p-3 md:p-4 border-b last:border-b-0 bg-white">
-                    <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+                  <div key={evaluation.id} className="p-2.5 border-b last:border-b-0 bg-white">
+                    <div className="flex items-center justify-between gap-3">
                       {/* Evaluation Info */}
-                      <div className="flex items-start gap-3 flex-1">
-                        <div className="w-9 h-9 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                          <HelpCircle className="w-5 h-5 text-blue-600" />
+                      <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                        <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                          <HelpCircle className="w-4 h-4 text-blue-600" />
                         </div>
 
                         <div className="flex-1 min-w-0">
-                          <h4 className="text-sm md:text-base font-semibold text-slate-800 mb-1">
+                          <h4 className="text-sm font-semibold text-slate-800 mb-0.5 truncate">
                             {evaluation.title}
                           </h4>
-                          {evaluation.description && (
-                            <p className="text-xs text-slate-500 mb-2 line-clamp-1">
-                              {evaluation.description}
-                            </p>
-                          )}
-
                           <div className="flex flex-wrap gap-1.5 text-xs">
-                            <span className="inline-flex items-center px-2 py-0.5 bg-green-100 text-green-800 rounded-full">
-                              <CheckCircle className="w-3 h-3 mr-1" />
-                              {evaluation.passing_score}% aprobar
+                            <span className="inline-flex items-center px-1.5 py-0.5 bg-green-100 text-green-800 rounded-full whitespace-nowrap">
+                              <CheckCircle className="w-3 h-3 mr-0.5" />
+                              {evaluation.passing_score}%
                             </span>
-                            <span className="inline-flex items-center px-2 py-0.5 bg-yellow-100 text-yellow-800 rounded-full">
-                              Máx. {evaluation.max_attempts} intentos
+                            <span className="inline-flex items-center px-1.5 py-0.5 bg-yellow-100 text-yellow-800 rounded-full whitespace-nowrap">
+                              Máx. {evaluation.max_attempts}
                             </span>
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full ${
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full whitespace-nowrap ${
                               evaluation.is_active
                                 ? 'bg-blue-100 text-blue-800'
                                 : 'bg-slate-100 text-slate-600'
@@ -563,48 +557,49 @@ export default function EvaluationsManagement() {
                       </div>
 
                       {/* Actions */}
-                      <div className="flex flex-wrap gap-1.5 lg:flex-col lg:min-w-[140px]">
+                      <div className="flex items-center gap-1 flex-shrink-0">
                         <button
-                          onClick={() => navigate('/admin/courses')}
-                          className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-md transition-colors text-xs"
-                          title="Ir a Cursos"
+                          onClick={() => {
+                            navigate('/admin/courses', { state: { scrollToCourseId: courseId } })
+                          }}
+                          className="flex items-center justify-center gap-1 px-2 py-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded transition-colors text-xs whitespace-nowrap"
+                          title="Ver Curso"
                         >
                           <ExternalLink className="w-3.5 h-3.5" />
-                          <span className="hidden lg:inline">Ver Curso</span>
+                          <span className="hidden xl:inline">Curso</span>
                         </button>
                         <button
                           onClick={() => handleViewQuestions(evaluation)}
-                          className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 text-blue-600 hover:text-blue-900 hover:bg-blue-100 rounded-md transition-colors text-xs"
+                          className="flex items-center justify-center gap-1 px-2 py-1.5 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded transition-colors text-xs whitespace-nowrap"
+                          title="Ver Preguntas"
                         >
                           <Eye className="w-3.5 h-3.5" />
-                          <span className="hidden lg:inline">Preguntas</span>
+                          <span className="hidden xl:inline">Preguntas</span>
                         </button>
                         <button
                           onClick={() => handleEdit(evaluation)}
-                          className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-md transition-colors text-xs"
+                          className="flex items-center justify-center gap-1 px-2 py-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded transition-colors text-xs"
+                          title="Editar"
                         >
                           <Edit2 className="w-3.5 h-3.5" />
-                          <span className="hidden lg:inline">Editar</span>
                         </button>
                         <button
                           onClick={() => handleToggleActive(evaluation)}
-                          className={`flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-md transition-colors text-xs ${
+                          className={`flex items-center justify-center gap-1 px-2 py-1.5 rounded transition-colors text-xs ${
                             evaluation.is_active
-                              ? 'text-orange-600 hover:text-orange-900 hover:bg-orange-100'
-                              : 'text-green-600 hover:text-green-900 hover:bg-green-100'
+                              ? 'text-orange-600 hover:text-orange-900 hover:bg-orange-50'
+                              : 'text-green-600 hover:text-green-900 hover:bg-green-50'
                           }`}
+                          title={evaluation.is_active ? 'Desactivar' : 'Activar'}
                         >
                           <CheckCircle className="w-3.5 h-3.5" />
-                          <span className="hidden lg:inline">
-                            {evaluation.is_active ? 'Desactivar' : 'Activar'}
-                          </span>
                         </button>
                         <button
                           onClick={() => handleDelete(evaluation)}
-                          className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 text-red-600 hover:text-red-900 hover:bg-red-100 rounded-md transition-colors text-xs"
+                          className="flex items-center justify-center gap-1 px-2 py-1.5 text-red-600 hover:text-red-900 hover:bg-red-50 rounded transition-colors text-xs"
+                          title="Eliminar"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
-                          <span className="hidden lg:inline">Eliminar</span>
                         </button>
                       </div>
                     </div>
