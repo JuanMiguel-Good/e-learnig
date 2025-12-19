@@ -110,17 +110,23 @@ export default function CoursesManagement() {
   useEffect(() => {
     const state = location.state as { scrollToCourseId?: string }
     if (state?.scrollToCourseId && courses.length > 0) {
-      setTimeout(() => {
+      const scrollToCourse = (retries = 0) => {
         const courseElement = document.getElementById(`course-${state.scrollToCourseId}`)
         if (courseElement) {
-          courseElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
-          courseElement.classList.add('ring-2', 'ring-blue-500', 'ring-offset-2')
-          setTimeout(() => {
-            courseElement.classList.remove('ring-2', 'ring-blue-500', 'ring-offset-2')
-          }, 2000)
+          requestAnimationFrame(() => {
+            courseElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            courseElement.classList.add('ring-2', 'ring-blue-500', 'ring-offset-2')
+            setTimeout(() => {
+              courseElement.classList.remove('ring-2', 'ring-blue-500', 'ring-offset-2')
+            }, 2000)
+          })
+          window.history.replaceState({}, document.title)
+        } else if (retries < 10) {
+          setTimeout(() => scrollToCourse(retries + 1), 100)
         }
-      }, 100)
-      window.history.replaceState({}, document.title)
+      }
+
+      setTimeout(() => scrollToCourse(), 300)
     }
   }, [location.state, courses])
 
