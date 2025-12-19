@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import { Plus, CreditCard as Edit2, Trash2, BookOpen, Search, HelpCircle, CheckCircle, X, Eye, FileText, Upload, Sparkles, Edit, ChevronDown, ChevronRight, ExternalLink } from 'lucide-react'
+import { Plus, CreditCard as Edit2, Trash2, BookOpen, Search, HelpCircle, CheckCircle, X, Eye, FileText, Upload, Sparkles, Edit, ChevronDown, ChevronRight, ExternalLink, Calendar } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useForm, useFieldArray } from 'react-hook-form'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import AIQuestionGenerator from './AIQuestionGenerator'
 import { GeneratedQuestion } from '../../lib/aiService'
+import { format } from 'date-fns'
+import { es } from 'date-fns/locale'
 
 interface Course {
   id: string
@@ -551,6 +553,10 @@ export default function EvaluationsManagement() {
                                 : 'bg-slate-100 text-slate-600'
                             }`}>
                               {evaluation.is_active ? 'Activa' : 'Inactiva'}
+                            </span>
+                            <span className="inline-flex items-center px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded-full whitespace-nowrap">
+                              <Calendar className="w-3 h-3 mr-0.5" />
+                              {format(new Date(evaluation.created_at), 'dd/MM/yyyy', { locale: es })}
                             </span>
                           </div>
                         </div>
