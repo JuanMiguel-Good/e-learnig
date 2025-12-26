@@ -202,13 +202,14 @@ export default function AttendanceManagement() {
 
         if (participantsError) throw participantsError
 
-        // For each participant, check if they have a signature
+        // For each participant, check if they have a signature that is available (not linked to another list)
         participantsWithSignatures = await Promise.all(
           (participantsData || []).map(async (participant: any) => {
             const { data: signatureData } = await supabase
               .from('attendance_signatures')
               .select('id, signature_data, signed_at')
               .eq('evaluation_attempt_id', participant.id)
+              .is('attendance_list_id', null)
               .maybeSingle()
 
             return {
