@@ -390,16 +390,8 @@ export default function AttendanceManagement() {
     if (!confirm(`¿Estás seguro de eliminar esta lista de asistencia?`)) return
 
     try {
-      const { error: updateError } = await supabase
-        .from('attendance_signatures')
-        .update({ attendance_list_id: null })
-        .eq('attendance_list_id', attendance.id)
-
-      if (updateError) {
-        console.error('Error updating signatures:', updateError)
-        throw new Error('Error al liberar las firmas vinculadas')
-      }
-
+      // La base de datos automáticamente libera las firmas (ON DELETE SET NULL)
+      // Las firmas permanecerán disponibles para futuras listas
       const { error: deleteError } = await supabase
         .from('attendance_lists')
         .delete()
@@ -407,7 +399,7 @@ export default function AttendanceManagement() {
 
       if (deleteError) throw deleteError
 
-      toast.success('Lista eliminada correctamente')
+      toast.success('Lista eliminada correctamente. Las firmas permanecen disponibles para nuevas listas.')
       await loadData()
     } catch (error) {
       console.error('Error deleting attendance:', error)
