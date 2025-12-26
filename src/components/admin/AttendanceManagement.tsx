@@ -389,13 +389,23 @@ export default function AttendanceManagement() {
     if (!confirm(`¿Estás seguro de eliminar esta lista de asistencia?`)) return
 
     try {
-      const { error } = await supabase
+      const { error: updateError } = await supabase
+        .from('attendance_signatures')
+        .update({ attendance_list_id: null })
+        .eq('attendance_list_id', attendance.id)
+
+      if (updateError) {
+        console.error('Error updating signatures:', updateError)
+        throw new Error('Error al liberar las firmas vinculadas')
+      }
+
+      const { error: deleteError } = await supabase
         .from('attendance_lists')
         .delete()
         .eq('id', attendance.id)
 
-      if (error) throw error
-      
+      if (deleteError) throw deleteError
+
       toast.success('Lista eliminada correctamente')
       await loadData()
     } catch (error) {
