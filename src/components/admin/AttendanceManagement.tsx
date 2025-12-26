@@ -311,12 +311,12 @@ export default function AttendanceManagement() {
             cargo_otro: data.cargo_otro || null,
             tema: data.tema || selectedCourse.title,
             instructor_name: selectedCourse.instructor.name,
-            fecha: new Date(data.fecha).toISOString(),
+            fecha: new Date(data.fecha + 'T12:00:00').toISOString(),
             responsible_name: data.responsible_name,
             responsible_position: data.responsible_position,
-            responsible_date: new Date(data.fecha).toISOString(),
-            date_range_start: new Date(data.fecha_inicio).toISOString(),
-            date_range_end: new Date(data.fecha_fin).toISOString()
+            responsible_date: new Date(data.fecha + 'T12:00:00').toISOString(),
+            date_range_start: new Date(data.fecha_inicio + 'T00:00:00').toISOString(),
+            date_range_end: new Date(data.fecha_fin + 'T23:59:59').toISOString()
           }
         ])
         .select()

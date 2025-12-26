@@ -16,6 +16,14 @@ async function fetchImageAsArrayBuffer(url: string): Promise<ArrayBuffer> {
   return await response.arrayBuffer()
 }
 
+function formatDateFromISO(isoString: string): string {
+  const date = new Date(isoString)
+  const year = date.getUTCFullYear()
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(date.getUTCDate()).padStart(2, '0')
+  return `${day}/${month}/${year}`
+}
+
 interface AttendanceExcelData {
   course: {
     title: string
@@ -89,7 +97,8 @@ export class ExcelAttendanceExporter {
     const url = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    const fileName = `Lista_Asistencia_${data.course.title.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date(data.fecha).toLocaleDateString('es-ES').replace(/\//g, '-')}.xlsx`
+    const formattedDate = formatDateFromISO(data.fecha).replace(/\//g, '-')
+    const fileName = `Lista_Asistencia_${data.course.title.replace(/[^a-zA-Z0-9]/g, '_')}_${formattedDate}.xlsx`
     link.download = fileName
     document.body.appendChild(link)
     link.click()
@@ -503,7 +512,7 @@ export class ExcelAttendanceExporter {
     worksheet.mergeCells(startRow + 1, 7, startRow + 1, 10)
     const fechaCell = worksheet.getCell(startRow + 1, 7)
     const responsibleDate = data.responsible_date || data.fecha
-    fechaCell.value = `FECHA:\n${new Date(responsibleDate).toLocaleDateString('es-ES')}\n\n\n\nFIRMA`
+    fechaCell.value = `FECHA:\n${formatDateFromISO(responsibleDate)}\n\n\n\nFIRMA`
     fechaCell.alignment = { vertical: 'top', horizontal: 'left', wrapText: true }
     fechaCell.font = { size: 9, bold: true }
     fechaCell.border = this.BORDER_STYLE
@@ -570,11 +579,11 @@ export class ExcelAttendanceExporter {
             attendance.course?.title || 'Sin título',
             attendance.company?.razon_social || 'Sin empresa',
             attendance.course_type || 'Sin tipo',
-            new Date(attendance.fecha).toLocaleDateString('es-ES'),
+            formatDateFromISO(attendance.fecha),
             `${signature.user.last_name} ${signature.user.first_name}`,
             signature.user.dni || 'No especificado',
             signature.user.area || '',
-            new Date(signature.signed_at).toLocaleDateString('es-ES'),
+            formatDateFromISO(signature.signed_at),
             'Firmado'
           ]
 
@@ -595,7 +604,7 @@ export class ExcelAttendanceExporter {
           attendance.course?.title || 'Sin título',
           attendance.company?.razon_social || 'Sin empresa',
           attendance.course_type || 'Sin tipo',
-          new Date(attendance.fecha).toLocaleDateString('es-ES'),
+          formatDateFromISO(attendance.fecha),
           'Sin participantes',
           '',
           '',

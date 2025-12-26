@@ -43,6 +43,14 @@ interface AttendanceData {
 export class AttendancePDFGenerator {
   private static readonly PARTICIPANTS_PER_PAGE = 12
 
+  private static formatDateFromISO(isoString: string): string {
+    const date = new Date(isoString)
+    const year = date.getUTCFullYear()
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0')
+    const day = String(date.getUTCDate()).padStart(2, '0')
+    return `${day}/${month}/${year}`
+  }
+
   static async generatePDF(data: AttendanceData): Promise<void> {
     const totalParticipants = data.signatures?.length || 0
     const totalPages = Math.max(1, Math.ceil(totalParticipants / this.PARTICIPANTS_PER_PAGE))
@@ -63,7 +71,8 @@ export class AttendancePDFGenerator {
       isFirstPage = false
     }
 
-    const fileName = `Lista_Asistencia_${data.course.title.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date(data.fecha).toLocaleDateString('es-ES').replace(/\//g, '-')}.pdf`
+    const formattedDate = this.formatDateFromISO(data.fecha).replace(/\//g, '-')
+    const fileName = `Lista_Asistencia_${data.course.title.replace(/[^a-zA-Z0-9]/g, '_')}_${formattedDate}.pdf`
     pdf.save(fileName)
   }
 
@@ -361,7 +370,7 @@ export class AttendancePDFGenerator {
                 <div style="display: flex; justify-content: space-between; align-items: flex-start;">
                   <div>
                     <div style="font-weight: bold; margin-bottom: 3px;">FECHA:</div>
-                    <div style="font-size: 8px;">${new Date(data.fecha).toLocaleDateString('es-ES')}</div>
+                    <div style="font-size: 8px;">${this.formatDateFromISO(data.fecha)}</div>
                   </div>
                   <div style="text-align: center; min-width: 80px;">
                     ${data.responsible_signature_url ?
