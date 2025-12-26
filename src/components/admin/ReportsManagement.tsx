@@ -279,7 +279,7 @@ export default function ReportsManagement() {
 
         const lessonProgressList = lessons.map(l => progressByUserAndLesson.get(`${participant.id}-${l.id}`)).filter(Boolean)
         const completedLessons = lessonProgressList.filter(p => p.completed).length
-        const progress = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0
+        let progress = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0
 
         const completedModulesSet = new Set<string>()
         lessonProgressList.filter(p => p.completed).forEach(p => {
@@ -331,6 +331,10 @@ export default function ReportsManagement() {
         }
 
         const certificate = certificatesByUserAndCourse.get(`${participant.id}-${course.id}`)
+
+        if (course.requires_evaluation && (evaluationStatus === 'passed' || certificate)) {
+          progress = 100
+        }
 
         let completedDate: string | null = null
         if (course.requires_evaluation) {
