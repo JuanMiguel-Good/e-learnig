@@ -628,15 +628,24 @@ export default function ParticipantsManagement() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">
-                    DNI
+                    DNI <span className="text-red-500">*</span>
                   </label>
                   <input
-                    {...register('dni')}
+                    {...register('dni', {
+                      required: 'El DNI es requerido',
+                      pattern: {
+                        value: /^\d{8}$/,
+                        message: 'El DNI debe tener exactamente 8 dígitos'
+                      }
+                    })}
                     type="text"
                     maxLength={8}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
                     placeholder="12345678"
                   />
+                  {errors.dni && (
+                    <p className="text-red-500 text-xs mt-1">{errors.dni.message}</p>
+                  )}
                 </div>
 
                 <div>

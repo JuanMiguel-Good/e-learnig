@@ -64,14 +64,21 @@ class AuthService {
     }
   }
 
-  async signIn(email: string, password: string) {
+  async signIn(emailOrDni: string, password: string) {
     try {
-      // Get user from our custom users table
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('email', email)
-        .maybeSingle()
+      const identifier = emailOrDni.trim()
+      const isDni = /^\d{8}$/.test(identifier)
+
+      // Get user from our custom users table by email or DNI
+      const query = supabase.from('users').select('*')
+
+      if (isDni) {
+        query.eq('dni', identifier)
+      } else {
+        query.eq('email', identifier)
+      }
+
+      const { data: userData, error: userError } = await query.maybeSingle()
 
       if (userError) throw userError
       if (!userData) throw new Error('Usuario no encontrado')

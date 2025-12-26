@@ -1,11 +1,11 @@
 import React, { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useAuth } from '../../contexts/AuthContext'
-import { Mail, Lock, Eye, EyeOff, BookOpen } from 'lucide-react'
+import { UserCircle, Lock, Eye, EyeOff, BookOpen } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 interface LoginFormData {
-  email: string
+  emailOrDni: string
   password: string
 }
 
@@ -25,7 +25,7 @@ export default function LoginForm() {
 
   const onSubmit = async (data: LoginFormData) => {
     try {
-      const { error } = await signIn(data.email, data.password)
+      const { error } = await signIn(data.emailOrDni, data.password)
       if (error) {
         toast.error(error.message || 'Error al iniciar sesión')
       } else {
@@ -65,28 +65,32 @@ export default function LoginForm() {
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-            {/* Email */}
+            {/* Email or DNI */}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">
-                Correo Electrónico
+                Correo o DNI
               </label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
+                <UserCircle className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
                 <input
-                  {...register('email', {
-                    required: 'El email es requerido',
-                    pattern: {
-                      value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                      message: 'Email inválido'
+                  {...register('emailOrDni', {
+                    required: 'El correo o DNI es requerido',
+                    validate: (value) => {
+                      const isDni = /^\d{8}$/.test(value.trim())
+                      const isEmail = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(value.trim())
+                      if (!isDni && !isEmail) {
+                        return 'Ingrese un correo válido o DNI de 8 dígitos'
+                      }
+                      return true
                     }
                   })}
-                  type="email"
+                  type="text"
                   className="pl-10 w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-colors"
-                  placeholder="tu@email.com"
+                  placeholder="tu@email.com o 12345678"
                 />
               </div>
-              {errors.email && (
-                <p className="text-red-500 text-sm mt-1">{errors.email.message}</p>
+              {errors.emailOrDni && (
+                <p className="text-red-500 text-sm mt-1">{errors.emailOrDni.message}</p>
               )}
             </div>
 

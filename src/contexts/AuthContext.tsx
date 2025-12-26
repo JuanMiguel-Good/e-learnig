@@ -3,7 +3,7 @@ import { auth, AuthState, User } from '../lib/auth'
 
 interface AuthContextType extends AuthState {
   signUp: (userData: any) => Promise<{ user: User | null; error: Error | null }>
-  signIn: (email: string, password: string) => Promise<{ user: User | null; error: Error | null }>
+  signIn: (emailOrDni: string, password: string) => Promise<{ user: User | null; error: Error | null }>
   signOut: () => Promise<{ error: Error | null }>
 }
 
@@ -29,9 +29,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return result
   }
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = async (emailOrDni: string, password: string) => {
     setIsLoading(true)
-    const result = await auth.signIn(email, password)
+    const result = await auth.signIn(emailOrDni, password)
     if (result.user) {
       setUser(result.user)
     }
