@@ -202,14 +202,13 @@ export default function AttendanceManagement() {
 
         if (participantsError) throw participantsError
 
-        // For each participant, check if they have a signature that is available (not linked to another list)
+        // For each participant, check if they have a signature
         participantsWithSignatures = await Promise.all(
           (participantsData || []).map(async (participant: any) => {
             const { data: signatureData } = await supabase
               .from('attendance_signatures')
               .select('id, signature_data, signed_at')
               .eq('evaluation_attempt_id', participant.id)
-              .is('attendance_list_id', null)
               .maybeSingle()
 
             return {
@@ -326,51 +325,7 @@ export default function AttendanceManagement() {
       if (insertError) throw insertError
       if (!newList) throw new Error('No se pudo crear la lista')
 
-      // Find signatures that should be linked - only those with signatures and within the date range
-      const { data: signaturesData, error: signaturesError } = await supabase
-        .from('attendance_signatures')
-        .select(`
-          id,
-          evaluation_attempt_id,
-          evaluation_attempt:evaluation_attempts!inner(
-            completed_at,
-            passed,
-            user_id,
-            evaluation:evaluations!inner(course_id),
-            user:users!inner(company_id)
-          )
-        `)
-        .is('attendance_list_id', null)
-        .eq('evaluation_attempt.passed', true)
-        .eq('evaluation_attempt.user.company_id', data.company_id)
-        .eq('evaluation_attempt.evaluation.course_id', data.course_id)
-        .gte('evaluation_attempt.completed_at', data.fecha_inicio)
-        .lte('evaluation_attempt.completed_at', data.fecha_fin + 'T23:59:59')
-
-      if (signaturesError) {
-        console.error('Error fetching signatures:', signaturesError)
-        throw new Error('Error al buscar firmas')
-      }
-
-      let linkedCount = 0
-      if (signaturesData && signaturesData.length > 0) {
-        const signatureIds = signaturesData.map((s: any) => s.id)
-
-        // Update signatures to link them to this attendance list
-        const { error: updateError, count } = await supabase
-          .from('attendance_signatures')
-          .update({ attendance_list_id: newList.id })
-          .in('id', signatureIds)
-
-        if (updateError) {
-          console.error('Error linking signatures:', updateError)
-          toast.error('Lista creada pero hubo un error al vincular las firmas')
-        } else {
-          linkedCount = count || 0
-        }
-      }
-
-      toast.success(`Lista de asistencia creada con ${linkedCount} participante(s)`)
+      toast.success('Lista de asistencia creada correctamente')
       await loadData()
       setIsModalOpen(false)
       setPreviewParticipants([])
@@ -399,7 +354,7 @@ export default function AttendanceManagement() {
 
       if (deleteError) throw deleteError
 
-      toast.success('Lista eliminada correctamente. Las firmas permanecen disponibles para nuevas listas.')
+      toast.success('Lista eliminada correctamente. Las firmas de los participantes se mantienen intactas.')
       await loadData()
     } catch (error) {
       console.error('Error deleting attendance:', error)
@@ -493,17 +448,7 @@ export default function AttendanceManagement() {
         return signaturesData || []
       }
     } else {
-      const { data: signaturesData, error } = await supabase
-        .from('attendance_signatures')
-        .select(`
-          *,
-          user:users!inner(first_name, last_name, dni, area)
-        `)
-        .eq('attendance_list_id', attendanceList.id)
-        .order('signed_at')
-
-      if (error) throw error
-      return signaturesData || []
+      throw new Error('Lista de asistencia sin rango de fechas. Por favor, crea una nueva lista.')
     }
   }
 
@@ -1096,7 +1041,15 @@ export default function AttendanceManagement() {
                     {previewParticipants.some(p => !p.has_signature) && (
                       <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                         <p className="text-xs text-yellow-800">
-                          <strong>⚠️ Advertencia:</strong> Algunos participantes no han firmado aún. Solo se incluirán en la lista los que tengan firma.
+                          <strong>⚠️ Advertencia:</strong> Algunos participantes no han firmado aún. La lista mostrará solo los participantes con firma en el rango de fechas seleccionado.
+                        </p>
+                      </div>
+                    )}
+
+                    {previewParticipants.length > 0 && (
+                      <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <p className="text-xs text-blue-800">
+                          <strong>ℹ️ Nota:</strong> Las listas son reportes que muestran todas las firmas en el rango de fechas seleccionado. Puedes crear múltiples listas con diferentes rangos para el mismo curso.
                         </p>
                       </div>
                     )}
