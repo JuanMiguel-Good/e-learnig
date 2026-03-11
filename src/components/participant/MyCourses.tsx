@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
-import { BookOpen, Play, FileText, CheckCircle, Clock, X, Award, ChevronDown, ChevronRight, PlayCircle, Star } from 'lucide-react'
+import { BookOpen, Play, FileText, CheckCircle, Clock, X, Award, ChevronDown, ChevronRight, PlayCircle, Star, ZoomIn, ZoomOut, RotateCw, Maximize2 } from 'lucide-react'
 import { CertificateGenerator } from '../../lib/certificateGenerator'
 import TakeEvaluation from './TakeEvaluation'
 import SignAttendance from './SignAttendance'
@@ -53,12 +53,51 @@ export default function MyCourses() {
   const [evaluationStatuses, setEvaluationStatuses] = useState<{ [key: string]: { canTake: boolean, hasPassed: boolean, required: boolean } }>({})
   const [signatureStatuses, setSignatureStatuses] = useState<{ [key: string]: boolean }>({})
   const [activityFilter, setActivityFilter] = useState<'all' | 'full_course' | 'topic' | 'attendance_only'>('all')
+  const [modalImageUrl, setModalImageUrl] = useState<string | null>(null)
+  const [imageZoom, setImageZoom] = useState(1)
+  const [imageRotation, setImageRotation] = useState(0)
 
   useEffect(() => {
     if (user) {
       loadCourses()
     }
   }, [user])
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!modalImageUrl) return
+
+      if (e.key === 'Escape') {
+        setModalImageUrl(null)
+        setImageZoom(1)
+        setImageRotation(0)
+      } else if (e.key === '+' || e.key === '=') {
+        handleZoomIn()
+      } else if (e.key === '-') {
+        handleZoomOut()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [modalImageUrl, imageZoom])
+
+  const handleZoomIn = () => {
+    setImageZoom(prev => Math.min(prev + 0.25, 3))
+  }
+
+  const handleZoomOut = () => {
+    setImageZoom(prev => Math.max(prev - 0.25, 0.5))
+  }
+
+  const handleResetZoom = () => {
+    setImageZoom(1)
+    setImageRotation(0)
+  }
+
+  const handleRotate = () => {
+    setImageRotation(prev => (prev + 90) % 360)
+  }
 
   const loadCourses = async () => {
     try {
@@ -702,11 +741,24 @@ export default function MyCourses() {
             }`}>
               <div onClick={() => course.activity_type === 'full_course' && setSelectedCourse(course)}>
                 {course.image_url && (
-                  <img
-                    src={course.image_url}
-                    alt={course.title}
-                    className="w-full h-32 md:h-48 object-cover relative"
-                  />
+                  <div
+                    className="relative group cursor-zoom-in"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setModalImageUrl(course.image_url)
+                      setImageZoom(1)
+                      setImageRotation(0)
+                    }}
+                  >
+                    <img
+                      src={course.image_url}
+                      alt={course.title}
+                      className="w-full h-32 md:h-48 object-cover relative"
+                    />
+                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all flex items-center justify-center">
+                      <Maximize2 className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                  </div>
                 )}
                 <div className="p-4 md:p-6">
                   <div className="flex items-start justify-between mb-2">
@@ -1110,6 +1162,102 @@ export default function MyCourses() {
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Image Zoom Modal */}
+      {modalImageUrl && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center p-4 z-50"
+          onClick={() => {
+            setModalImageUrl(null)
+            setImageZoom(1)
+            setImageRotation(0)
+          }}
+        >
+          <div className="relative w-full h-full flex flex-col">
+            {/* Controls Bar */}
+            <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-lg p-2 flex items-center gap-2 z-10">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleZoomOut()
+                }}
+                className="p-2 hover:bg-slate-100 rounded transition-colors"
+                title="Alejar (tecla -)"
+              >
+                <ZoomOut className="w-5 h-5 text-slate-700" />
+              </button>
+              <span className="text-sm font-medium text-slate-700 min-w-[4rem] text-center">
+                {Math.round(imageZoom * 100)}%
+              </span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleZoomIn()
+                }}
+                className="p-2 hover:bg-slate-100 rounded transition-colors"
+                title="Acercar (tecla +)"
+              >
+                <ZoomIn className="w-5 h-5 text-slate-700" />
+              </button>
+              <div className="w-px h-6 bg-slate-300 mx-1"></div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleRotate()
+                }}
+                className="p-2 hover:bg-slate-100 rounded transition-colors"
+                title="Rotar 90°"
+              >
+                <RotateCw className="w-5 h-5 text-slate-700" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleResetZoom()
+                }}
+                className="px-3 py-2 hover:bg-slate-100 rounded transition-colors text-sm font-medium text-slate-700"
+                title="Restablecer"
+              >
+                Restablecer
+              </button>
+              <div className="w-px h-6 bg-slate-300 mx-1"></div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setModalImageUrl(null)
+                  setImageZoom(1)
+                  setImageRotation(0)
+                }}
+                className="p-2 hover:bg-slate-100 rounded transition-colors"
+                title="Cerrar (ESC)"
+              >
+                <X className="w-5 h-5 text-slate-700" />
+              </button>
+            </div>
+
+            {/* Image Container */}
+            <div
+              className="flex-1 flex items-center justify-center overflow-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <img
+                src={modalImageUrl}
+                alt="Vista ampliada"
+                className="max-w-full max-h-[85vh] object-contain transition-all duration-300"
+                style={{
+                  transform: `scale(${imageZoom}) rotate(${imageRotation}deg)`
+                }}
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+
+            {/* Instructions */}
+            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-70 text-white px-4 py-2 rounded-lg text-sm">
+              Usa +/- para zoom, ESC para cerrar, o haz clic fuera de la imagen
             </div>
           </div>
         </div>
