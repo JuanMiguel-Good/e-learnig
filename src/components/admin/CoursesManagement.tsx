@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { StorageService } from '../../lib/storage'
-import { Plus, CreditCard as Edit2, Trash2, Upload, BookOpen, User, Video, FileText, CheckCircle, AlertCircle, ExternalLink, Check, HelpCircle, ChevronDown } from 'lucide-react'
+import { Plus, CreditCard as Edit2, Trash2, Upload, BookOpen, User, Video, FileText, CheckCircle, AlertCircle, ExternalLink, Check, HelpCircle, ChevronDown, X, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useForm, useFieldArray } from 'react-hook-form'
 
@@ -77,6 +77,11 @@ export default function CoursesManagement() {
   const [showQuickEvaluationModal, setShowQuickEvaluationModal] = useState(false)
   const [selectedCourseForEvaluation, setSelectedCourseForEvaluation] = useState<Course | null>(null)
   const [collapsedEvaluations, setCollapsedEvaluations] = useState<Set<string>>(new Set())
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [imagePreviewFile, setImagePreviewFile] = useState<{ name: string; size: number } | null>(null)
+  const [showImageModal, setShowImageModal] = useState(false)
+  const [modalImageUrl, setModalImageUrl] = useState<string | null>(null)
+  const [imageZoom, setImageZoom] = useState(1)
 
   const {
     register,
@@ -116,9 +121,71 @@ export default function CoursesManagement() {
     })
   }
 
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string)
+        setImagePreviewFile({
+          name: file.name,
+          size: file.size
+        })
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const clearImagePreview = () => {
+    setImagePreview(null)
+    setImagePreviewFile(null)
+  }
+
+  const openImageModal = (imageUrl: string) => {
+    setModalImageUrl(imageUrl)
+    setShowImageModal(true)
+    setImageZoom(1)
+  }
+
+  const closeImageModal = () => {
+    setShowImageModal(false)
+    setModalImageUrl(null)
+    setImageZoom(1)
+  }
+
+  const handleZoomIn = () => {
+    setImageZoom(prev => Math.min(prev + 0.25, 3))
+  }
+
+  const handleZoomOut = () => {
+    setImageZoom(prev => Math.max(prev - 0.25, 0.5))
+  }
+
+  const resetZoom = () => {
+    setImageZoom(1)
+  }
+
   useEffect(() => {
     loadData()
   }, [])
+
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && showImageModal) {
+        closeImageModal()
+      }
+    }
+
+    if (showImageModal) {
+      document.addEventListener('keydown', handleEscape)
+      document.body.style.overflow = 'hidden'
+    }
+
+    return () => {
+      document.removeEventListener('keydown', handleEscape)
+      document.body.style.overflow = 'unset'
+    }
+  }, [showImageModal])
 
   useEffect(() => {
     const state = location.state as { scrollToCourseId?: string }
@@ -408,6 +475,7 @@ export default function CoursesManagement() {
       setIsModalOpen(false)
       setEditingCourse(null)
       setUploadProgress({})
+      clearImagePreview()
       reset()
     } catch (error: any) {
       console.error('Error saving course:', error)
@@ -748,11 +816,21 @@ export default function CoursesManagement() {
             className="bg-white rounded-xl shadow-sm border overflow-hidden transition-all"
           >
             {course.image_url && (
-              <img 
-                src={course.image_url} 
-                alt={course.title}
-                className="w-full h-48 object-cover"
-              />
+              <div
+                className="relative group cursor-pointer overflow-hidden"
+                onClick={() => openImageModal(course.image_url!)}
+              >
+                <img
+                  src={course.image_url}
+                  alt={course.title}
+                  className="w-full h-48 object-cover transition-transform group-hover:scale-105"
+                />
+                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all flex items-center justify-center">
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-white rounded-full p-2">
+                    <Maximize2 className="w-6 h-6 text-slate-800" />
+                  </div>
+                </div>
+              </div>
             )}
             <div className="p-6">
               <div className="flex items-center justify-between mb-2">
@@ -1279,21 +1357,49 @@ export default function CoursesManagement() {
                   <label className="block text-sm font-medium text-slate-700 mb-1">
                     Imagen del Curso {editingCourse ? '(opcional - subir nueva para cambiar)' : ''}
                   </label>
-                  
+
                   {/* Show current image if editing */}
-                  {editingCourse?.image_url && (
-                    <div className="mb-3 p-3 bg-blue-50 rounded-lg">
-                      <p className="text-sm text-blue-800 mb-2">📷 Imagen actual:</p>
-                      <img 
-                        src={editingCourse.image_url} 
+                  {editingCourse?.image_url && !imagePreview && (
+                    <div className="mb-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                      <p className="text-sm text-blue-800 mb-2 font-medium">Imagen actual:</p>
+                      <img
+                        src={editingCourse.image_url}
                         alt="Imagen actual del curso"
-                        className="h-20 w-auto border rounded"
+                        className="h-32 w-auto border-2 border-blue-300 rounded-lg shadow-sm"
                       />
                     </div>
                   )}
-                  
+
+                  {/* Show preview of newly selected image */}
+                  {imagePreview && (
+                    <div className="mb-3 p-4 bg-green-50 rounded-lg border-2 border-green-300">
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <p className="text-sm text-green-800 font-semibold mb-1">✅ Nueva imagen seleccionada:</p>
+                          <p className="text-xs text-green-700">{imagePreviewFile?.name}</p>
+                          <p className="text-xs text-green-600">
+                            Tamaño: {((imagePreviewFile?.size || 0) / 1024 / 1024).toFixed(2)} MB
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={clearImagePreview}
+                          className="text-green-800 hover:text-green-900 bg-green-100 hover:bg-green-200 rounded-full p-1 transition-colors"
+                          title="Cambiar imagen"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <img
+                        src={imagePreview}
+                        alt="Vista previa"
+                        className="w-full max-h-48 object-contain border-2 border-green-300 rounded-lg shadow-md bg-white"
+                      />
+                    </div>
+                  )}
+
                   <div className="flex items-center justify-center w-full">
-                    <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-slate-300 border-dashed rounded-lg cursor-pointer bg-slate-50 hover:bg-slate-100">
+                    <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-slate-300 border-dashed rounded-lg cursor-pointer bg-slate-50 hover:bg-slate-100 transition-colors">
                       <div className="flex flex-col items-center justify-center pt-5 pb-6">
                         {uploadProgress.courseImage !== undefined ? (
                           <div className="flex flex-col items-center">
@@ -1303,8 +1409,8 @@ export default function CoursesManagement() {
                               </div>
                             </div>
                             <div className="w-32 bg-slate-200 rounded-full h-2 mb-2">
-                              <div 
-                                className="bg-slate-600 h-2 rounded-full transition-all duration-300" 
+                              <div
+                                className="bg-slate-600 h-2 rounded-full transition-all duration-300"
                                 style={{ width: `${uploadProgress.courseImage}%` }}
                               />
                             </div>
@@ -1316,15 +1422,16 @@ export default function CoursesManagement() {
                           <>
                             <Upload className="w-8 h-8 mb-2 text-slate-400" />
                             <p className="mb-2 text-sm text-slate-500">
-                              <span className="font-semibold">Haz clic para subir</span> {editingCourse ? 'nueva ' : ''}imagen
+                              <span className="font-semibold">Haz clic para {imagePreview ? 'cambiar' : 'subir'}</span> {editingCourse && !imagePreview ? 'nueva ' : ''}imagen
                             </p>
                             <p className="text-xs text-slate-500">PNG, JPG (recomendado: 1200x600)</p>
                           </>
                         )}
                       </div>
                       <input
-                        {...register('image', { 
-                          required: editingCourse ? false : 'La imagen es requerida'
+                        {...register('image', {
+                          required: editingCourse ? false : 'La imagen es requerida',
+                          onChange: handleImageSelect
                         })}
                         type="file"
                         className="hidden"
@@ -1427,6 +1534,7 @@ export default function CoursesManagement() {
                     onClick={() => {
                       setIsModalOpen(false)
                       setEditingCourse(null)
+                      clearImagePreview()
                       reset()
                     }}
                     className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-medium transition-colors"
@@ -1447,6 +1555,91 @@ export default function CoursesManagement() {
                 </div>
               </form>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Image Viewer Modal with Zoom */}
+      {showImageModal && modalImageUrl && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center p-4 z-50"
+          onClick={closeImageModal}
+        >
+          <div className="relative w-full h-full flex flex-col">
+            {/* Header with controls */}
+            <div className="absolute top-4 right-4 flex items-center space-x-2 z-10">
+              <div className="bg-white rounded-lg shadow-lg px-3 py-2 flex items-center space-x-2">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleZoomOut()
+                  }}
+                  className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                  title="Alejar"
+                  disabled={imageZoom <= 0.5}
+                >
+                  <ZoomOut className="w-5 h-5 text-slate-700" />
+                </button>
+                <span className="text-sm font-medium text-slate-700 min-w-[3rem] text-center">
+                  {Math.round(imageZoom * 100)}%
+                </span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleZoomIn()
+                  }}
+                  className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                  title="Acercar"
+                  disabled={imageZoom >= 3}
+                >
+                  <ZoomIn className="w-5 h-5 text-slate-700" />
+                </button>
+                <div className="w-px h-6 bg-slate-300"></div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    resetZoom()
+                  }}
+                  className="px-3 py-2 hover:bg-slate-100 rounded-lg transition-colors text-sm font-medium text-slate-700"
+                  title="Restablecer zoom"
+                >
+                  Restablecer
+                </button>
+              </div>
+              <button
+                onClick={closeImageModal}
+                className="p-2 bg-white hover:bg-slate-100 rounded-lg shadow-lg transition-colors"
+                title="Cerrar"
+              >
+                <X className="w-6 h-6 text-slate-700" />
+              </button>
+            </div>
+
+            {/* Image container */}
+            <div
+              className="flex-1 flex items-center justify-center overflow-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <img
+                src={modalImageUrl}
+                alt="Vista ampliada"
+                className="max-w-none transition-transform duration-200 cursor-move"
+                style={{
+                  transform: `scale(${imageZoom})`,
+                  transformOrigin: 'center center'
+                }}
+                draggable={false}
+              />
+            </div>
+
+            {/* Bottom info */}
+            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
+              <div className="bg-white bg-opacity-90 rounded-lg shadow-lg px-4 py-2">
+                <p className="text-sm text-slate-600 text-center">
+                  Click fuera de la imagen o presiona ESC para cerrar
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       )}
