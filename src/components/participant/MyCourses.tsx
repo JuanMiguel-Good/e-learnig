@@ -101,127 +101,196 @@ export default function MyCourses() {
 
   const loadCourses = async () => {
     try {
-      const { data, error } = await supabase
-        .from('course_assignments')
-        .select(`
-          course_id,
-          courses!inner (
-            id,
-            title,
-            description,
-            image_url,
-            activity_type,
-            requires_evaluation,
-            modules (
+      // Fetch all data in parallel - MAJOR PERFORMANCE OPTIMIZATION
+      const [
+        coursesResult,
+        progressResult,
+        evaluationsResult,
+        attemptsResult,
+        signaturesResult
+      ] = await Promise.all([
+        // Get course assignments with full course data
+        supabase
+          .from('course_assignments')
+          .select(`
+            course_id,
+            courses!inner (
               id,
               title,
               description,
-              order_index,
-              lessons (
+              image_url,
+              activity_type,
+              requires_evaluation,
+              modules (
                 id,
                 title,
-                content,
-                video_url,
+                description,
                 order_index,
-                duration_minutes
+                lessons (
+                  id,
+                  title,
+                  content,
+                  video_url,
+                  order_index,
+                  duration_minutes
+                )
               )
             )
-          )
-        `)
-        .eq('user_id', user?.id)
+          `)
+          .eq('user_id', user?.id),
 
-      if (error) throw error
+        // Get ALL lesson progress for this user in ONE query
+        supabase
+          .from('lesson_progress')
+          .select('lesson_id, completed')
+          .eq('user_id', user?.id)
+          .eq('completed', true),
+
+        // Get ALL active evaluations in ONE query
+        supabase
+          .from('evaluations')
+          .select('id, course_id, title, description, passing_score, max_attempts, is_active')
+          .eq('is_active', true),
+
+        // Get ALL user's evaluation attempts in ONE query
+        supabase
+          .from('evaluation_attempts')
+          .select('evaluation_id, passed, attempt_number, score')
+          .eq('user_id', user?.id)
+          .order('attempt_number', { ascending: false }),
+
+        // Get ALL user's attendance signatures in ONE query
+        supabase
+          .from('attendance_signatures')
+          .select('course_id')
+          .eq('user_id', user?.id)
+          .is('evaluation_attempt_id', null)
+      ])
+
+      if (coursesResult.error) throw coursesResult.error
+
+      // Build lookup maps for fast access
+      const completedLessons = new Set(
+        (progressResult.data || []).map(p => p.lesson_id)
+      )
+
+      const evaluationsByCourse = new Map<string, any>()
+      ;(evaluationsResult.data || []).forEach(evaluation => {
+        evaluationsByCourse.set(evaluation.course_id, evaluation)
+      })
+
+      const attemptsByEvaluation = new Map<string, any[]>()
+      ;(attemptsResult.data || []).forEach(attempt => {
+        if (!attemptsByEvaluation.has(attempt.evaluation_id)) {
+          attemptsByEvaluation.set(attempt.evaluation_id, [])
+        }
+        attemptsByEvaluation.get(attempt.evaluation_id)!.push(attempt)
+      })
+
+      const signedCourses = new Set(
+        (signaturesResult.data || []).map(sig => sig.course_id)
+      )
 
       // Process courses with progress calculation
-      const processedCourses = await Promise.all(
-        (data || []).map(async (assignment: any) => {
-          const course = assignment.courses
-          
-          // Get lesson progress for this user
-          const { data: progressData } = await supabase
-            .from('lesson_progress')
-            .select('lesson_id, completed')
-            .eq('user_id', user?.id)
+      const processedCourses = (coursesResult.data || []).map((assignment: any) => {
+        const course = assignment.courses
 
-          const completedLessons = new Set(
-            (progressData || [])
-              .filter(p => p.completed)
-              .map(p => p.lesson_id)
-          )
+        // Calculate progress and determine accessibility
+        let totalLessons = 0
+        let completedCount = 0
+        let previousLessonCompleted = true
 
-          // Calculate progress and determine accessibility
-          let totalLessons = 0
-          let completedCount = 0
-          let previousLessonCompleted = true
+        // Sort modules and lessons
+        const sortedModules = course.modules
+          .sort((a: any, b: any) => a.order_index - b.order_index)
+          .map((module: any) => {
+            const sortedLessons = module.lessons
+              .sort((a: any, b: any) => a.order_index - b.order_index)
+              .map((lesson: any) => {
+                totalLessons++
+                const isCompleted = completedLessons.has(lesson.id)
+                if (isCompleted) completedCount++
 
-          // Sort modules and lessons
-          const sortedModules = course.modules
-            .sort((a: any, b: any) => a.order_index - b.order_index)
-            .map((module: any) => {
-              const sortedLessons = module.lessons
-                .sort((a: any, b: any) => a.order_index - b.order_index)
-                .map((lesson: any) => {
-                  totalLessons++
-                  const isCompleted = completedLessons.has(lesson.id)
-                  if (isCompleted) completedCount++
+                const canAccess = previousLessonCompleted
+                if (!isCompleted) previousLessonCompleted = false
 
-                  const canAccess = previousLessonCompleted
-                  if (!isCompleted) previousLessonCompleted = false
+                return {
+                  ...lesson,
+                  completed: isCompleted,
+                  can_access: canAccess
+                }
+              })
 
-                  return {
-                    ...lesson,
-                    completed: isCompleted,
-                    can_access: canAccess
-                  }
-                })
+            return {
+              ...module,
+              lessons: sortedLessons
+            }
+          })
 
-              return {
-                ...module,
-                lessons: sortedLessons
-              }
-            })
+        const progress = totalLessons > 0 ? Math.round((completedCount / totalLessons) * 100) : 0
 
-          const progress = totalLessons > 0 ? Math.round((completedCount / totalLessons) * 100) : 0
-
-          return {
-            ...course,
-            progress,
-            modules: sortedModules
-          }
-        })
-      )
+        return {
+          ...course,
+          progress,
+          modules: sortedModules
+        }
+      })
 
       setCourses(processedCourses)
 
-      // Load evaluation statuses for all courses
+      // Process evaluation statuses using pre-fetched data
       const statuses: { [key: string]: { canTake: boolean, hasPassed: boolean, required: boolean } } = {}
       const evaluationsMap: { [key: string]: any[] } = {}
 
-      for (const course of processedCourses) {
-        const evalStatus = await checkEvaluationStatus(course.id)
-        statuses[course.id] = {
-          canTake: evalStatus.canTakeEvaluation,
-          hasPassed: evalStatus.hasPassedEvaluation,
-          required: evalStatus.requiresEvaluation
+      processedCourses.forEach(course => {
+        if (!course.requires_evaluation) {
+          statuses[course.id] = {
+            canTake: false,
+            hasPassed: false,
+            required: false
+          }
+          return
         }
 
-        // Load all active evaluations for this course
-        if (course.requires_evaluation) {
-          const evals = await loadCourseEvaluations(course.id)
-          evaluationsMap[course.id] = evals
+        const evaluation = evaluationsByCourse.get(course.id)
+        if (!evaluation) {
+          statuses[course.id] = {
+            canTake: false,
+            hasPassed: false,
+            required: true
+          }
+          return
         }
-      }
+
+        const attempts = attemptsByEvaluation.get(evaluation.id) || []
+        const hasPassed = attempts.some(attempt => attempt.passed)
+        const canTake = !hasPassed && attempts.length < evaluation.max_attempts
+
+        statuses[course.id] = {
+          canTake,
+          hasPassed,
+          required: true
+        }
+
+        evaluationsMap[course.id] = [{
+          ...evaluation,
+          hasPassedEvaluation: hasPassed,
+          canTakeEvaluation: canTake,
+          attemptCount: attempts.length,
+          lastScore: attempts[0]?.score || null
+        }]
+      })
+
       setEvaluationStatuses(statuses)
       setCourseEvaluations(evaluationsMap)
 
-      // Load signature statuses for attendance_only courses
+      // Process signature statuses using pre-fetched data
       const sigStatuses: { [key: string]: boolean } = {}
-      for (const course of processedCourses) {
+      processedCourses.forEach(course => {
         if (course.activity_type === 'attendance_only') {
-          const hasSigned = await checkAttendanceSignatureStatus(course.id)
-          sigStatuses[course.id] = hasSigned
+          sigStatuses[course.id] = signedCourses.has(course.id)
         }
-      }
+      })
       setSignatureStatuses(sigStatuses)
     } catch (error) {
       console.error('Error loading courses:', error)
