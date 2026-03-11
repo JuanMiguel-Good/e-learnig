@@ -1617,26 +1617,28 @@ export default function CoursesManagement() {
 
             {/* Image container */}
             <div
-              className="flex-1 flex items-center justify-center overflow-auto"
+              className="flex-1 flex items-center justify-center overflow-auto p-4"
               onClick={(e) => e.stopPropagation()}
             >
-              <img
-                src={modalImageUrl}
-                alt="Vista ampliada"
-                className="max-w-none transition-transform duration-200 cursor-move"
-                style={{
-                  transform: `scale(${imageZoom})`,
-                  transformOrigin: 'center center'
-                }}
-                draggable={false}
-              />
+              <div className="relative flex items-center justify-center">
+                <img
+                  src={modalImageUrl}
+                  alt="Vista ampliada"
+                  className="max-w-full max-h-[85vh] object-contain transition-transform duration-200"
+                  style={{
+                    transform: `scale(${imageZoom})`,
+                    transformOrigin: 'center center'
+                  }}
+                  draggable={false}
+                />
+              </div>
             </div>
 
             {/* Bottom info */}
             <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
               <div className="bg-white bg-opacity-90 rounded-lg shadow-lg px-4 py-2">
                 <p className="text-sm text-slate-600 text-center">
-                  Click fuera de la imagen o presiona ESC para cerrar
+                  Usa los controles de zoom para ver detalles • Click fuera de la imagen o presiona ESC para cerrar
                 </p>
               </div>
             </div>
