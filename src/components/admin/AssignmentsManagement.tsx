@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import { Plus, User, BookOpen, X, Search, Users } from 'lucide-react'
+import { Plus, User, BookOpen, X, Search, Users, Trash2, Filter } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 interface Participant {
@@ -32,6 +32,7 @@ interface Assignment {
     first_name: string
     last_name: string
     email: string
+    company_id: string | null
   }
   course: {
     title: string
@@ -58,6 +59,12 @@ export default function AssignmentsManagement() {
   const [selectedCompany, setSelectedCompany] = useState<string>('all')
   const [bulkSearchTerm, setBulkSearchTerm] = useState('')
   const tableScrollRef = React.useRef<HTMLDivElement>(null)
+
+  // New states for filtering and bulk unassign
+  const [filterCourse, setFilterCourse] = useState<string>('all')
+  const [filterCompany, setFilterCompany] = useState<string>('all')
+  const [selectedAssignments, setSelectedAssignments] = useState<string[]>([])
+  const [showFilters, setShowFilters] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -105,7 +112,7 @@ export default function AssignmentsManagement() {
         .from('course_assignments')
         .select(`
           *,
-          user:users!inner(first_name, last_name, email),
+          user:users!inner(first_name, last_name, email, company_id),
           course:courses!inner(title, image_url)
         `)
         .order('assigned_at', { ascending: false })
@@ -325,12 +332,66 @@ export default function AssignmentsManagement() {
     })
   }
 
-  const filteredAssignments = assignments.filter(assignment => 
-    assignment.user.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    assignment.user.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    assignment.user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    assignment.course.title.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const filteredAssignments = assignments.filter(assignment => {
+    const matchesSearch =
+      assignment.user.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      assignment.user.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      assignment.user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      assignment.course.title.toLowerCase().includes(searchTerm.toLowerCase())
+
+    const matchesCourse = filterCourse === 'all' || assignment.course_id === filterCourse
+    const matchesCompany = filterCompany === 'all' || assignment.user.company_id === filterCompany
+
+    return matchesSearch && matchesCourse && matchesCompany
+  })
+
+  const toggleAssignmentSelection = (assignmentId: string) => {
+    setSelectedAssignments(prev =>
+      prev.includes(assignmentId)
+        ? prev.filter(id => id !== assignmentId)
+        : [...prev, assignmentId]
+    )
+  }
+
+  const selectAllFilteredAssignments = () => {
+    setSelectedAssignments(filteredAssignments.map(a => a.id))
+  }
+
+  const clearAssignmentSelection = () => {
+    setSelectedAssignments([])
+  }
+
+  const handleBulkUnassign = async () => {
+    if (selectedAssignments.length === 0) {
+      toast.error('Selecciona al menos una asignación')
+      return
+    }
+
+    if (!confirm(`¿Estás seguro de que deseas remover ${selectedAssignments.length} asignación(es)?`)) {
+      return
+    }
+
+    try {
+      setIsSubmitting(true)
+
+      const { error } = await supabase
+        .from('course_assignments')
+        .delete()
+        .in('id', selectedAssignments)
+
+      if (error) throw error
+
+      toast.success(`${selectedAssignments.length} asignación(es) removida(s) correctamente`)
+      setSelectedAssignments([])
+      await loadData()
+      await loadParticipantCourseCount()
+    } catch (error) {
+      console.error('Error in bulk unassignment:', error)
+      toast.error('Error al remover asignaciones')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   if (isLoading) {
     return (
@@ -357,27 +418,162 @@ export default function AssignmentsManagement() {
         </button>
       </div>
 
-      {/* Search */}
-      <div className="bg-white rounded-xl shadow-sm border p-4 w-full">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
-          <input
-            type="text"
-            placeholder="Buscar asignaciones..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
-          />
+      {/* Search and Filters */}
+      <div className="bg-white rounded-xl shadow-sm border p-4 w-full space-y-4">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
+            <input
+              type="text"
+              placeholder="Buscar asignaciones..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+            />
+          </div>
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className="inline-flex items-center px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+          >
+            <Filter className="w-5 h-5 mr-2" />
+            Filtros
+            {(filterCourse !== 'all' || filterCompany !== 'all') && (
+              <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded-full">
+                Activos
+              </span>
+            )}
+          </button>
         </div>
+
+        {showFilters && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Filtrar por Curso
+              </label>
+              <select
+                value={filterCourse}
+                onChange={(e) => {
+                  setFilterCourse(e.target.value)
+                  setSelectedAssignments([])
+                }}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+              >
+                <option value="all">Todos los cursos</option>
+                {courses.map((course) => (
+                  <option key={course.id} value={course.id}>
+                    {course.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Filtrar por Empresa
+              </label>
+              <select
+                value={filterCompany}
+                onChange={(e) => {
+                  setFilterCompany(e.target.value)
+                  setSelectedAssignments([])
+                }}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+              >
+                <option value="all">Todas las empresas</option>
+                {companies.map((company) => (
+                  <option key={company.id} value={company.id}>
+                    {company.razon_social}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="sm:col-span-2 flex justify-end">
+              <button
+                onClick={() => {
+                  setFilterCourse('all')
+                  setFilterCompany('all')
+                  setSelectedAssignments([])
+                }}
+                className="text-sm text-slate-600 hover:text-slate-800"
+              >
+                Limpiar filtros
+              </button>
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* Bulk Actions */}
+      {selectedAssignments.length > 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center justify-between">
+          <div className="flex items-center">
+            <span className="text-sm font-medium text-blue-900">
+              {selectedAssignments.length} asignación(es) seleccionada(s)
+            </span>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={clearAssignmentSelection}
+              className="px-4 py-2 text-sm border border-blue-300 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleBulkUnassign}
+              disabled={isSubmitting}
+              className="inline-flex items-center px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Desasignar Masivamente
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Assignments Table */}
       <div className="bg-white rounded-xl shadow-sm border w-full overflow-hidden">
+        {filteredAssignments.length > 0 && (
+          <div className="px-4 py-3 border-b bg-slate-50 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={selectedAssignments.length === filteredAssignments.length}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    selectAllFilteredAssignments()
+                  } else {
+                    clearAssignmentSelection()
+                  }
+                }}
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded"
+              />
+              <span className="text-sm text-slate-600">
+                {selectedAssignments.length > 0
+                  ? `${selectedAssignments.length} de ${filteredAssignments.length} seleccionado(s)`
+                  : 'Seleccionar todo'}
+              </span>
+            </div>
+            {selectedAssignments.length === 0 && (
+              <button
+                onClick={selectAllFilteredAssignments}
+                className="text-sm text-blue-600 hover:text-blue-800"
+              >
+                Seleccionar todos
+              </button>
+            )}
+          </div>
+        )}
+
         <div className="max-h-[70vh] overflow-auto w-full">
           <div ref={tableScrollRef} className="min-w-full">
             <table className="w-full table-compact" style={{minWidth: '1000px'}}>
               <thead className="bg-slate-50 sticky top-0 z-10 shadow-sm">
                 <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider bg-slate-50 w-12">
+                    <span className="sr-only">Seleccionar</span>
+                  </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider bg-slate-50">
                     Participante
                   </th>
@@ -394,7 +590,18 @@ export default function AssignmentsManagement() {
               </thead>
               <tbody className="bg-white divide-y divide-slate-200">
               {filteredAssignments.map((assignment) => (
-                <tr key={assignment.id} className="hover:bg-slate-50">
+                <tr
+                  key={assignment.id}
+                  className={`hover:bg-slate-50 ${selectedAssignments.includes(assignment.id) ? 'bg-blue-50' : ''}`}
+                >
+                  <td className="px-4 py-4 whitespace-nowrap">
+                    <input
+                      type="checkbox"
+                      checked={selectedAssignments.includes(assignment.id)}
+                      onChange={() => toggleAssignmentSelection(assignment.id)}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded"
+                    />
+                  </td>
                   <td className="px-4 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center flex-shrink-0">
