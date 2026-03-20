@@ -8,6 +8,7 @@ import RegisterForm from './components/auth/RegisterForm';
 import Dashboard from './components/Dashboard';
 import AdminLayout from './components/admin/AdminLayout';
 import ParticipantLayout from './components/participant/ParticipantLayout';
+import CompanyManagerLayout from './components/company-manager/CompanyManagerLayout';
 import ParticipantsManagement from './components/admin/ParticipantsManagement';
 import InstructorsManagement from './components/admin/InstructorsManagement';
 import CoursesManagement from './components/admin/CoursesManagement';
@@ -19,6 +20,9 @@ import CompanyResponsiblesManagement from './components/admin/CompanyResponsible
 import EvaluationsManagement from './components/admin/EvaluationsManagement'
 import AttendanceManagement from './components/admin/AttendanceManagement'
 import ReportsManagement from './components/admin/ReportsManagement'
+import CompanyParticipantsManagement from './components/company-manager/CompanyParticipantsManagement'
+import CompanyAttendanceManagement from './components/company-manager/CompanyAttendanceManagement'
+import CompanyReportsManagement from './components/company-manager/CompanyReportsManagement'
 
 function AuthWrapper() {
   const { user, isLoading } = useAuth();
@@ -35,11 +39,15 @@ function AuthWrapper() {
     return <LoginForm />;
   }
 
+  const redirectPath = user.role === 'admin' ? '/admin' :
+                       user.role === 'company_manager' ? '/company-manager' :
+                       '/participant';
+
   return (
     <Layout>
       <Routes>
-        <Route path="/" element={<Navigate to={user.role === 'admin' ? '/admin' : '/participant'} replace />} />
-        
+        <Route path="/" element={<Navigate to={redirectPath} replace />} />
+
         {/* Admin Routes */}
         {user.role === 'admin' && (
           <Route path="/admin/*" element={<AdminLayout />}>
@@ -55,7 +63,18 @@ function AuthWrapper() {
             <Route path="reports" element={<ReportsManagement />} />
           </Route>
         )}
-        
+
+        {/* Company Manager Routes */}
+        {user.role === 'company_manager' && (
+          <Route path="/company-manager/*" element={<CompanyManagerLayout />}>
+            <Route index element={<MyCourses />} />
+            <Route path="certificates" element={<MyCertificates />} />
+            <Route path="participants" element={<CompanyParticipantsManagement />} />
+            <Route path="attendance" element={<CompanyAttendanceManagement />} />
+            <Route path="reports" element={<CompanyReportsManagement />} />
+          </Route>
+        )}
+
         {/* Participant Routes */}
         {user.role === 'participant' && (
           <Route path="/participant/*" element={<ParticipantLayout />}>
@@ -63,7 +82,7 @@ function AuthWrapper() {
             <Route path="certificates" element={<MyCertificates />} />
           </Route>
         )}
-        
+
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

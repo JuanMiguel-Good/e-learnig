@@ -7,7 +7,8 @@ export interface User {
   last_name: string
   phone: string | null
   country_code: string
-  role: 'admin' | 'participant'
+  role: 'admin' | 'participant' | 'company_manager'
+  company_id: string | null
   created_at: string
   updated_at: string
 }
@@ -27,7 +28,8 @@ class AuthService {
     last_name: string
     phone?: string
     country_code?: string
-    role?: 'admin' | 'participant'
+    role?: 'admin' | 'participant' | 'company_manager'
+    company_id?: string
   }) {
     try {
       // Hash password using a simple method since bcrypt is causing issues
@@ -45,7 +47,8 @@ class AuthService {
             last_name: userData.last_name,
             phone: userData.phone || null,
             country_code: userData.country_code || '+1',
-            role: userData.role || 'participant'
+            role: userData.role || 'participant',
+            company_id: userData.company_id || null
           }
         ])
         .select()
@@ -158,6 +161,7 @@ class AuthService {
       phone: data.phone,
       country_code: data.country_code,
       role: data.role,
+      company_id: data.company_id,
       created_at: data.created_at,
       updated_at: data.updated_at
     }

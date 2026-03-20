@@ -15,6 +15,7 @@ interface Participant {
   dni: string | null
   area: string | null
   company_id: string | null
+  role: 'participant' | 'company_manager'
   created_at: string
   company?: {
     razon_social: string
@@ -114,7 +115,7 @@ export default function ParticipantsManagement() {
       const { data, error } = await supabase
         .from('users')
         .select('*, company:companies(razon_social)')
-        .eq('role', 'participant')
+        .in('role', ['participant', 'company_manager'])
         .order('created_at', { ascending: false })
 
       if (error) throw error
@@ -237,6 +238,7 @@ export default function ParticipantsManagement() {
     setValue('dni', participant.dni || '')
     setValue('area', participant.area || '')
     setValue('company_id', participant.company_id || '')
+    setValue('role', participant.role || 'participant')
     setIsModalOpen(true)
   }
 
@@ -621,6 +623,26 @@ export default function ParticipantsManagement() {
                 </select>
                 {errors.company_id && (
                   <p className="text-red-500 text-xs mt-1">{errors.company_id.message}</p>
+                )}
+              </div>
+
+              {/* Rol */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Rol
+                </label>
+                <select
+                  {...register('role', { required: 'El rol es requerido' })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                >
+                  <option value="participant">Participante</option>
+                  <option value="company_manager">Gestor de Empresa</option>
+                </select>
+                <p className="text-slate-500 text-xs mt-1">
+                  * El gestor de empresa puede administrar participantes, asistencia y reportes de su empresa
+                </p>
+                {errors.role && (
+                  <p className="text-red-500 text-xs mt-1">{errors.role.message}</p>
                 )}
               </div>
 
