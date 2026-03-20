@@ -77,6 +77,7 @@ interface AttendanceFormData {
 export default function AttendanceManagement() {
   const [attendanceLists, setAttendanceLists] = useState<AttendanceList[]>([])
   const [courses, setCourses] = useState<Course[]>([])
+  const [allCourses, setAllCourses] = useState<Course[]>([])
   const [companies, setCompanies] = useState<Company[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -113,6 +114,14 @@ export default function AttendanceManagement() {
   }, [])
 
   useEffect(() => {
+    if (selectedCompanyId) {
+      filterCoursesByCompany()
+    } else {
+      setCourses(allCourses)
+    }
+  }, [selectedCompanyId, allCourses])
+
+  useEffect(() => {
     if (selectedCourseId && selectedCompanyId && fechaInicio && fechaFin) {
       loadPreviewParticipants()
     } else {
@@ -120,6 +129,66 @@ export default function AttendanceManagement() {
       setShowPreview(false)
     }
   }, [selectedCourseId, selectedCompanyId, fechaInicio, fechaFin])
+
+  const filterCoursesByCompany = async () => {
+    if (!selectedCompanyId) {
+      setCourses(allCourses)
+      return
+    }
+
+    try {
+      const { data: participantsData } = await supabase
+        .from('users')
+        .select('id')
+        .eq('company_id', selectedCompanyId)
+        .eq('role', 'participant')
+
+      if (!participantsData || participantsData.length === 0) {
+        setCourses([])
+        return
+      }
+
+      const participantIds = participantsData.map(p => p.id)
+
+      const { data: assignmentsData } = await supabase
+        .from('course_assignments')
+        .select(`
+          course_id,
+          courses!inner(
+            id,
+            title,
+            hours,
+            activity_type,
+            is_active,
+            instructor:instructors!inner(id, name, signature_url)
+          )
+        `)
+        .in('user_id', participantIds)
+        .eq('courses.is_active', true)
+
+      const uniqueCoursesMap = new Map<string, Course>()
+      assignmentsData?.forEach((assignment: any) => {
+        const course = assignment.courses
+        if (!uniqueCoursesMap.has(course.id)) {
+          uniqueCoursesMap.set(course.id, {
+            id: course.id,
+            title: course.title,
+            hours: course.hours,
+            activity_type: course.activity_type,
+            instructor: course.instructor
+          })
+        }
+      })
+
+      const filteredCourses = Array.from(uniqueCoursesMap.values()).sort((a, b) =>
+        a.title.localeCompare(b.title)
+      )
+      setCourses(filteredCourses)
+    } catch (error) {
+      console.error('Error filtering courses:', error)
+      setCourses(allCourses)
+    }
+  }
 
   const loadPreviewParticipants = async () => {
     if (!selectedCourseId || !selectedCompanyId || !fechaInicio || !fechaFin) return
@@ -282,6 +351,7 @@ export default function AttendanceManagement() {
       if (companiesError) throw companiesError
 
       setAttendanceLists(listsWithCounts)
+      setAllCourses(coursesData || [])
       setCourses(coursesData || [])
       setCompanies(companiesData || [])
     } catch (error) {

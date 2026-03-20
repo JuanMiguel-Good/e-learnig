@@ -150,29 +150,13 @@ export default function ReportsManagement() {
       setIsLoading(true)
       await Promise.all([
         loadParticipantsProgress(),
-        loadCompanyStats(),
-        loadCourses()
+        loadCompanyStats()
       ])
     } catch (error) {
       console.error('Error loading data:', error)
       toast.error('Error al cargar datos')
     } finally {
       setIsLoading(false)
-    }
-  }
-
-  const loadCourses = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('courses')
-        .select('id, title, requires_evaluation')
-        .order('title')
-
-      if (error) throw error
-      setCourses(data || [])
-    } catch (error) {
-      console.error('Error loading courses:', error)
-      throw error
     }
   }
 
@@ -461,6 +445,26 @@ export default function ReportsManagement() {
     if (companyFilter !== 'all') {
       filtered = filtered.filter(p => p.company_id === companyFilter)
     }
+
+    const uniqueCoursesMap = new Map<string, any>()
+    const dataForCourseExtraction = companyFilter !== 'all'
+      ? filtered
+      : participantCourses
+
+    dataForCourseExtraction.forEach((item) => {
+      if (!uniqueCoursesMap.has(item.course_id)) {
+        uniqueCoursesMap.set(item.course_id, {
+          id: item.course_id,
+          title: item.course_title,
+          requires_evaluation: item.requires_evaluation
+        })
+      }
+    })
+
+    const availableCourses = Array.from(uniqueCoursesMap.values()).sort((a, b) =>
+      a.title.localeCompare(b.title)
+    )
+    setCourses(availableCourses)
 
     if (courseFilter !== 'all') {
       filtered = filtered.filter(p => p.course_id === courseFilter)
