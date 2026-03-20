@@ -75,13 +75,6 @@ export default function CompanyReportsManagement() {
 
       setCompanyName(companyData?.razon_social || '')
 
-      const { data: coursesData } = await supabase
-        .from('courses')
-        .select('id, title, requires_evaluation')
-        .order('title')
-
-      setCourses(coursesData || [])
-
       const { data: participants } = await supabase
         .from('users')
         .select('id, first_name, last_name, email, dni, area')
@@ -162,6 +155,23 @@ export default function CompanyReportsManagement() {
       allCertificates?.forEach(c => {
         certificatesMap.set(`${c.user_id}-${c.course_id}`, c)
       })
+
+      const uniqueCoursesMap = new Map<string, any>()
+      allAssignments?.forEach((assignment: any) => {
+        const course = assignment.courses
+        if (!uniqueCoursesMap.has(course.id)) {
+          uniqueCoursesMap.set(course.id, {
+            id: course.id,
+            title: course.title,
+            requires_evaluation: course.requires_evaluation
+          })
+        }
+      })
+
+      const coursesWithAssignments = Array.from(uniqueCoursesMap.values()).sort((a, b) =>
+        a.title.localeCompare(b.title)
+      )
+      setCourses(coursesWithAssignments)
 
       const progressData: ParticipantCourseProgress[] = []
 

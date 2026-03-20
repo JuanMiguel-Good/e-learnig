@@ -235,19 +235,43 @@ export default function CompanyAttendanceManagement() {
         })
       )
 
-      const { data: coursesData, error: coursesError } = await supabase
-        .from('courses')
+      const { data: assignmentsData, error: assignmentsError } = await supabase
+        .from('course_assignments')
         .select(`
-          id,
-          title,
-          hours,
-          activity_type,
-          instructor:instructors!inner(id, name, signature_url)
+          course_id,
+          courses!inner(
+            id,
+            title,
+            hours,
+            activity_type,
+            is_active,
+            instructor:instructors!inner(id, name, signature_url)
+          ),
+          users!inner(id, company_id, role)
         `)
-        .eq('is_active', true)
-        .order('title')
+        .eq('users.company_id', user.company_id)
+        .eq('users.role', 'participant')
+        .eq('courses.is_active', true)
 
-      if (coursesError) throw coursesError
+      if (assignmentsError) throw assignmentsError
+
+      const uniqueCoursesMap = new Map<string, Course>()
+      assignmentsData?.forEach((assignment: any) => {
+        const course = assignment.courses
+        if (!uniqueCoursesMap.has(course.id)) {
+          uniqueCoursesMap.set(course.id, {
+            id: course.id,
+            title: course.title,
+            hours: course.hours,
+            activity_type: course.activity_type,
+            instructor: course.instructor
+          })
+        }
+      })
+
+      const coursesData = Array.from(uniqueCoursesMap.values()).sort((a, b) =>
+        a.title.localeCompare(b.title)
+      )
 
       const { data: companyData, error: companyError } = await supabase
         .from('companies')
