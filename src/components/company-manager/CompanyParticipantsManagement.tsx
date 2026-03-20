@@ -629,6 +629,11 @@ export default function CompanyParticipantsManagement() {
                   <label className="block text-sm font-medium text-slate-700 mb-1">
                     Contraseña {!editingParticipant && '*'}
                   </label>
+                  {!editingParticipant && (
+                    <p className="text-xs text-slate-500 mb-2">
+                      Por defecto, la contraseña será el número de DNI
+                    </p>
+                  )}
                   <div className="relative">
                     <input
                       type={showPassword ? 'text' : 'password'}
