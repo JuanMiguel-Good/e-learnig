@@ -22,17 +22,29 @@ interface ParticipantCourseProgress {
   email: string
   dni: string | null
   area: string | null
+  company_name: string
+  company_id: string
   course_id: string
   course_title: string
+  course_image: string | null
   assigned_date: string
+  started_date: string | null
+  completed_date: string | null
   progress: number
+  total_modules: number
+  completed_modules: number
   total_lessons: number
   completed_lessons: number
   requires_evaluation: boolean
   evaluation_status: 'not_started' | 'passed' | 'failed' | 'pending'
   evaluation_score: number | null
+  evaluation_attempts: number
+  max_attempts: number
+  signature_status: 'signed' | 'pending' | 'not_required'
   certificate_status: 'generated' | 'pending'
   certificate_url: string | null
+  certificate_date: string | null
+  last_activity: string | null
 }
 
 export default function CompanyReportsManagement() {
@@ -217,6 +229,9 @@ export default function CompanyReportsManagement() {
         const certificate = certificatesMap.get(`${assignment.user_id}-${course.id}`)
         const certificateStatus = certificate ? 'generated' : 'pending'
 
+        const evaluation = evaluationsByCourse.get(course.id)
+        const attempts = evaluation ? attemptsByUserAndEval.get(`${assignment.user_id}-${evaluation.id}`) || [] : []
+
         progressData.push({
           participant_id: participant.id,
           first_name: participant.first_name,
@@ -224,17 +239,29 @@ export default function CompanyReportsManagement() {
           email: participant.email,
           dni: participant.dni,
           area: participant.area,
+          company_name: companyName,
+          company_id: user.company_id!,
           course_id: course.id,
           course_title: course.title,
+          course_image: null,
           assigned_date: assignment.assigned_at,
+          started_date: null,
+          completed_date: null,
           progress,
+          total_modules: 0,
+          completed_modules: 0,
           total_lessons: totalLessons,
           completed_lessons: completedLessons,
           requires_evaluation: course.requires_evaluation,
           evaluation_status: evaluationStatus,
           evaluation_score: evaluationScore,
+          evaluation_attempts: attempts.length,
+          max_attempts: evaluation?.max_attempts || 0,
+          signature_status: 'not_required',
           certificate_status: certificateStatus,
-          certificate_url: certificate?.certificate_url || null
+          certificate_url: certificate?.certificate_url || null,
+          certificate_date: null,
+          last_activity: null
         })
       })
 
@@ -285,7 +312,19 @@ export default function CompanyReportsManagement() {
 
     setIsExporting(true)
     try {
-      await exportReportsToExcel(filteredParticipantCourses)
+      // Crear datos de la empresa para el reporte
+      const companies = [{
+        company_id: user!.company_id!,
+        company_name: companyName,
+        total_participants: new Set(participantCourses.map(p => p.participant_id)).size,
+        avg_progress: participantCourses.length > 0
+          ? Math.round(participantCourses.reduce((sum, p) => sum + p.progress, 0) / participantCourses.length)
+          : 0,
+        total_certificates: participantCourses.filter(p => p.certificate_status === 'generated').length,
+        total_courses_assigned: participantCourses.length
+      }]
+
+      await exportReportsToExcel(filteredParticipantCourses, companies)
       toast.success('Reporte exportado exitosamente')
     } catch (error) {
       console.error('Error exporting:', error)
