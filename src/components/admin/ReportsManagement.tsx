@@ -189,10 +189,11 @@ export default function ReportsManagement() {
         { data: allAttempts },
         { data: allSignatures },
         { data: allCertificates },
-        { data: allCoursesData }
+        { data: allCoursesData },
+        { data: allCourseIdsWithAssignments }
       ] = await Promise.all([
         supabase.from('companies').select('id, razon_social'),
-        supabase.from('course_assignments').select('user_id, course_id, assigned_at, courses!inner(id, title, requires_evaluation)').in('user_id', participantIds),
+        supabase.from('course_assignments').select('user_id, course_id, assigned_at').in('user_id', participantIds),
         supabase.from('modules').select('id, course_id'),
         supabase.from('lessons').select('id, module_id'),
         supabase.from('lesson_progress').select('user_id, lesson_id, completed, completed_at').in('user_id', participantIds),
@@ -200,7 +201,8 @@ export default function ReportsManagement() {
         supabase.from('evaluation_attempts').select('id, user_id, evaluation_id, passed, score, completed_at').in('user_id', participantIds).order('completed_at', { ascending: false }),
         supabase.from('attendance_signatures').select('user_id, evaluation_attempt_id').in('user_id', participantIds),
         supabase.from('certificates').select('user_id, course_id, certificate_url, completion_date').in('user_id', participantIds),
-        supabase.from('courses').select('id, title, requires_evaluation, image_url, activity_type')
+        supabase.from('courses').select('id, title, requires_evaluation, image_url, activity_type'),
+        supabase.from('course_assignments').select('course_id')
       ])
 
       if (assignmentsError) {
@@ -208,17 +210,23 @@ export default function ReportsManagement() {
       }
 
       console.log('[DEBUG] Raw allAssignmentsData length:', allAssignmentsData?.length || 0)
+      console.log('[DEBUG] Raw allCoursesData length:', allCoursesData?.length || 0)
+
+      // Create courses map for quick lookups
+      const coursesMap = new Map(allCoursesData?.map(c => [c.id, c]) || [])
+
+      const primerosAuxiliosCourseId = '4ef212e9-ee8b-49d7-b01e-9a016bd512ca'
       const primerosAuxiliosRaw = allAssignmentsData?.filter((a: any) =>
-        a.courses?.title?.includes('Primeros Auxilios y respuesta ante emergencias')
+        a.course_id === primerosAuxiliosCourseId
       ) || []
-      console.log('[DEBUG] Primeros Auxilios in raw data:', primerosAuxiliosRaw.length)
+      console.log('[DEBUG] Primeros Auxilios assignments in raw data:', primerosAuxiliosRaw.length)
       if (primerosAuxiliosRaw.length > 0) {
-        console.log('[DEBUG] Sample raw Primeros Auxilios:', primerosAuxiliosRaw[0])
+        console.log('[DEBUG] Sample raw Primeros Auxilios assignment:', primerosAuxiliosRaw[0])
       }
 
-      // Log unique course titles
-      const uniqueTitles = new Set(allAssignmentsData?.map((a: any) => a.courses?.title) || [])
-      console.log('[DEBUG] Unique course titles in assignments:', Array.from(uniqueTitles).sort())
+      // Log unique course IDs
+      const uniqueCourseIds = new Set(allAssignmentsData?.map((a: any) => a.course_id) || [])
+      console.log('[DEBUG] Unique course IDs in assignments:', Array.from(uniqueCourseIds))
 
       const companiesMap = new Map(companies?.map(c => [c.id, c.razon_social]))
       const participantsMap = new Map(participants.map(p => [p.id, p]))
@@ -263,9 +271,6 @@ export default function ReportsManagement() {
       allCertificates?.forEach(c => {
         certificatesByUserAndCourse.set(`${c.user_id}-${c.course_id}`, c)
       })
-
-      // Create courses map for quick lookups BEFORE processing
-      const coursesMap = new Map(allCoursesData?.map(c => [c.id, c]) || [])
 
       const allAssignments = (allAssignmentsData || []).map(assignment => {
         const participant = participantsMap.get(assignment.user_id)
@@ -430,12 +435,14 @@ export default function ReportsManagement() {
 
       setParticipantCourses(participantCoursesData)
 
-      // Load courses for dropdown - only courses that have assignments
-      const assignedCourseIds = new Set(allAssignmentsData?.map((a: any) => a.course_id) || [])
+      // Load courses for dropdown - ALL courses that have at least one assignment (not filtered by participant)
+      const allAssignedCourseIds = new Set(allCourseIdsWithAssignments?.map((a: any) => a.course_id) || [])
       const coursesForDropdown = (allCoursesData || [])
-        .filter(course => assignedCourseIds.has(course.id))
+        .filter(course => allAssignedCourseIds.has(course.id))
         .sort((a, b) => a.title.localeCompare(b.title))
 
+      console.log('[DEBUG] Total course assignments in DB:', allCourseIdsWithAssignments?.length || 0)
+      console.log('[DEBUG] Unique assigned course IDs:', allAssignedCourseIds.size)
       console.log('[DEBUG] Courses for dropdown:', coursesForDropdown.length)
       const primerosInDropdown = coursesForDropdown.filter(c => c.title.includes('Primeros Auxilios y respuesta'))
       console.log('[DEBUG] Primeros Auxilios in final dropdown:', primerosInDropdown)
