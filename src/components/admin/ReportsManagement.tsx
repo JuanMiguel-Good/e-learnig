@@ -168,6 +168,7 @@ export default function ReportsManagement() {
         .select('id, first_name, last_name, email, dni, area, company_id')
         .eq('role', 'participant')
         .order('first_name')
+        .limit(10000)
 
       if (participantsError) throw participantsError
       if (!participants || participants.length === 0) {
