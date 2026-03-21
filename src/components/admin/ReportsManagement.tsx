@@ -177,9 +177,11 @@ export default function ReportsManagement() {
 
       const participantIds = participants.map(p => p.id)
 
+      console.log('[DEBUG] Loading data for', participantIds.length, 'participants')
+
       const [
         { data: companies },
-        { data: allAssignmentsData },
+        { data: allAssignmentsData, error: assignmentsError },
         { data: allModules },
         { data: allLessons },
         { data: allLessonProgress },
@@ -200,6 +202,23 @@ export default function ReportsManagement() {
         supabase.from('certificates').select('user_id, course_id, certificate_url, completion_date').in('user_id', participantIds),
         supabase.from('course_assignments').select('course_id, courses!inner(id, title, requires_evaluation)').in('user_id', participantIds)
       ])
+
+      if (assignmentsError) {
+        console.error('[DEBUG] Error loading assignments:', assignmentsError)
+      }
+
+      console.log('[DEBUG] Raw allAssignmentsData length:', allAssignmentsData?.length || 0)
+      const primerosAuxiliosRaw = allAssignmentsData?.filter((a: any) =>
+        a.courses?.title?.includes('Primeros Auxilios y respuesta ante emergencias')
+      ) || []
+      console.log('[DEBUG] Primeros Auxilios in raw data:', primerosAuxiliosRaw.length)
+      if (primerosAuxiliosRaw.length > 0) {
+        console.log('[DEBUG] Sample raw Primeros Auxilios:', primerosAuxiliosRaw[0])
+      }
+
+      // Log unique course titles
+      const uniqueTitles = new Set(allAssignmentsData?.map((a: any) => a.courses?.title) || [])
+      console.log('[DEBUG] Unique course titles in assignments:', Array.from(uniqueTitles).sort())
 
       const companiesMap = new Map(companies?.map(c => [c.id, c.razon_social]))
       const participantsMap = new Map(participants.map(p => [p.id, p]))
