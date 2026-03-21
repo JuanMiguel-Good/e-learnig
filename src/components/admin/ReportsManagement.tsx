@@ -426,6 +426,16 @@ export default function ReportsManagement() {
       setParticipantCourses(participantCoursesData)
 
       // Load courses for dropdown directly from assignments
+      console.log('[DEBUG] allCoursesWithAssignments length:', allCoursesWithAssignments?.length || 0)
+
+      const primerosInDropdownSource = allCoursesWithAssignments?.filter((a: any) =>
+        a.courses?.title?.includes('Primeros Auxilios y respuesta')
+      ) || []
+      console.log('[DEBUG] Primeros Auxilios in dropdown source:', primerosInDropdownSource.length)
+      if (primerosInDropdownSource.length > 0) {
+        console.log('[DEBUG] Sample dropdown source Primeros Auxilios:', primerosInDropdownSource[0])
+      }
+
       const uniqueCoursesMap = new Map<string, any>()
       allCoursesWithAssignments?.forEach((assignment: any) => {
         if (assignment.courses && !uniqueCoursesMap.has(assignment.courses.id)) {
@@ -439,6 +449,11 @@ export default function ReportsManagement() {
       const coursesForDropdown = Array.from(uniqueCoursesMap.values()).sort((a, b) =>
         a.title.localeCompare(b.title)
       )
+
+      console.log('[DEBUG] Courses for dropdown:', coursesForDropdown.length)
+      const primerosInDropdown = coursesForDropdown.filter(c => c.title.includes('Primeros Auxilios y respuesta'))
+      console.log('[DEBUG] Primeros Auxilios in final dropdown:', primerosInDropdown)
+
       setCourses(coursesForDropdown)
     } catch (error) {
       console.error('Error loading participants progress:', error)
