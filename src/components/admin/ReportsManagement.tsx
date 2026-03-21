@@ -35,6 +35,7 @@ interface ParticipantCourseProgress {
   course_id: string
   course_title: string
   course_image: string | null
+  activity_type: 'full_course' | 'topic' | 'attendance_only'
   assigned_date: string
   started_date: string | null
   completed_date: string | null
@@ -188,7 +189,7 @@ export default function ReportsManagement() {
         { data: allCertificates }
       ] = await Promise.all([
         supabase.from('companies').select('id, razon_social'),
-        supabase.from('course_assignments').select('user_id, course_id, assigned_at, courses!inner(id, title, image_url, requires_evaluation)').in('user_id', participantIds),
+        supabase.from('course_assignments').select('user_id, course_id, assigned_at, courses!inner(id, title, image_url, requires_evaluation, activity_type)').in('user_id', participantIds),
         supabase.from('modules').select('id, course_id'),
         supabase.from('lessons').select('id, module_id'),
         supabase.from('lesson_progress').select('user_id, lesson_id, completed, completed_at').in('user_id', participantIds),
@@ -263,7 +264,6 @@ export default function ReportsManagement() {
 
         const lessonProgressList = lessons.map(l => progressByUserAndLesson.get(`${participant.id}-${l.id}`)).filter(Boolean)
         const completedLessons = lessonProgressList.filter(p => p.completed).length
-        let progress = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0
 
         const completedModulesSet = new Set<string>()
         lessonProgressList.filter(p => p.completed).forEach(p => {
@@ -308,16 +308,38 @@ export default function ReportsManagement() {
                 evaluationStatus = 'failed'
                 evaluationScore = attempts[0].score
               }
-            } else if (progress === 100) {
-              evaluationStatus = 'pending'
             }
           }
         }
 
         const certificate = certificatesByUserAndCourse.get(`${participant.id}-${course.id}`)
 
-        if (course.requires_evaluation && (evaluationStatus === 'passed' || certificate)) {
-          progress = 100
+        const activityType = course.activity_type || 'full_course'
+        let progress = 0
+
+        if (activityType === 'topic') {
+          if (evaluationStatus === 'passed') {
+            progress = 100
+          } else if (evaluationStatus === 'failed' && evaluationAttempts < maxAttempts) {
+            progress = 50
+          } else if (evaluationStatus === 'failed') {
+            progress = 0
+          } else {
+            progress = 0
+          }
+        } else if (activityType === 'attendance_only') {
+          progress = 0
+        } else {
+          progress = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0
+
+          if (course.requires_evaluation && (evaluationStatus === 'passed' || certificate)) {
+            progress = 100
+          } else if (course.requires_evaluation && totalLessons > 0) {
+            const lessonProgress = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0
+            if (lessonProgress === 100 && evaluationStatus === 'not_started') {
+              evaluationStatus = 'pending'
+            }
+          }
         }
 
         let completedDate: string | null = null
@@ -343,6 +365,7 @@ export default function ReportsManagement() {
           course_id: course.id,
           course_title: course.title,
           course_image: course.image_url,
+          activity_type: activityType,
           assigned_date: assignment.assigned_at,
           started_date: startedDate,
           completed_date: completedDate,
@@ -788,7 +811,9 @@ export default function ReportsManagement() {
                         <td className="px-4 py-3">
                           <div className="text-sm font-medium text-slate-900">{item.course_title}</div>
                           <div className="text-xs text-slate-500 mt-1">
-                            {item.total_lessons} lecciones • {item.completed_lessons} completadas
+                            {item.activity_type === 'full_course' && `${item.total_lessons} lecciones • ${item.completed_lessons} completadas`}
+                            {item.activity_type === 'topic' && 'Tipo: Evaluación'}
+                            {item.activity_type === 'attendance_only' && 'Tipo: Solo Asistencia'}
                           </div>
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap">

@@ -27,6 +27,7 @@ interface ParticipantCourseProgress {
   course_id: string
   course_title: string
   course_image: string | null
+  activity_type: 'full_course' | 'topic' | 'attendance_only'
   assigned_date: string
   started_date: string | null
   completed_date: string | null
@@ -110,7 +111,7 @@ export default function CompanyReportsManagement() {
       ] = await Promise.all([
         supabase
           .from('course_assignments')
-          .select('user_id, course_id, assigned_at, courses!inner(id, title, requires_evaluation)')
+          .select('user_id, course_id, assigned_at, courses!inner(id, title, requires_evaluation, activity_type)')
           .in('user_id', participantIds),
         supabase
           .from('lessons')
@@ -175,7 +176,8 @@ export default function CompanyReportsManagement() {
           uniqueCoursesMap.set(course.id, {
             id: course.id,
             title: course.title,
-            requires_evaluation: course.requires_evaluation
+            requires_evaluation: course.requires_evaluation,
+            activity_type: course.activity_type
           })
         }
       })
@@ -202,15 +204,13 @@ export default function CompanyReportsManagement() {
           }
         })
 
-        const progress = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0
-
         let evaluationStatus: 'not_started' | 'passed' | 'failed' | 'pending' = 'not_started'
         let evaluationScore: number | null = null
+        const evaluation = evaluationsByCourse.get(course.id)
+        const attempts = evaluation ? attemptsByUserAndEval.get(`${assignment.user_id}-${evaluation.id}`) || [] : []
 
         if (course.requires_evaluation) {
-          const evaluation = evaluationsByCourse.get(course.id)
           if (evaluation) {
-            const attempts = attemptsByUserAndEval.get(`${assignment.user_id}-${evaluation.id}`) || []
             if (attempts.length > 0) {
               const bestAttempt = attempts.find((a: any) => a.passed)
               if (bestAttempt) {
@@ -226,11 +226,27 @@ export default function CompanyReportsManagement() {
           }
         }
 
+        let progress = 0
+        const activityType = course.activity_type || 'full_course'
+
+        if (activityType === 'topic') {
+          if (evaluationStatus === 'passed') {
+            progress = 100
+          } else if (evaluationStatus === 'failed' && attempts.length < (evaluation?.max_attempts || 0)) {
+            progress = 50
+          } else if (evaluationStatus === 'failed') {
+            progress = 0
+          } else {
+            progress = 0
+          }
+        } else if (activityType === 'attendance_only') {
+          progress = 0
+        } else {
+          progress = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0
+        }
+
         const certificate = certificatesMap.get(`${assignment.user_id}-${course.id}`)
         const certificateStatus = certificate ? 'generated' : 'pending'
-
-        const evaluation = evaluationsByCourse.get(course.id)
-        const attempts = evaluation ? attemptsByUserAndEval.get(`${assignment.user_id}-${evaluation.id}`) || [] : []
 
         progressData.push({
           participant_id: participant.id,
@@ -244,6 +260,7 @@ export default function CompanyReportsManagement() {
           course_id: course.id,
           course_title: course.title,
           course_image: null,
+          activity_type: activityType,
           assigned_date: assignment.assigned_at,
           started_date: null,
           completed_date: null,
@@ -502,7 +519,7 @@ export default function CompanyReportsManagement() {
                   Progreso
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">
-                  Lecciones
+                  Tipo
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">
                   Evaluación
@@ -553,7 +570,9 @@ export default function CompanyReportsManagement() {
                     </td>
                     <td className="px-4 py-4">
                       <div className="text-sm text-slate-600">
-                        {item.completed_lessons}/{item.total_lessons}
+                        {item.activity_type === 'full_course' && `Curso (${item.completed_lessons}/${item.total_lessons})`}
+                        {item.activity_type === 'topic' && 'Evaluación'}
+                        {item.activity_type === 'attendance_only' && 'Asistencia'}
                       </div>
                     </td>
                     <td className="px-4 py-4">
