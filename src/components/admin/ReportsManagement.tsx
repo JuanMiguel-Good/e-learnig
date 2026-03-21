@@ -254,6 +254,12 @@ export default function ReportsManagement() {
         }
       })
 
+      console.log('[DEBUG] Total assignments to process:', allAssignments.length)
+      const primerosAuxiliosAssignments = allAssignments.filter((a: any) =>
+        a.courses?.title === 'Primeros Auxilios y respuesta ante emergencias'
+      )
+      console.log('[DEBUG] Primeros Auxilios assignments found:', primerosAuxiliosAssignments.length)
+
       const participantCoursesData = allAssignments.map((assignment: any) => {
         const participant = assignment.users
         const course = assignment.courses
@@ -389,6 +395,15 @@ export default function ReportsManagement() {
         }
       })
 
+      console.log('[DEBUG] Total participant courses data created:', participantCoursesData.length)
+      const primerosAuxiliosData = participantCoursesData.filter((c: any) =>
+        c.course_title === 'Primeros Auxilios y respuesta ante emergencias'
+      )
+      console.log('[DEBUG] Primeros Auxilios in final data:', primerosAuxiliosData.length)
+      if (primerosAuxiliosData.length > 0) {
+        console.log('[DEBUG] Sample Primeros Auxilios data:', primerosAuxiliosData[0])
+      }
+
       setParticipantCourses(participantCoursesData)
 
       // Load courses for dropdown directly from assignments
@@ -490,7 +505,16 @@ export default function ReportsManagement() {
     // Courses are now loaded in loadParticipantsProgress directly from assignments
 
     if (courseFilter !== 'all') {
+      console.log('[DEBUG] Filtering by course:', courseFilter)
+      console.log('[DEBUG] Before course filter:', filtered.length)
       filtered = filtered.filter(p => p.course_id === courseFilter)
+      console.log('[DEBUG] After course filter:', filtered.length)
+      if (courseFilter === '4ef212e9-ee8b-49d7-b01e-9a016bd512ca') {
+        console.log('[DEBUG] Filtering for Primeros Auxilios, results:', filtered.length)
+        if (filtered.length > 0) {
+          console.log('[DEBUG] Sample filtered data:', filtered[0])
+        }
+      }
     }
 
     setFilteredParticipantCourses(filtered)
