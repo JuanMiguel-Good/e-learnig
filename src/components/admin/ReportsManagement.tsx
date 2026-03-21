@@ -190,8 +190,7 @@ export default function ReportsManagement() {
         { data: allAttempts },
         { data: allSignatures },
         { data: allCertificates },
-        { data: allCoursesData },
-        { data: allCourseIdsWithAssignments }
+        { data: allCoursesData }
       ] = await Promise.all([
         supabase.from('companies').select('id, razon_social'),
         supabase.from('course_assignments').select('user_id, course_id, assigned_at').in('user_id', participantIds).limit(10000),
@@ -202,8 +201,7 @@ export default function ReportsManagement() {
         supabase.from('evaluation_attempts').select('id, user_id, evaluation_id, passed, score, completed_at').in('user_id', participantIds).order('completed_at', { ascending: false }).limit(20000),
         supabase.from('attendance_signatures').select('user_id, evaluation_attempt_id').in('user_id', participantIds).limit(10000),
         supabase.from('certificates').select('user_id, course_id, certificate_url, completion_date').in('user_id', participantIds).limit(10000),
-        supabase.from('courses').select('id, title, requires_evaluation, image_url, activity_type').limit(500),
-        supabase.from('course_assignments').select('course_id').limit(10000)
+        supabase.from('courses').select('id, title, requires_evaluation, image_url, activity_type').limit(500)
       ])
 
       if (assignmentsError) {
@@ -436,13 +434,13 @@ export default function ReportsManagement() {
 
       setParticipantCourses(participantCoursesData)
 
-      // Load courses for dropdown - ALL courses that have at least one assignment (not filtered by participant)
-      const allAssignedCourseIds = new Set(allCourseIdsWithAssignments?.map((a: any) => a.course_id) || [])
+      // Load courses for dropdown - build from actual loaded assignments data
+      const allAssignedCourseIds = new Set((allAssignmentsData || []).map((a: any) => a.course_id))
       const coursesForDropdown = (allCoursesData || [])
         .filter(course => allAssignedCourseIds.has(course.id))
         .sort((a, b) => a.title.localeCompare(b.title))
 
-      console.log('[DEBUG] Total course assignments in DB:', allCourseIdsWithAssignments?.length || 0)
+      console.log('[DEBUG] Total assignments loaded:', allAssignmentsData?.length || 0)
       console.log('[DEBUG] Unique assigned course IDs:', allAssignedCourseIds.size)
       console.log('[DEBUG] Courses for dropdown:', coursesForDropdown.length)
       const primerosInDropdown = coursesForDropdown.filter(c => c.title.includes('Primeros Auxilios y respuesta'))
