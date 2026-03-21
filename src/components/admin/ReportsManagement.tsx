@@ -470,11 +470,8 @@ export default function ReportsManagement() {
     }
 
     const uniqueCoursesMap = new Map<string, any>()
-    const dataForCourseExtraction = companyFilter !== 'all'
-      ? filtered
-      : participantCourses
 
-    dataForCourseExtraction.forEach((item) => {
+    participantCourses.forEach((item) => {
       if (!uniqueCoursesMap.has(item.course_id)) {
         uniqueCoursesMap.set(item.course_id, {
           id: item.course_id,
