@@ -193,16 +193,16 @@ export default function ReportsManagement() {
         { data: allCourseIdsWithAssignments }
       ] = await Promise.all([
         supabase.from('companies').select('id, razon_social'),
-        supabase.from('course_assignments').select('user_id, course_id, assigned_at').in('user_id', participantIds),
-        supabase.from('modules').select('id, course_id'),
-        supabase.from('lessons').select('id, module_id'),
-        supabase.from('lesson_progress').select('user_id, lesson_id, completed, completed_at').in('user_id', participantIds),
-        supabase.from('evaluations').select('id, course_id, max_attempts, is_active').eq('is_active', true),
-        supabase.from('evaluation_attempts').select('id, user_id, evaluation_id, passed, score, completed_at').in('user_id', participantIds).order('completed_at', { ascending: false }),
-        supabase.from('attendance_signatures').select('user_id, evaluation_attempt_id').in('user_id', participantIds),
-        supabase.from('certificates').select('user_id, course_id, certificate_url, completion_date').in('user_id', participantIds),
-        supabase.from('courses').select('id, title, requires_evaluation, image_url, activity_type'),
-        supabase.from('course_assignments').select('course_id')
+        supabase.from('course_assignments').select('user_id, course_id, assigned_at').in('user_id', participantIds).limit(10000),
+        supabase.from('modules').select('id, course_id').limit(5000),
+        supabase.from('lessons').select('id, module_id').limit(10000),
+        supabase.from('lesson_progress').select('user_id, lesson_id, completed, completed_at').in('user_id', participantIds).limit(50000),
+        supabase.from('evaluations').select('id, course_id, max_attempts, is_active').eq('is_active', true).limit(500),
+        supabase.from('evaluation_attempts').select('id, user_id, evaluation_id, passed, score, completed_at').in('user_id', participantIds).order('completed_at', { ascending: false }).limit(20000),
+        supabase.from('attendance_signatures').select('user_id, evaluation_attempt_id').in('user_id', participantIds).limit(10000),
+        supabase.from('certificates').select('user_id, course_id, certificate_url, completion_date').in('user_id', participantIds).limit(10000),
+        supabase.from('courses').select('id, title, requires_evaluation, image_url, activity_type').limit(500),
+        supabase.from('course_assignments').select('course_id').limit(10000)
       ])
 
       if (assignmentsError) {
