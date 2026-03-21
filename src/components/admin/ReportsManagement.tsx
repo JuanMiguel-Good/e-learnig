@@ -252,6 +252,12 @@ export default function ReportsManagement() {
         }
       })
 
+      console.log('[DEBUG] Total assignments loaded:', allAssignments.length)
+      const primerosAuxiliosAssignments = allAssignments.filter((a: any) =>
+        a.courses?.title?.includes('Primeros Auxilios y respuesta ante emergencias')
+      )
+      console.log('[DEBUG] Primeros Auxilios assignments found:', primerosAuxiliosAssignments.length)
+
       const participantCoursesData = allAssignments.map((assignment: any) => {
         const participant = assignment.users
         const course = assignment.courses
@@ -387,6 +393,12 @@ export default function ReportsManagement() {
         }
       })
 
+      console.log('[DEBUG] Total participant courses data:', participantCoursesData.length)
+      const primerosAuxiliosCourses = participantCoursesData.filter((c: any) =>
+        c.course_title?.includes('Primeros Auxilios y respuesta ante emergencias')
+      )
+      console.log('[DEBUG] Primeros Auxilios courses in data:', primerosAuxiliosCourses.length)
+
       setParticipantCourses(participantCoursesData)
     } catch (error) {
       console.error('Error loading participants progress:', error)
@@ -471,6 +483,12 @@ export default function ReportsManagement() {
 
     const uniqueCoursesMap = new Map<string, any>()
 
+    console.log('[DEBUG] applyFilters - participantCourses length:', participantCourses.length)
+    const primerosAuxiliosInState = participantCourses.filter((c: any) =>
+      c.course_title?.includes('Primeros Auxilios y respuesta ante emergencias')
+    )
+    console.log('[DEBUG] applyFilters - Primeros Auxilios in state:', primerosAuxiliosInState.length)
+
     participantCourses.forEach((item) => {
       if (!uniqueCoursesMap.has(item.course_id)) {
         uniqueCoursesMap.set(item.course_id, {
@@ -484,6 +502,12 @@ export default function ReportsManagement() {
     const availableCourses = Array.from(uniqueCoursesMap.values()).sort((a, b) =>
       a.title.localeCompare(b.title)
     )
+    console.log('[DEBUG] applyFilters - Available courses:', availableCourses.length)
+    const primerosAuxiliosInDropdown = availableCourses.filter((c: any) =>
+      c.title?.includes('Primeros Auxilios y respuesta ante emergencias')
+    )
+    console.log('[DEBUG] applyFilters - Primeros Auxilios in dropdown:', primerosAuxiliosInDropdown.length, primerosAuxiliosInDropdown)
+
     setCourses(availableCourses)
 
     if (courseFilter !== 'all') {
