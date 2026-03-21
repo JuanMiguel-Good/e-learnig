@@ -186,7 +186,8 @@ export default function ReportsManagement() {
         { data: allEvaluations },
         { data: allAttempts },
         { data: allSignatures },
-        { data: allCertificates }
+        { data: allCertificates },
+        { data: allCoursesWithAssignments }
       ] = await Promise.all([
         supabase.from('companies').select('id, razon_social'),
         supabase.from('course_assignments').select('user_id, course_id, assigned_at, courses!inner(id, title, image_url, requires_evaluation, activity_type)').in('user_id', participantIds),
@@ -196,7 +197,8 @@ export default function ReportsManagement() {
         supabase.from('evaluations').select('id, course_id, max_attempts, is_active').eq('is_active', true),
         supabase.from('evaluation_attempts').select('id, user_id, evaluation_id, passed, score, completed_at').in('user_id', participantIds).order('completed_at', { ascending: false }),
         supabase.from('attendance_signatures').select('user_id, evaluation_attempt_id').in('user_id', participantIds),
-        supabase.from('certificates').select('user_id, course_id, certificate_url, completion_date').in('user_id', participantIds)
+        supabase.from('certificates').select('user_id, course_id, certificate_url, completion_date').in('user_id', participantIds),
+        supabase.from('course_assignments').select('course_id, courses!inner(id, title, requires_evaluation)').in('user_id', participantIds)
       ])
 
       const companiesMap = new Map(companies?.map(c => [c.id, c.razon_social]))
@@ -251,12 +253,6 @@ export default function ReportsManagement() {
           participant_company: companiesMap.get(participant?.company_id || '') || 'Sin empresa'
         }
       })
-
-      console.log('[DEBUG] Total assignments loaded:', allAssignments.length)
-      const primerosAuxiliosAssignments = allAssignments.filter((a: any) =>
-        a.courses?.title?.includes('Primeros Auxilios y respuesta ante emergencias')
-      )
-      console.log('[DEBUG] Primeros Auxilios assignments found:', primerosAuxiliosAssignments.length)
 
       const participantCoursesData = allAssignments.map((assignment: any) => {
         const participant = assignment.users
@@ -393,13 +389,23 @@ export default function ReportsManagement() {
         }
       })
 
-      console.log('[DEBUG] Total participant courses data:', participantCoursesData.length)
-      const primerosAuxiliosCourses = participantCoursesData.filter((c: any) =>
-        c.course_title?.includes('Primeros Auxilios y respuesta ante emergencias')
-      )
-      console.log('[DEBUG] Primeros Auxilios courses in data:', primerosAuxiliosCourses.length)
-
       setParticipantCourses(participantCoursesData)
+
+      // Load courses for dropdown directly from assignments
+      const uniqueCoursesMap = new Map<string, any>()
+      allCoursesWithAssignments?.forEach((assignment: any) => {
+        if (assignment.courses && !uniqueCoursesMap.has(assignment.courses.id)) {
+          uniqueCoursesMap.set(assignment.courses.id, {
+            id: assignment.courses.id,
+            title: assignment.courses.title,
+            requires_evaluation: assignment.courses.requires_evaluation
+          })
+        }
+      })
+      const coursesForDropdown = Array.from(uniqueCoursesMap.values()).sort((a, b) =>
+        a.title.localeCompare(b.title)
+      )
+      setCourses(coursesForDropdown)
     } catch (error) {
       console.error('Error loading participants progress:', error)
       throw error
@@ -481,34 +487,7 @@ export default function ReportsManagement() {
       filtered = filtered.filter(p => p.company_id === companyFilter)
     }
 
-    const uniqueCoursesMap = new Map<string, any>()
-
-    console.log('[DEBUG] applyFilters - participantCourses length:', participantCourses.length)
-    const primerosAuxiliosInState = participantCourses.filter((c: any) =>
-      c.course_title?.includes('Primeros Auxilios y respuesta ante emergencias')
-    )
-    console.log('[DEBUG] applyFilters - Primeros Auxilios in state:', primerosAuxiliosInState.length)
-
-    participantCourses.forEach((item) => {
-      if (!uniqueCoursesMap.has(item.course_id)) {
-        uniqueCoursesMap.set(item.course_id, {
-          id: item.course_id,
-          title: item.course_title,
-          requires_evaluation: item.requires_evaluation
-        })
-      }
-    })
-
-    const availableCourses = Array.from(uniqueCoursesMap.values()).sort((a, b) =>
-      a.title.localeCompare(b.title)
-    )
-    console.log('[DEBUG] applyFilters - Available courses:', availableCourses.length)
-    const primerosAuxiliosInDropdown = availableCourses.filter((c: any) =>
-      c.title?.includes('Primeros Auxilios y respuesta ante emergencias')
-    )
-    console.log('[DEBUG] applyFilters - Primeros Auxilios in dropdown:', primerosAuxiliosInDropdown.length, primerosAuxiliosInDropdown)
-
-    setCourses(availableCourses)
+    // Courses are now loaded in loadParticipantsProgress directly from assignments
 
     if (courseFilter !== 'all') {
       filtered = filtered.filter(p => p.course_id === courseFilter)
