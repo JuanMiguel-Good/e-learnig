@@ -9,7 +9,11 @@ import {
   BookOpen,
   CheckCircle,
   XCircle,
-  Clock
+  Clock,
+  Filter,
+  HelpCircle,
+  FileText,
+  X
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useAuth } from '../../contexts/AuthContext'
@@ -57,12 +61,14 @@ export default function CompanyReportsManagement() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'completed' | 'in_progress' | 'not_started'>('all')
   const [courseFilter, setCourseFilter] = useState<string>('all')
   const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingData, setIsLoadingData] = useState(false)
+  const [hasLoadedData, setHasLoadedData] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
   const [courses, setCourses] = useState<any[]>([])
 
   useEffect(() => {
     if (user?.company_id) {
-      loadData()
+      loadInitialData()
     }
   }, [user?.company_id])
 
@@ -70,7 +76,7 @@ export default function CompanyReportsManagement() {
     applyFilters()
   }, [participantCourses, searchTerm, statusFilter, courseFilter])
 
-  const loadData = async () => {
+  const loadInitialData = async () => {
     if (!user?.company_id) {
       toast.error('No tienes una empresa asignada')
       setIsLoading(false)
@@ -90,12 +96,70 @@ export default function CompanyReportsManagement() {
 
       const { data: participants } = await supabase
         .from('users')
+        .select('id')
+        .eq('role', 'participant')
+        .eq('company_id', user.company_id)
+
+      if (!participants || participants.length === 0) {
+        setIsLoading(false)
+        return
+      }
+
+      const participantIds = participants.map(p => p.id)
+
+      const { data: allAssignments } = await supabase
+        .from('course_assignments')
+        .select('course_id, courses!inner(id, title, requires_evaluation, activity_type)')
+        .in('user_id', participantIds)
+
+      const uniqueCoursesMap = new Map<string, any>()
+      allAssignments?.forEach((assignment: any) => {
+        const course = assignment.courses
+        if (!uniqueCoursesMap.has(course.id)) {
+          uniqueCoursesMap.set(course.id, {
+            id: course.id,
+            title: course.title,
+            requires_evaluation: course.requires_evaluation,
+            activity_type: course.activity_type
+          })
+        }
+      })
+
+      const coursesWithAssignments = Array.from(uniqueCoursesMap.values()).sort((a, b) =>
+        a.title.localeCompare(b.title)
+      )
+      setCourses(coursesWithAssignments)
+    } catch (error) {
+      console.error('Error loading initial data:', error)
+      toast.error('Error al cargar datos iniciales')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const loadReportData = async () => {
+    if (courseFilter === 'all') {
+      toast.error('Por favor selecciona un curso')
+      return
+    }
+
+    if (!user?.company_id) {
+      toast.error('No tienes una empresa asignada')
+      return
+    }
+
+    try {
+      setIsLoadingData(true)
+
+      const { data: participants } = await supabase
+        .from('users')
         .select('id, first_name, last_name, email, dni, area')
         .eq('role', 'participant')
         .eq('company_id', user.company_id)
 
       if (!participants || participants.length === 0) {
         setParticipantCourses([])
+        setHasLoadedData(true)
         return
       }
 
@@ -112,7 +176,8 @@ export default function CompanyReportsManagement() {
         supabase
           .from('course_assignments')
           .select('user_id, course_id, assigned_at, courses!inner(id, title, requires_evaluation, activity_type)')
-          .in('user_id', participantIds),
+          .in('user_id', participantIds)
+          .eq('course_id', courseFilter),
         supabase
           .from('lessons')
           .select('id, module_id, modules!inner(course_id)'),
@@ -283,12 +348,22 @@ export default function CompanyReportsManagement() {
       })
 
       setParticipantCourses(progressData)
+      setHasLoadedData(true)
     } catch (error) {
-      console.error('Error loading data:', error)
-      toast.error('Error al cargar datos')
+      console.error('Error loading report data:', error)
+      toast.error('Error al cargar datos del reporte')
     } finally {
-      setIsLoading(false)
+      setIsLoadingData(false)
     }
+  }
+
+  const handleClearFilters = () => {
+    setCourseFilter('all')
+    setSearchTerm('')
+    setStatusFilter('all')
+    setParticipantCourses([])
+    setFilteredParticipantCourses([])
+    setHasLoadedData(false)
   }
 
   const applyFilters = () => {
@@ -410,104 +485,183 @@ export default function CompanyReportsManagement() {
           <h1 className="text-2xl font-bold text-slate-800">Reportes</h1>
           <p className="text-slate-600">Estadísticas y progreso de {companyName}</p>
         </div>
-        <button
-          onClick={handleExport}
-          disabled={isExporting || filteredParticipantCourses.length === 0}
-          className="inline-flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
-        >
-          <Download className="w-5 h-5 mr-2" />
-          {isExporting ? 'Exportando...' : 'Exportar Excel'}
-        </button>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl shadow-sm border p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-slate-600">Total Asignaciones</p>
-              <p className="text-2xl font-bold text-slate-800 mt-1">{stats.totalAssignments}</p>
-            </div>
-            <BookOpen className="w-10 h-10 text-blue-500" />
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-slate-600">Completados</p>
-              <p className="text-2xl font-bold text-green-600 mt-1">{stats.completed}</p>
-            </div>
-            <CheckCircle className="w-10 h-10 text-green-500" />
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-slate-600">Progreso Promedio</p>
-              <p className="text-2xl font-bold text-slate-800 mt-1">{stats.avgProgress}%</p>
-            </div>
-            <ClipboardCheck className="w-10 h-10 text-slate-500" />
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-slate-600">Certificados</p>
-              <p className="text-2xl font-bold text-yellow-600 mt-1">{stats.certificatesGenerated}</p>
-            </div>
-            <Award className="w-10 h-10 text-yellow-500" />
-          </div>
+        <div className="flex gap-3">
+          {hasLoadedData && (
+            <>
+              <button
+                onClick={handleExport}
+                disabled={isExporting || filteredParticipantCourses.length === 0}
+                className="inline-flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+              >
+                <Download className="w-5 h-5 mr-2" />
+                {isExporting ? 'Exportando...' : 'Exportar Excel'}
+              </button>
+              <button
+                onClick={handleClearFilters}
+                className="inline-flex items-center px-4 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-lg font-medium transition-colors"
+              >
+                <X className="w-5 h-5 mr-2" />
+                Nueva Consulta
+              </button>
+            </>
+          )}
         </div>
       </div>
+
+      {hasLoadedData && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-white rounded-xl shadow-sm border p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-slate-600">Total Asignaciones</p>
+                <p className="text-2xl font-bold text-slate-800 mt-1">{stats.totalAssignments}</p>
+              </div>
+              <BookOpen className="w-10 h-10 text-blue-500" />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm border p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-slate-600">Completados</p>
+                <p className="text-2xl font-bold text-green-600 mt-1">{stats.completed}</p>
+              </div>
+              <CheckCircle className="w-10 h-10 text-green-500" />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm border p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-slate-600">Progreso Promedio</p>
+                <p className="text-2xl font-bold text-slate-800 mt-1">{stats.avgProgress}%</p>
+              </div>
+              <ClipboardCheck className="w-10 h-10 text-slate-500" />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm border p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-slate-600">Certificados</p>
+                <p className="text-2xl font-bold text-yellow-600 mt-1">{stats.certificatesGenerated}</p>
+              </div>
+              <Award className="w-10 h-10 text-yellow-500" />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="bg-white rounded-xl shadow-sm border p-4 sm:p-6">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
-            <input
-              type="text"
-              placeholder="Buscar participante o curso..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500"
-            />
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">
+              Curso {courseFilter === 'all' && <span className="text-red-600">*</span>}
+            </label>
+            <select
+              value={courseFilter}
+              onChange={(e) => setCourseFilter(e.target.value)}
+              disabled={hasLoadedData}
+              className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 ${
+                courseFilter === 'all' ? 'border-red-300' : 'border-slate-300'
+              } disabled:opacity-50 disabled:cursor-not-allowed`}
+            >
+              <option value="all">Selecciona un curso</option>
+              {courses.map((course) => (
+                <option key={course.id} value={course.id}>
+                  {course.title}
+                </option>
+              ))}
+            </select>
           </div>
 
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as any)}
-            className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500"
-          >
-            <option value="all">Todos los estados</option>
-            <option value="completed">Completados</option>
-            <option value="in_progress">En progreso</option>
-            <option value="not_started">No iniciados</option>
-          </select>
+          {!hasLoadedData && (
+            <div className="flex items-center justify-between pt-2 border-t">
+              <div className="flex items-center text-sm text-slate-600">
+                <HelpCircle className="w-4 h-4 mr-2" />
+                Selecciona un curso para generar el reporte
+              </div>
+              <button
+                onClick={loadReportData}
+                disabled={isLoadingData || courseFilter === 'all'}
+                className="inline-flex items-center px-6 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoadingData ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Generando...
+                  </>
+                ) : (
+                  <>
+                    <FileText className="w-5 h-5 mr-2" />
+                    Generar Reporte
+                  </>
+                )}
+              </button>
+            </div>
+          )}
 
-          <select
-            value={courseFilter}
-            onChange={(e) => setCourseFilter(e.target.value)}
-            className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500"
-          >
-            <option value="all">Todos los cursos</option>
-            {courses.map((course) => (
-              <option key={course.id} value={course.id}>
-                {course.title}
-              </option>
-            ))}
-          </select>
+          {hasLoadedData && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
+                <input
+                  type="text"
+                  placeholder="Buscar participante..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500"
+                />
+              </div>
+
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as any)}
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500"
+              >
+                <option value="all">Todos los estados</option>
+                <option value="completed">Completados</option>
+                <option value="in_progress">En progreso</option>
+                <option value="not_started">No iniciados</option>
+              </select>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-        <div className="max-h-[60vh] overflow-auto">
-          <table className="w-full" style={{minWidth: '900px'}}>
-            <thead className="bg-slate-50 sticky top-0 z-10">
+      {!hasLoadedData ? (
+        <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+          <div className="text-center py-16 px-4">
+            <div className="mx-auto w-24 h-24 bg-slate-100 rounded-full flex items-center justify-center mb-6">
+              <Filter className="w-12 h-12 text-slate-400" />
+            </div>
+            <h3 className="text-xl font-semibold text-slate-800 mb-2">
+              Listo para generar tu reporte
+            </h3>
+            <p className="text-slate-600 mb-6 max-w-md mx-auto">
+              Selecciona un curso arriba y haz clic en "Generar Reporte" para ver el progreso de tus participantes
+            </p>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 max-w-lg mx-auto">
+              <div className="flex items-start">
+                <HelpCircle className="w-5 h-5 text-blue-600 mr-3 mt-0.5 flex-shrink-0" />
+                <div className="text-left">
+                  <p className="text-sm font-medium text-blue-900 mb-2">Instrucciones</p>
+                  <ul className="text-sm text-blue-800 space-y-1">
+                    <li>1. Selecciona un curso de la lista</li>
+                    <li>2. Haz clic en "Generar Reporte"</li>
+                    <li>3. Visualiza y exporta los resultados</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+          <div className="max-h-[60vh] overflow-auto">
+            <table className="w-full" style={{minWidth: '900px'}}>
+              <thead className="bg-slate-50 sticky top-0 z-10">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">
                   Participante
@@ -613,9 +767,10 @@ export default function CompanyReportsManagement() {
                 ))
               )}
             </tbody>
-          </table>
+            </table>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

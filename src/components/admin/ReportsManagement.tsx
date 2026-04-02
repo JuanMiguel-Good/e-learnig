@@ -97,6 +97,8 @@ export default function ReportsManagement() {
   const [companyFilter, setCompanyFilter] = useState<string>('all')
   const [courseFilter, setCourseFilter] = useState<string>('all')
   const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingData, setIsLoadingData] = useState(false)
+  const [hasLoadedData, setHasLoadedData] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
   const [isDownloadingCertificates, setIsDownloadingCertificates] = useState(false)
   const tableScrollRef = React.useRef<HTMLDivElement>(null)
@@ -105,7 +107,7 @@ export default function ReportsManagement() {
   const [showProgressModal, setShowProgressModal] = useState(false)
 
   useEffect(() => {
-    loadData()
+    loadInitialData()
   }, [])
 
   useEffect(() => {
@@ -146,29 +148,131 @@ export default function ReportsManagement() {
     }
   }, [filteredParticipantCourses])
 
-  const loadData = async () => {
+  const loadInitialData = async () => {
     try {
       setIsLoading(true)
       await Promise.all([
-        loadParticipantsProgress(),
-        loadCompanyStats()
+        loadCompaniesList(),
+        loadCoursesList()
       ])
     } catch (error) {
-      console.error('Error loading data:', error)
-      toast.error('Error al cargar datos')
+      console.error('Error loading initial data:', error)
+      toast.error('Error al cargar datos iniciales')
     } finally {
       setIsLoading(false)
     }
   }
 
+  const loadCompaniesList = async () => {
+    try {
+      const { data: companiesData, error } = await supabase
+        .from('companies')
+        .select('id, razon_social')
+        .order('razon_social')
+
+      if (error) throw error
+
+      const statsPromises = (companiesData || []).map(async (company) => {
+        const { data: companyParticipants } = await supabase
+          .from('users')
+          .select('id')
+          .eq('company_id', company.id)
+          .eq('role', 'participant')
+
+        const participantIds = companyParticipants?.map(p => p.id) || []
+
+        const { data: assignments } = await supabase
+          .from('course_assignments')
+          .select('course_id, user_id')
+          .in('user_id', participantIds)
+
+        const { count: certificatesCount } = await supabase
+          .from('certificates')
+          .select('*', { count: 'exact', head: true })
+          .in('user_id', participantIds)
+
+        return {
+          company_id: company.id,
+          company_name: company.razon_social,
+          total_participants: participantIds.length,
+          avg_progress: 0,
+          total_certificates: certificatesCount || 0,
+          total_courses_assigned: assignments?.length || 0
+        }
+      })
+
+      const stats = await Promise.all(statsPromises)
+      setCompanies(stats)
+    } catch (error) {
+      console.error('Error loading companies:', error)
+      throw error
+    }
+  }
+
+  const loadCoursesList = async () => {
+    try {
+      const { data: allCoursesData } = await supabase
+        .from('courses')
+        .select('id, title, requires_evaluation, image_url, activity_type')
+        .order('title')
+
+      const { data: assignmentsData } = await supabase
+        .from('course_assignments')
+        .select('course_id')
+
+      const assignedCourseIds = new Set(assignmentsData?.map(a => a.course_id) || [])
+      const coursesWithAssignments = (allCoursesData || [])
+        .filter(course => assignedCourseIds.has(course.id))
+
+      setCourses(coursesWithAssignments)
+    } catch (error) {
+      console.error('Error loading courses:', error)
+      throw error
+    }
+  }
+
+  const loadReportData = async () => {
+    if (companyFilter === 'all' && courseFilter === 'all') {
+      toast.error('Por favor selecciona al menos una empresa o un curso')
+      return
+    }
+
+    try {
+      setIsLoadingData(true)
+      await loadParticipantsProgress()
+      setHasLoadedData(true)
+    } catch (error) {
+      console.error('Error loading report data:', error)
+      toast.error('Error al cargar datos del reporte')
+    } finally {
+      setIsLoadingData(false)
+    }
+  }
+
+  const handleClearFilters = () => {
+    setCompanyFilter('all')
+    setCourseFilter('all')
+    setSearchTerm('')
+    setStatusFilter('all')
+    setParticipantCourses([])
+    setFilteredParticipantCourses([])
+    setHasLoadedData(false)
+  }
+
   const loadParticipantsProgress = async () => {
     try {
-      const { data: participants, error: participantsError } = await supabase
+      let participantsQuery = supabase
         .from('users')
         .select('id, first_name, last_name, email, dni, area, company_id')
         .eq('role', 'participant')
         .order('first_name')
         .limit(10000)
+
+      if (companyFilter !== 'all') {
+        participantsQuery = participantsQuery.eq('company_id', companyFilter)
+      }
+
+      const { data: participants, error: participantsError } = await participantsQuery
 
       if (participantsError) throw participantsError
       if (!participants || participants.length === 0) {
@@ -180,8 +284,18 @@ export default function ReportsManagement() {
 
       console.log('[DEBUG] Loading data for', participantIds.length, 'participants')
 
+      let assignmentsQuery = supabase
+        .from('course_assignments')
+        .select('user_id, course_id, assigned_at')
+        .in('user_id', participantIds)
+        .limit(10000)
+
+      if (courseFilter !== 'all') {
+        assignmentsQuery = assignmentsQuery.eq('course_id', courseFilter)
+      }
+
       const [
-        { data: companies },
+        { data: companiesData },
         { data: allAssignmentsData, error: assignmentsError },
         { data: allModules },
         { data: allLessons },
@@ -193,7 +307,7 @@ export default function ReportsManagement() {
         { data: allCoursesData }
       ] = await Promise.all([
         supabase.from('companies').select('id, razon_social'),
-        supabase.from('course_assignments').select('user_id, course_id, assigned_at').in('user_id', participantIds).limit(10000),
+        assignmentsQuery,
         supabase.from('modules').select('id, course_id').limit(5000),
         supabase.from('lessons').select('id, module_id').limit(10000),
         supabase.from('lesson_progress').select('user_id, lesson_id, completed, completed_at').in('user_id', participantIds).limit(50000),
@@ -227,7 +341,7 @@ export default function ReportsManagement() {
       const uniqueCourseIds = new Set(allAssignmentsData?.map((a: any) => a.course_id) || [])
       console.log('[DEBUG] Unique course IDs in assignments:', Array.from(uniqueCourseIds))
 
-      const companiesMap = new Map(companies?.map(c => [c.id, c.razon_social]))
+      const companiesMap = new Map(companiesData?.map(c => [c.id, c.razon_social]))
       const participantsMap = new Map(participants.map(p => [p.id, p]))
 
       const modulesByCourse = new Map<string, any[]>()
@@ -453,52 +567,6 @@ export default function ReportsManagement() {
     }
   }
 
-  const loadCompanyStats = async () => {
-    try {
-      const { data: companiesData, error } = await supabase
-        .from('companies')
-        .select('id, razon_social')
-        .order('razon_social')
-
-      if (error) throw error
-
-      const statsPromises = (companiesData || []).map(async (company) => {
-        const { data: companyParticipants } = await supabase
-          .from('users')
-          .select('id')
-          .eq('company_id', company.id)
-          .eq('role', 'participant')
-
-        const participantIds = companyParticipants?.map(p => p.id) || []
-
-        const { data: assignments } = await supabase
-          .from('course_assignments')
-          .select('course_id, user_id')
-          .in('user_id', participantIds)
-
-        const { count: certificatesCount } = await supabase
-          .from('certificates')
-          .select('*', { count: 'exact', head: true })
-          .in('user_id', participantIds)
-
-        return {
-          company_id: company.id,
-          company_name: company.razon_social,
-          total_participants: participantIds.length,
-          avg_progress: 0,
-          total_certificates: certificatesCount || 0,
-          total_courses_assigned: assignments?.length || 0
-        }
-      })
-
-      const stats = await Promise.all(statsPromises)
-      setCompanies(stats)
-    } catch (error) {
-      console.error('Error loading company stats:', error)
-      throw error
-    }
-  }
-
 
   const applyFilters = () => {
     let filtered = [...participantCourses]
@@ -665,155 +733,242 @@ export default function ReportsManagement() {
           <p className="text-slate-600">Monitorea el progreso de todos los participantes</p>
         </div>
         <div className="flex gap-3">
-          <button
-            onClick={handleBulkDownloadClick}
-            disabled={isDownloadingCertificates || isExporting || getAvailableCertificates().length === 0}
-            className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isDownloadingCertificates ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                Descargando...
-              </>
-            ) : (
-              <>
-                <PackageOpen className="w-5 h-5 mr-2" />
-                Descargar Certificados
-              </>
-            )}
-          </button>
-          <button
-            onClick={handleExport}
-            disabled={isExporting || isDownloadingCertificates}
-            className="inline-flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
-          >
-            {isExporting ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                Exportando...
-              </>
-            ) : (
-              <>
-                <Download className="w-5 h-5 mr-2" />
-                Exportar a Excel
-              </>
-            )}
-          </button>
+          {hasLoadedData && (
+            <>
+              <button
+                onClick={handleBulkDownloadClick}
+                disabled={isDownloadingCertificates || isExporting || getAvailableCertificates().length === 0}
+                className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isDownloadingCertificates ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Descargando...
+                  </>
+                ) : (
+                  <>
+                    <PackageOpen className="w-5 h-5 mr-2" />
+                    Descargar Certificados
+                  </>
+                )}
+              </button>
+              <button
+                onClick={handleExport}
+                disabled={isExporting || isDownloadingCertificates}
+                className="inline-flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+              >
+                {isExporting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Exportando...
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-5 h-5 mr-2" />
+                    Exportar a Excel
+                  </>
+                )}
+              </button>
+              <button
+                onClick={handleClearFilters}
+                className="inline-flex items-center px-4 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-lg font-medium transition-colors"
+              >
+                <X className="w-5 h-5 mr-2" />
+                Nueva Consulta
+              </button>
+            </>
+          )}
         </div>
       </div>
 
-      {/* Dashboard Stats */}
-      <div className="bg-white rounded-xl shadow-sm border p-4 sm:p-6 w-full">
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
-                <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                  <div className="flex items-center justify-between">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm text-blue-600 font-medium">Total Asignaciones</p>
-                      <p className="text-2xl font-bold text-blue-900">{participantCourses.length}</p>
+      {hasLoadedData && (
+        <div className="bg-white rounded-xl shadow-sm border p-4 sm:p-6 w-full">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
+                  <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                    <div className="flex items-center justify-between">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm text-blue-600 font-medium">Total Asignaciones</p>
+                        <p className="text-2xl font-bold text-blue-900">{participantCourses.length}</p>
+                      </div>
+                      <BookOpen className="w-8 h-8 text-blue-600 flex-shrink-0 ml-2" />
                     </div>
-                    <BookOpen className="w-8 h-8 text-blue-600 flex-shrink-0 ml-2" />
                   </div>
-                </div>
 
-                <div className="bg-green-50 rounded-lg p-4 border border-green-200">
-                  <div className="flex items-center justify-between">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm text-green-600 font-medium">Cursos Completados</p>
-                      <p className="text-2xl font-bold text-green-900">
-                        {participantCourses.filter(p => p.progress === 100 && (p.requires_evaluation ? p.evaluation_status === 'passed' : true)).length}
-                      </p>
+                  <div className="bg-green-50 rounded-lg p-4 border border-green-200">
+                    <div className="flex items-center justify-between">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm text-green-600 font-medium">Cursos Completados</p>
+                        <p className="text-2xl font-bold text-green-900">
+                          {participantCourses.filter(p => p.progress === 100 && (p.requires_evaluation ? p.evaluation_status === 'passed' : true)).length}
+                        </p>
+                      </div>
+                      <CheckCircle className="w-8 h-8 text-green-600 flex-shrink-0 ml-2" />
                     </div>
-                    <CheckCircle className="w-8 h-8 text-green-600 flex-shrink-0 ml-2" />
                   </div>
-                </div>
 
-                <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
-                  <div className="flex items-center justify-between">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm text-yellow-600 font-medium">Certificados Generados</p>
-                      <p className="text-2xl font-bold text-yellow-900">
-                        {participantCourses.filter(p => p.certificate_status === 'generated').length}
-                      </p>
+                  <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
+                    <div className="flex items-center justify-between">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm text-yellow-600 font-medium">Certificados Generados</p>
+                        <p className="text-2xl font-bold text-yellow-900">
+                          {participantCourses.filter(p => p.certificate_status === 'generated').length}
+                        </p>
+                      </div>
+                      <Award className="w-8 h-8 text-yellow-600 flex-shrink-0 ml-2" />
                     </div>
-                    <Award className="w-8 h-8 text-yellow-600 flex-shrink-0 ml-2" />
                   </div>
-                </div>
 
-                <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
-                  <div className="flex items-center justify-between">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm text-slate-600 font-medium">Progreso Promedio</p>
-                      <p className="text-2xl font-bold text-slate-900">
-                        {participantCourses.length > 0
-                          ? Math.round(participantCourses.reduce((sum, p) => sum + p.progress, 0) / participantCourses.length)
-                          : 0}%
-                      </p>
+                  <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
+                    <div className="flex items-center justify-between">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm text-slate-600 font-medium">Progreso Promedio</p>
+                        <p className="text-2xl font-bold text-slate-900">
+                          {participantCourses.length > 0
+                            ? Math.round(participantCourses.reduce((sum, p) => sum + p.progress, 0) / participantCourses.length)
+                            : 0}%
+                        </p>
+                      </div>
+                      <TrendingUp className="w-8 h-8 text-slate-600 flex-shrink-0 ml-2" />
                     </div>
-                    <TrendingUp className="w-8 h-8 text-slate-600 flex-shrink-0 ml-2" />
                   </div>
-                </div>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Filters */}
       <div className="bg-white rounded-xl shadow-sm border p-4 sm:p-6 w-full">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                <div className="relative sm:col-span-2 lg:col-span-1">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
-                  <input
-                    type="text"
-                    placeholder="Buscar..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
-                  />
-                </div>
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Empresa {companyFilter === 'all' && courseFilter === 'all' && <span className="text-red-600">*</span>}
+              </label>
+              <select
+                value={companyFilter}
+                onChange={(e) => setCompanyFilter(e.target.value)}
+                disabled={hasLoadedData}
+                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm truncate ${
+                  companyFilter === 'all' && courseFilter === 'all' ? 'border-red-300' : 'border-slate-300'
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                <option value="all">Todas las empresas</option>
+                {companies.map((company) => (
+                  <option key={company.company_id} value={company.company_id}>
+                    {company.company_name} ({company.total_courses_assigned} asignaciones)
+                  </option>
+                ))}
+              </select>
+            </div>
 
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value as any)}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm"
-                >
-                  <option value="all">Todos los estados</option>
-                  <option value="completed">Completados</option>
-                  <option value="in_progress">En progreso</option>
-                  <option value="not_started">No iniciados</option>
-                </select>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Curso {companyFilter === 'all' && courseFilter === 'all' && <span className="text-red-600">*</span>}
+              </label>
+              <select
+                value={courseFilter}
+                onChange={(e) => setCourseFilter(e.target.value)}
+                disabled={hasLoadedData}
+                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm truncate ${
+                  companyFilter === 'all' && courseFilter === 'all' ? 'border-red-300' : 'border-slate-300'
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                <option value="all">Todos los cursos</option>
+                {courses.map((course) => (
+                  <option key={course.id} value={course.id}>
+                    {course.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
 
-                <select
-                  value={companyFilter}
-                  onChange={(e) => setCompanyFilter(e.target.value)}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm truncate"
-                >
-                  <option value="all">Todas las empresas</option>
-                  {companies.map((company) => (
-                    <option key={company.company_id} value={company.company_id}>
-                      {company.company_name}
-                    </option>
-                  ))}
-                </select>
+          {!hasLoadedData && (
+            <div className="flex items-center justify-between pt-2 border-t">
+              <div className="flex items-center text-sm text-slate-600">
+                <HelpCircle className="w-4 h-4 mr-2" />
+                Selecciona al menos una empresa o un curso para generar el reporte
+              </div>
+              <button
+                onClick={loadReportData}
+                disabled={isLoadingData || (companyFilter === 'all' && courseFilter === 'all')}
+                className="inline-flex items-center px-6 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoadingData ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Generando...
+                  </>
+                ) : (
+                  <>
+                    <FileText className="w-5 h-5 mr-2" />
+                    Generar Reporte
+                  </>
+                )}
+              </button>
+            </div>
+          )}
 
-                <select
-                  value={courseFilter}
-                  onChange={(e) => setCourseFilter(e.target.value)}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm truncate"
-                >
-                  <option value="all">Todos los cursos</option>
-                  {courses.map((course) => (
-                    <option key={course.id} value={course.id}>
-                      {course.title}
-                    </option>
-                  ))}
-                </select>
+          {hasLoadedData && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 pt-2 border-t">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
+                <input
+                  type="text"
+                  placeholder="Buscar..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                />
+              </div>
+
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as any)}
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm"
+              >
+                <option value="all">Todos los estados</option>
+                <option value="completed">Completados</option>
+                <option value="in_progress">En progreso</option>
+                <option value="not_started">No iniciados</option>
+              </select>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Table Container */}
-      <div className="bg-white rounded-xl shadow-sm border w-full overflow-hidden">
-        <div className="max-h-[70vh] overflow-auto w-full">
-          <div ref={tableScrollRef} className="min-w-full">
-            <table className="w-full table-compact divide-y divide-slate-200" style={{minWidth: '1200px'}}>
-                    <thead className="bg-slate-50 sticky top-0 z-10 shadow-sm">
+      {!hasLoadedData ? (
+        <div className="bg-white rounded-xl shadow-sm border w-full overflow-hidden">
+          <div className="text-center py-16 px-4">
+            <div className="mx-auto w-24 h-24 bg-slate-100 rounded-full flex items-center justify-center mb-6">
+              <Filter className="w-12 h-12 text-slate-400" />
+            </div>
+            <h3 className="text-xl font-semibold text-slate-800 mb-2">
+              Listo para generar tu reporte
+            </h3>
+            <p className="text-slate-600 mb-6 max-w-md mx-auto">
+              Selecciona los filtros necesarios arriba y haz clic en "Generar Reporte" para ver los datos de progreso
+            </p>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 max-w-lg mx-auto">
+              <div className="flex items-start">
+                <HelpCircle className="w-5 h-5 text-blue-600 mr-3 mt-0.5 flex-shrink-0" />
+                <div className="text-left">
+                  <p className="text-sm font-medium text-blue-900 mb-2">Instrucciones</p>
+                  <ul className="text-sm text-blue-800 space-y-1">
+                    <li>1. Selecciona una empresa, un curso, o ambos</li>
+                    <li>2. Haz clic en "Generar Reporte"</li>
+                    <li>3. Visualiza y exporta los resultados</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl shadow-sm border w-full overflow-hidden">
+          <div className="max-h-[70vh] overflow-auto w-full">
+            <div ref={tableScrollRef} className="min-w-full">
+              <table className="w-full table-compact divide-y divide-slate-200" style={{minWidth: '1200px'}}>
+                      <thead className="bg-slate-50 sticky top-0 z-10 shadow-sm">
                       <tr>
                         <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap min-w-[200px] bg-slate-50">
                           Participante
@@ -937,22 +1092,23 @@ export default function ReportsManagement() {
                       </tr>
                     ))}
                     </tbody>
-            </table>
+              </table>
+            </div>
           </div>
-        </div>
 
-        {filteredParticipantCourses.length === 0 && (
-          <div className="text-center py-12">
-            <BookOpen className="mx-auto h-12 w-12 text-slate-400" />
-            <h3 className="mt-2 text-sm font-medium text-slate-900">No hay asignaciones</h3>
-            <p className="mt-1 text-sm text-slate-500">
-              {searchTerm || statusFilter !== 'all' || companyFilter !== 'all' || courseFilter !== 'all'
-                ? 'No hay resultados para los filtros aplicados.'
-                : 'No hay cursos asignados a participantes.'}
-            </p>
-          </div>
-        )}
-      </div>
+          {filteredParticipantCourses.length === 0 && (
+            <div className="text-center py-12">
+              <BookOpen className="mx-auto h-12 w-12 text-slate-400" />
+              <h3 className="mt-2 text-sm font-medium text-slate-900">No hay asignaciones</h3>
+              <p className="mt-1 text-sm text-slate-500">
+                {searchTerm || statusFilter !== 'all'
+                  ? 'No hay resultados para los filtros aplicados.'
+                  : 'No hay cursos asignados a participantes para los filtros seleccionados.'}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       {showConfirmModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
