@@ -224,6 +224,12 @@ export default function ReportsManagement() {
       const coursesWithAssignments = (allCoursesData || [])
         .filter(course => assignedCourseIds.has(course.id))
 
+      console.log('[DEBUG] Courses loaded for dropdown:', coursesWithAssignments.length)
+      const konecranesCourses = coursesWithAssignments.filter(c => c.title.includes('Konecranes'))
+      if (konecranesCourses.length > 0) {
+        console.log('[DEBUG] Konecranes courses found:', konecranesCourses.map(c => ({ id: c.id, title: c.title })))
+      }
+
       setCourses(coursesWithAssignments)
     } catch (error) {
       console.error('Error loading courses:', error)
@@ -283,6 +289,7 @@ export default function ReportsManagement() {
       const participantIds = participants.map(p => p.id)
 
       console.log('[DEBUG] Loading data for', participantIds.length, 'participants')
+      console.log('[DEBUG] filtering by course:', courseFilter)
 
       let assignmentsQuery = supabase
         .from('course_assignments')
@@ -291,6 +298,7 @@ export default function ReportsManagement() {
         .limit(10000)
 
       if (courseFilter !== 'all') {
+        console.log('[DEBUG] Applying course filter to query:', courseFilter)
         assignmentsQuery = assignmentsQuery.eq('course_id', courseFilter)
       }
 
@@ -547,20 +555,6 @@ export default function ReportsManagement() {
       }
 
       setParticipantCourses(participantCoursesData)
-
-      // Load courses for dropdown - build from actual loaded assignments data
-      const allAssignedCourseIds = new Set((allAssignmentsData || []).map((a: any) => a.course_id))
-      const coursesForDropdown = (allCoursesData || [])
-        .filter(course => allAssignedCourseIds.has(course.id))
-        .sort((a, b) => a.title.localeCompare(b.title))
-
-      console.log('[DEBUG] Total assignments loaded:', allAssignmentsData?.length || 0)
-      console.log('[DEBUG] Unique assigned course IDs:', allAssignedCourseIds.size)
-      console.log('[DEBUG] Courses for dropdown:', coursesForDropdown.length)
-      const primerosInDropdown = coursesForDropdown.filter(c => c.title.includes('Primeros Auxilios y respuesta'))
-      console.log('[DEBUG] Primeros Auxilios in final dropdown:', primerosInDropdown)
-
-      setCourses(coursesForDropdown)
     } catch (error) {
       console.error('Error loading participants progress:', error)
       throw error
@@ -866,7 +860,15 @@ export default function ReportsManagement() {
               </label>
               <select
                 value={courseFilter}
-                onChange={(e) => setCourseFilter(e.target.value)}
+                onChange={(e) => {
+                  const selectedCourseId = e.target.value
+                  console.log('[DEBUG] Course filter changed to:', selectedCourseId)
+                  const selectedCourse = courses.find(c => c.id === selectedCourseId)
+                  if (selectedCourse) {
+                    console.log('[DEBUG] Selected course:', selectedCourse.title, selectedCourse.id)
+                  }
+                  setCourseFilter(selectedCourseId)
+                }}
                 disabled={hasLoadedData}
                 className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm truncate ${
                   companyFilter === 'all' && courseFilter === 'all' ? 'border-red-300' : 'border-slate-300'
