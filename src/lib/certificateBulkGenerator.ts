@@ -41,7 +41,7 @@ export class CertificateBulkGenerator {
             title,
             instructors!inner(
               id,
-              full_name,
+              name,
               signature_url
             )
           )
@@ -61,7 +61,7 @@ export class CertificateBulkGenerator {
 
         const userName = `${cert.users.first_name} ${cert.users.last_name}`
         const courseName = cert.courses.title
-        const instructorName = cert.courses.instructors?.full_name || 'Instructor'
+        const instructorName = cert.courses.instructors?.name || 'Instructor'
         const instructorSignature = cert.courses.instructors?.signature_url || null
         const completionDate = cert.completion_date
 
