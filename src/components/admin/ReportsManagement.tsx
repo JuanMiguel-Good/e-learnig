@@ -22,6 +22,7 @@ import {
 import toast from 'react-hot-toast'
 import { exportReportsToExcel } from '../../lib/reportsExporter'
 import { CertificateBulkDownloader } from '../../lib/certificateBulkDownloader'
+import { CertificateBulkGenerator } from '../../lib/certificateBulkGenerator'
 
 interface ParticipantCourseProgress {
   participant_id: string
@@ -105,6 +106,9 @@ export default function ReportsManagement() {
   const [downloadProgress, setDownloadProgress] = useState({ current: 0, total: 0, percentage: 0 })
   const [showConfirmModal, setShowConfirmModal] = useState(false)
   const [showProgressModal, setShowProgressModal] = useState(false)
+  const [isGeneratingCertificates, setIsGeneratingCertificates] = useState(false)
+  const [generationProgress, setGenerationProgress] = useState({ current: 0, total: 0, userName: '', courseName: '' })
+  const [showGenerationModal, setShowGenerationModal] = useState(false)
 
   useEffect(() => {
     loadInitialData()
@@ -686,6 +690,55 @@ export default function ReportsManagement() {
     }
   }
 
+  const handleGeneratePendingCertificates = async () => {
+    const pendingCount = participantCourses.filter(p => p.certificate_status === 'ready_to_generate').length
+
+    if (pendingCount === 0) {
+      toast.error('No hay certificados pendientes de generar')
+      return
+    }
+
+    const confirmed = window.confirm(
+      `¿Desea generar automáticamente ${pendingCount} certificados pendientes? Este proceso puede tomar varios minutos.`
+    )
+
+    if (!confirmed) return
+
+    try {
+      setIsGeneratingCertificates(true)
+      setShowGenerationModal(true)
+      setGenerationProgress({ current: 0, total: pendingCount, userName: '', courseName: '' })
+
+      const result = await CertificateBulkGenerator.generatePendingCertificates(
+        (current, total, userName, courseName) => {
+          setGenerationProgress({ current, total, userName, courseName })
+        },
+        (error, userName, courseName) => {
+          console.error(`Error generando certificado para ${userName} - ${courseName}:`, error)
+        }
+      )
+
+      setShowGenerationModal(false)
+
+      if (result.failed > 0) {
+        toast.success(
+          `${result.success} certificados generados correctamente, ${result.failed} fallaron`
+        )
+      } else {
+        toast.success(`Todos los ${result.success} certificados se generaron correctamente`)
+      }
+
+      await loadReportData()
+    } catch (error) {
+      console.error('Error generating certificates:', error)
+      setShowGenerationModal(false)
+      toast.error('Error al generar certificados')
+    } finally {
+      setIsGeneratingCertificates(false)
+      setGenerationProgress({ current: 0, total: 0, userName: '', courseName: '' })
+    }
+  }
+
   const getProgressColor = (progress: number) => {
     if (progress === 100) return 'text-green-600 bg-green-100'
     if (progress > 0) return 'text-blue-600 bg-blue-100'
@@ -732,8 +785,26 @@ export default function ReportsManagement() {
           {hasLoadedData && (
             <>
               <button
+                onClick={handleGeneratePendingCertificates}
+                disabled={isGeneratingCertificates || isDownloadingCertificates || isExporting || participantCourses.filter(p => p.certificate_status === 'ready_to_generate').length === 0}
+                className="inline-flex items-center px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title={`Generar ${participantCourses.filter(p => p.certificate_status === 'ready_to_generate').length} certificados pendientes`}
+              >
+                {isGeneratingCertificates ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Generando...
+                  </>
+                ) : (
+                  <>
+                    <Award className="w-5 h-5 mr-2" />
+                    Generar Certificados
+                  </>
+                )}
+              </button>
+              <button
                 onClick={handleBulkDownloadClick}
-                disabled={isDownloadingCertificates || isExporting || getAvailableCertificates().length === 0}
+                disabled={isDownloadingCertificates || isExporting || isGeneratingCertificates || getAvailableCertificates().length === 0}
                 className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isDownloadingCertificates ? (
@@ -750,7 +821,7 @@ export default function ReportsManagement() {
               </button>
               <button
                 onClick={handleExport}
-                disabled={isExporting || isDownloadingCertificates}
+                disabled={isExporting || isDownloadingCertificates || isGeneratingCertificates}
                 className="inline-flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
               >
                 {isExporting ? (
@@ -1190,6 +1261,39 @@ export default function ReportsManagement() {
               </div>
               <p className="text-sm font-medium text-slate-700">
                 {downloadProgress.percentage}%
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showGenerationModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full mx-4 p-6">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-600 mx-auto mb-4"></div>
+              <h3 className="text-lg font-semibold text-slate-900 mb-2">
+                Generando Certificados
+              </h3>
+              <p className="text-sm text-slate-600 mb-2">
+                Procesando certificado {generationProgress.current} de {generationProgress.total}
+              </p>
+              {generationProgress.userName && (
+                <p className="text-xs text-slate-500 mb-4 truncate px-4">
+                  {generationProgress.userName} - {generationProgress.courseName}
+                </p>
+              )}
+              <div className="w-full bg-slate-200 rounded-full h-2.5 mb-2">
+                <div
+                  className="bg-amber-600 h-2.5 rounded-full transition-all duration-300"
+                  style={{ width: `${(generationProgress.current / generationProgress.total) * 100}%` }}
+                ></div>
+              </div>
+              <p className="text-sm font-medium text-slate-700">
+                {Math.round((generationProgress.current / generationProgress.total) * 100)}%
+              </p>
+              <p className="text-xs text-slate-500 mt-4">
+                Este proceso puede tomar varios minutos. Por favor no cierre esta ventana.
               </p>
             </div>
           </div>
