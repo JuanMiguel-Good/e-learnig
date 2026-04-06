@@ -50,7 +50,7 @@ interface ParticipantCourseProgress {
   evaluation_attempts: number
   max_attempts: number
   signature_status: 'signed' | 'pending' | 'not_required'
-  certificate_status: 'generated' | 'pending'
+  certificate_status: 'generated' | 'ready_to_generate' | 'pending'
   certificate_url: string | null
   certificate_date: string | null
   last_activity: string | null
@@ -79,7 +79,7 @@ interface CourseDetail {
   evaluation_attempts: number
   max_attempts: number
   signature_status: 'signed' | 'pending' | 'not_required'
-  certificate_status: 'generated' | 'pending'
+  certificate_status: 'generated' | 'ready_to_generate' | 'pending'
   certificate_url: string | null
   certificate_date: string | null
   assigned_date: string
@@ -538,7 +538,9 @@ export default function ReportsManagement() {
           evaluation_attempts: evaluationAttempts,
           max_attempts: maxAttempts,
           signature_status: signatureStatus,
-          certificate_status: certificate ? 'generated' : 'pending',
+          certificate_status: certificate
+            ? (certificate.certificate_url ? 'generated' : 'ready_to_generate')
+            : 'pending',
           certificate_url: certificate?.certificate_url || null,
           certificate_date: certificate?.completion_date || null,
           last_activity: latestActivity
@@ -812,6 +814,18 @@ export default function ReportsManagement() {
                     </div>
                   </div>
 
+                  <div className="bg-amber-50 rounded-lg p-4 border border-amber-200">
+                    <div className="flex items-center justify-between">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm text-amber-600 font-medium">Listos para Generar</p>
+                        <p className="text-2xl font-bold text-amber-900">
+                          {participantCourses.filter(p => p.certificate_status === 'ready_to_generate').length}
+                        </p>
+                      </div>
+                      <Award className="w-8 h-8 text-amber-600 flex-shrink-0 ml-2" />
+                    </div>
+                  </div>
+
                   <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
                     <div className="flex items-center justify-between">
                       <div className="min-w-0 flex-1">
@@ -1072,6 +1086,16 @@ export default function ReportsManagement() {
                               <Award className="w-4 h-4 mr-1" />
                               <span className="text-xs">Ver</span>
                             </a>
+                          ) : item.certificate_status === 'ready_to_generate' ? (
+                            <div className="group relative inline-flex items-center">
+                              <span className="inline-flex items-center text-amber-600">
+                                <Award className="w-4 h-4 mr-1" />
+                                <span className="text-xs font-medium">Listo</span>
+                              </span>
+                              <div className="invisible group-hover:visible absolute z-10 w-48 p-2 text-xs bg-slate-800 text-white rounded shadow-lg -top-2 left-full ml-2 whitespace-normal">
+                                Certificado disponible. El participante debe generarlo desde "Mis Cursos"
+                              </div>
+                            </div>
                           ) : (
                             <span className="text-xs text-slate-400">Pendiente</span>
                           )}
