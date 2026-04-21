@@ -446,11 +446,17 @@ export default function ParticipantsManagement() {
       <div className="bg-white rounded-xl shadow-sm border w-full overflow-hidden">
         <div className="max-h-[70vh] overflow-auto w-full">
           <div ref={tableScrollRef} className="min-w-full">
-            <table className="w-full table-compact" style={{minWidth: '900px'}}>
+            <table className="w-full table-compact" style={{minWidth: '1100px'}}>
               <thead className="bg-slate-50 sticky top-0 z-10 shadow-sm">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider bg-slate-50">
                     Participante
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider bg-slate-50">
+                    DNI
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider bg-slate-50">
+                    Rol
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider bg-slate-50">
                     Empresa
@@ -469,7 +475,7 @@ export default function ParticipantsManagement() {
               <tbody className="bg-white divide-y divide-slate-200">
               {filteredParticipants.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
+                  <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
                     {searchTerm || companyFilter !== 'all'
                       ? 'No se encontraron participantes con los filtros aplicados'
                       : 'No hay participantes registrados'}
@@ -490,6 +496,20 @@ export default function ParticipantsManagement() {
                         <div className="text-sm text-slate-500">{participant.email}</div>
                       </div>
                     </div>
+                  </td>
+                  <td className="px-4 py-4 whitespace-nowrap">
+                    <div className="text-sm text-slate-600">
+                      {participant.dni || '-'}
+                    </div>
+                  </td>
+                  <td className="px-4 py-4 whitespace-nowrap">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      participant.role === 'company_manager'
+                        ? 'bg-amber-100 text-amber-800'
+                        : 'bg-slate-100 text-slate-700'
+                    }`}>
+                      {participant.role === 'company_manager' ? 'Gestor de Empresa' : 'Participante'}
+                    </span>
                   </td>
                   <td className="px-4 py-4 whitespace-nowrap">
                     <div className="text-sm text-slate-600">
