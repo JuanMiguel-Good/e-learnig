@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
-import { Plus, CreditCard as Edit2, Trash2, Phone, Mail, User, Eye, EyeOff, Upload, Download, X, Search } from 'lucide-react'
+import { Plus, CreditCard as Edit2, Trash2, Phone, Mail, User, Eye, EyeOff, Upload, Download, X, Search, ChevronUp, ChevronDown, ArrowUpDown } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useForm } from 'react-hook-form'
 import { useAuth } from '../../contexts/AuthContext'
@@ -48,6 +48,8 @@ export default function CompanyParticipantsManagement() {
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
+  const [sortField, setSortField] = useState<string>('first_name')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const tableScrollRef = useRef<HTMLDivElement>(null)
 
@@ -119,6 +121,39 @@ export default function CompanyParticipantsManagement() {
       participant.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (participant.dni && participant.dni.toLowerCase().includes(searchTerm.toLowerCase()))
   })
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortField(field)
+      setSortDirection('asc')
+    }
+  }
+
+  const getSortValue = (participant: Participant, field: string): string => {
+    switch (field) {
+      case 'first_name': return `${participant.first_name} ${participant.last_name}`.toLowerCase()
+      case 'dni': return (participant.dni || '').toLowerCase()
+      case 'role': return participant.role
+      case 'area': return (participant.area || '').toLowerCase()
+      default: return ''
+    }
+  }
+
+  const sortedParticipants = [...filteredParticipants].sort((a, b) => {
+    const aVal = getSortValue(a, sortField)
+    const bVal = getSortValue(b, sortField)
+    const cmp = aVal.localeCompare(bVal)
+    return sortDirection === 'asc' ? cmp : -cmp
+  })
+
+  const SortIcon = ({ field }: { field: string }) => {
+    if (sortField !== field) return <ArrowUpDown className="w-3.5 h-3.5 ml-1 text-slate-300" />
+    return sortDirection === 'asc'
+      ? <ChevronUp className="w-3.5 h-3.5 ml-1 text-slate-700" />
+      : <ChevronDown className="w-3.5 h-3.5 ml-1 text-slate-700" />
+  }
 
   const handleCreateOrUpdate = async (data: ParticipantFormData) => {
     if (!user?.company_id) {
@@ -405,19 +440,27 @@ export default function CompanyParticipantsManagement() {
               <thead className="bg-slate-50 sticky top-0 z-10 shadow-sm">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider bg-slate-50">
-                    Participante
+                    <button onClick={() => handleSort('first_name')} className="inline-flex items-center hover:text-slate-800 transition-colors">
+                      Participante <SortIcon field="first_name" />
+                    </button>
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider bg-slate-50">
-                    DNI
+                    <button onClick={() => handleSort('dni')} className="inline-flex items-center hover:text-slate-800 transition-colors">
+                      DNI <SortIcon field="dni" />
+                    </button>
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider bg-slate-50">
-                    Rol
+                    <button onClick={() => handleSort('role')} className="inline-flex items-center hover:text-slate-800 transition-colors">
+                      Rol <SortIcon field="role" />
+                    </button>
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider bg-slate-50">
                     Contacto
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider bg-slate-50">
-                    Área
+                    <button onClick={() => handleSort('area')} className="inline-flex items-center hover:text-slate-800 transition-colors">
+                      Area <SortIcon field="area" />
+                    </button>
                   </th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider bg-slate-50">
                     Acciones
@@ -425,7 +468,7 @@ export default function CompanyParticipantsManagement() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-slate-200">
-              {filteredParticipants.length === 0 ? (
+              {sortedParticipants.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
                     {searchTerm
@@ -434,7 +477,7 @@ export default function CompanyParticipantsManagement() {
                   </td>
                 </tr>
               ) : (
-                filteredParticipants.map((participant) => (
+                sortedParticipants.map((participant) => (
                 <tr key={participant.id} className="hover:bg-slate-50">
                   <td className="px-4 py-4 whitespace-nowrap">
                     <div className="flex items-center">

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
-import { Plus, CreditCard as Edit2, Trash2, Phone, Mail, User, Eye, EyeOff, Upload, Download, X, Search } from 'lucide-react'
+import { Plus, CreditCard as Edit2, Trash2, Phone, Mail, User, Eye, EyeOff, Upload, Download, X, Search, ChevronUp, ChevronDown, ArrowUpDown } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useForm } from 'react-hook-form'
 import { generateParticipantsTemplate, parseParticipantsFromExcel, ValidationError, ParsedParticipant } from '../../lib/excelTemplateGenerator'
@@ -55,6 +55,8 @@ export default function ParticipantsManagement() {
   const [selectedCompanyForBulk, setSelectedCompanyForBulk] = useState<string>('')
   const [searchTerm, setSearchTerm] = useState('')
   const [companyFilter, setCompanyFilter] = useState('all')
+  const [sortField, setSortField] = useState<string>('first_name')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const tableScrollRef = React.useRef<HTMLDivElement>(null)
 
@@ -157,6 +159,40 @@ export default function ParticipantsManagement() {
 
     return matchesSearch && matchesCompany
   })
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortField(field)
+      setSortDirection('asc')
+    }
+  }
+
+  const getSortValue = (participant: Participant, field: string): string => {
+    switch (field) {
+      case 'first_name': return `${participant.first_name} ${participant.last_name}`.toLowerCase()
+      case 'dni': return (participant.dni || '').toLowerCase()
+      case 'role': return participant.role
+      case 'company': return (participant.company?.razon_social || '').toLowerCase()
+      case 'created_at': return participant.created_at
+      default: return ''
+    }
+  }
+
+  const sortedParticipants = [...filteredParticipants].sort((a, b) => {
+    const aVal = getSortValue(a, sortField)
+    const bVal = getSortValue(b, sortField)
+    const cmp = aVal.localeCompare(bVal)
+    return sortDirection === 'asc' ? cmp : -cmp
+  })
+
+  const SortIcon = ({ field }: { field: string }) => {
+    if (sortField !== field) return <ArrowUpDown className="w-3.5 h-3.5 ml-1 text-slate-300" />
+    return sortDirection === 'asc'
+      ? <ChevronUp className="w-3.5 h-3.5 ml-1 text-slate-700" />
+      : <ChevronDown className="w-3.5 h-3.5 ml-1 text-slate-700" />
+  }
 
   const handleCreateOrUpdate = async (data: ParticipantFormData) => {
     try {
@@ -450,22 +486,32 @@ export default function ParticipantsManagement() {
               <thead className="bg-slate-50 sticky top-0 z-10 shadow-sm">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider bg-slate-50">
-                    Participante
+                    <button onClick={() => handleSort('first_name')} className="inline-flex items-center hover:text-slate-800 transition-colors">
+                      Participante <SortIcon field="first_name" />
+                    </button>
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider bg-slate-50">
-                    DNI
+                    <button onClick={() => handleSort('dni')} className="inline-flex items-center hover:text-slate-800 transition-colors">
+                      DNI <SortIcon field="dni" />
+                    </button>
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider bg-slate-50">
-                    Rol
+                    <button onClick={() => handleSort('role')} className="inline-flex items-center hover:text-slate-800 transition-colors">
+                      Rol <SortIcon field="role" />
+                    </button>
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider bg-slate-50">
-                    Empresa
+                    <button onClick={() => handleSort('company')} className="inline-flex items-center hover:text-slate-800 transition-colors">
+                      Empresa <SortIcon field="company" />
+                    </button>
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider bg-slate-50">
                     Contacto
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider col-date bg-slate-50">
-                    Fecha de Registro
+                    <button onClick={() => handleSort('created_at')} className="inline-flex items-center hover:text-slate-800 transition-colors">
+                      Fecha de Registro <SortIcon field="created_at" />
+                    </button>
                   </th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider col-actions bg-slate-50">
                     Acciones
@@ -473,7 +519,7 @@ export default function ParticipantsManagement() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-slate-200">
-              {filteredParticipants.length === 0 ? (
+              {sortedParticipants.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
                     {searchTerm || companyFilter !== 'all'
@@ -482,7 +528,7 @@ export default function ParticipantsManagement() {
                   </td>
                 </tr>
               ) : (
-                filteredParticipants.map((participant) => (
+                sortedParticipants.map((participant) => (
                 <tr key={participant.id} className="hover:bg-slate-50">
                   <td className="px-4 py-4 whitespace-nowrap">
                     <div className="flex items-center">
