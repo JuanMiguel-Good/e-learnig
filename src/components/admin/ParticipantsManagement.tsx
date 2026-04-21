@@ -14,6 +14,7 @@ interface Participant {
   country_code: string
   dni: string | null
   area: string | null
+  sede: string | null
   company_id: string | null
   role: 'participant' | 'company_manager'
   created_at: string
@@ -30,6 +31,7 @@ interface ParticipantFormData {
   country_code: string
   dni: string
   area: string
+  sede: string
   company_id: string
   password?: string
   role: string
@@ -175,6 +177,7 @@ export default function ParticipantsManagement() {
       case 'dni': return (participant.dni || '').toLowerCase()
       case 'role': return participant.role
       case 'company': return (participant.company?.razon_social || '').toLowerCase()
+      case 'sede': return (participant.sede || '').toLowerCase()
       case 'created_at': return participant.created_at
       default: return ''
     }
@@ -206,6 +209,7 @@ export default function ParticipantsManagement() {
           country_code: data.country_code,
           dni: data.dni || null,
           area: data.area || null,
+          sede: data.sede || null,
           company_id: data.company_id || null,
           role: data.role,
           updated_at: new Date().toISOString()
@@ -245,6 +249,7 @@ export default function ParticipantsManagement() {
               country_code: data.country_code,
               dni: data.dni || null,
               area: data.area || null,
+              sede: data.sede || null,
               company_id: data.company_id || null,
               role: data.role
             }
@@ -273,6 +278,7 @@ export default function ParticipantsManagement() {
     setValue('country_code', participant.country_code)
     setValue('dni', participant.dni || '')
     setValue('area', participant.area || '')
+    setValue('sede', participant.sede || '')
     setValue('company_id', participant.company_id || '')
     setValue('role', participant.role || 'participant')
     setIsModalOpen(true)
@@ -360,6 +366,7 @@ export default function ParticipantsManagement() {
           country_code: '+51',
           dni: p.dni,
           area: p.area || null,
+          sede: p.sede || null,
           company_id: selectedCompanyForBulk,
           role: 'participant',
           password_hash: await bcrypt.hash(p.dni, 10)
@@ -482,7 +489,7 @@ export default function ParticipantsManagement() {
       <div className="bg-white rounded-xl shadow-sm border w-full overflow-hidden">
         <div className="max-h-[70vh] overflow-auto w-full">
           <div ref={tableScrollRef} className="min-w-full">
-            <table className="w-full table-compact" style={{minWidth: '1100px'}}>
+            <table className="w-full table-compact" style={{minWidth: '1250px'}}>
               <thead className="bg-slate-50 sticky top-0 z-10 shadow-sm">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider bg-slate-50">
@@ -506,6 +513,11 @@ export default function ParticipantsManagement() {
                     </button>
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider bg-slate-50">
+                    <button onClick={() => handleSort('sede')} className="inline-flex items-center hover:text-slate-800 transition-colors">
+                      Sede <SortIcon field="sede" />
+                    </button>
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider bg-slate-50">
                     Contacto
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider col-date bg-slate-50">
@@ -521,7 +533,7 @@ export default function ParticipantsManagement() {
               <tbody className="bg-white divide-y divide-slate-200">
               {sortedParticipants.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
+                  <td colSpan={8} className="px-4 py-8 text-center text-slate-500">
                     {searchTerm || companyFilter !== 'all'
                       ? 'No se encontraron participantes con los filtros aplicados'
                       : 'No hay participantes registrados'}
@@ -560,6 +572,11 @@ export default function ParticipantsManagement() {
                   <td className="px-4 py-4 whitespace-nowrap">
                     <div className="text-sm text-slate-600">
                       {participant.company?.razon_social || 'Sin empresa'}
+                    </div>
+                  </td>
+                  <td className="px-4 py-4 whitespace-nowrap">
+                    <div className="text-sm text-slate-600">
+                      {participant.sede || '-'}
                     </div>
                   </td>
                   <td className="px-4 py-4 whitespace-nowrap">
@@ -747,6 +764,19 @@ export default function ParticipantsManagement() {
                     placeholder="Operaciones"
                   />
                 </div>
+              </div>
+
+              {/* Sede */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Sede
+                </label>
+                <input
+                  {...register('sede')}
+                  type="text"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                  placeholder="Lima Centro"
+                />
               </div>
 
               {/* Teléfono */}
@@ -943,6 +973,7 @@ export default function ParticipantsManagement() {
                             <th className="p-2 text-left">Nombres</th>
                             <th className="p-2 text-left">Apellidos</th>
                             <th className="p-2 text-left">Área</th>
+                            <th className="p-2 text-left">Sede</th>
                             <th className="p-2 text-left">Email</th>
                           </tr>
                         </thead>
@@ -953,6 +984,7 @@ export default function ParticipantsManagement() {
                               <td className="p-2">{p.first_name}</td>
                               <td className="p-2">{p.last_name}</td>
                               <td className="p-2">{p.area || '-'}</td>
+                              <td className="p-2">{p.sede || '-'}</td>
                               <td className="p-2">{p.email}</td>
                             </tr>
                           ))}

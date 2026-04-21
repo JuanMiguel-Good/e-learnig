@@ -5,6 +5,7 @@ export interface ParticipantTemplateRow {
   'Nombres *': string
   'Apellidos *': string
   'Área': string
+  'Sede': string
   'Correo Electrónico *': string
   'Teléfono': string
 }
@@ -16,6 +17,7 @@ export function generateParticipantsTemplate() {
       'Nombres *': 'Juan Carlos',
       'Apellidos *': 'Pérez García',
       'Área': 'Producción',
+      'Sede': 'Lima Centro',
       'Correo Electrónico *': 'juan.perez@empresa.com',
       'Teléfono': '987654321'
     },
@@ -24,6 +26,7 @@ export function generateParticipantsTemplate() {
       'Nombres *': 'María Elena',
       'Apellidos *': 'González López',
       'Área': 'Administración',
+      'Sede': 'Arequipa',
       'Correo Electrónico *': 'maria.gonzalez@empresa.com',
       'Teléfono': '912345678'
     }
@@ -35,6 +38,7 @@ export function generateParticipantsTemplate() {
     { wch: 12 },
     { wch: 20 },
     { wch: 25 },
+    { wch: 20 },
     { wch: 20 },
     { wch: 30 },
     { wch: 15 }
@@ -63,6 +67,7 @@ export interface ParsedParticipant {
   first_name: string
   last_name: string
   area?: string
+  sede?: string
   email: string
   phone?: string
 }
@@ -98,6 +103,7 @@ export function parseParticipantsFromExcel(file: File): Promise<{
           const firstName = String(row['Nombres *'] || '').trim()
           const lastName = String(row['Apellidos *'] || '').trim()
           const area = String(row['Área'] || '').trim()
+          const sede = String(row['Sede'] || '').trim()
           const email = String(row['Correo Electrónico *'] || '').trim()
           const phone = String(row['Teléfono'] || '').trim()
 
@@ -131,6 +137,7 @@ export function parseParticipantsFromExcel(file: File): Promise<{
               first_name: firstName,
               last_name: lastName,
               area: area || undefined,
+              sede: sede || undefined,
               email,
               phone: phone || undefined
             })

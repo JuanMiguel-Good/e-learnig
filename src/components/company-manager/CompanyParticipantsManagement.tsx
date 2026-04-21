@@ -15,6 +15,7 @@ interface Participant {
   country_code: string
   dni: string | null
   area: string | null
+  sede: string | null
   role: string
   company_id: string | null
   created_at: string
@@ -31,6 +32,7 @@ interface ParticipantFormData {
   country_code: string
   dni: string
   area: string
+  sede: string
   password?: string
 }
 
@@ -137,6 +139,7 @@ export default function CompanyParticipantsManagement() {
       case 'dni': return (participant.dni || '').toLowerCase()
       case 'role': return participant.role
       case 'area': return (participant.area || '').toLowerCase()
+      case 'sede': return (participant.sede || '').toLowerCase()
       default: return ''
     }
   }
@@ -171,6 +174,7 @@ export default function CompanyParticipantsManagement() {
           country_code: data.country_code,
           dni: data.dni || null,
           area: data.area || null,
+          sede: data.sede || null,
           updated_at: new Date().toISOString()
         }
 
@@ -207,6 +211,7 @@ export default function CompanyParticipantsManagement() {
               country_code: data.country_code,
               dni: data.dni || null,
               area: data.area || null,
+              sede: data.sede || null,
               company_id: user.company_id,
               role: 'participant'
             }
@@ -235,6 +240,7 @@ export default function CompanyParticipantsManagement() {
     setValue('country_code', participant.country_code)
     setValue('dni', participant.dni || '')
     setValue('area', participant.area || '')
+    setValue('sede', participant.sede || '')
     setIsModalOpen(true)
   }
 
@@ -320,6 +326,7 @@ export default function CompanyParticipantsManagement() {
           country_code: '+51',
           dni: p.dni,
           area: p.area || null,
+          sede: p.sede || null,
           company_id: user.company_id,
           role: 'participant',
           password_hash: await bcrypt.hash(p.dni, 10)
@@ -436,7 +443,7 @@ export default function CompanyParticipantsManagement() {
       <div className="bg-white rounded-xl shadow-sm border w-full overflow-hidden">
         <div className="max-h-[70vh] overflow-auto w-full">
           <div ref={tableScrollRef} className="min-w-full">
-            <table className="w-full table-compact" style={{minWidth: '900px'}}>
+            <table className="w-full table-compact" style={{minWidth: '1050px'}}>
               <thead className="bg-slate-50 sticky top-0 z-10 shadow-sm">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider bg-slate-50">
@@ -462,6 +469,11 @@ export default function CompanyParticipantsManagement() {
                       Area <SortIcon field="area" />
                     </button>
                   </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider bg-slate-50">
+                    <button onClick={() => handleSort('sede')} className="inline-flex items-center hover:text-slate-800 transition-colors">
+                      Sede <SortIcon field="sede" />
+                    </button>
+                  </th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider bg-slate-50">
                     Acciones
                   </th>
@@ -470,7 +482,7 @@ export default function CompanyParticipantsManagement() {
               <tbody className="bg-white divide-y divide-slate-200">
               {sortedParticipants.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                  <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
                     {searchTerm
                       ? 'No se encontraron participantes con los filtros aplicados'
                       : 'No hay participantes registrados'}
@@ -523,6 +535,11 @@ export default function CompanyParticipantsManagement() {
                   <td className="px-4 py-4 whitespace-nowrap">
                     <div className="text-sm text-slate-600">
                       {participant.area || '-'}
+                    </div>
+                  </td>
+                  <td className="px-4 py-4 whitespace-nowrap">
+                    <div className="text-sm text-slate-600">
+                      {participant.sede || '-'}
                     </div>
                   </td>
                   <td className="px-4 py-4 whitespace-nowrap text-right">
@@ -669,16 +686,30 @@ export default function CompanyParticipantsManagement() {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Área
-                  </label>
-                  <input
-                    type="text"
-                    {...register('area')}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
-                    placeholder="Ej: Operaciones, Mantenimiento, etc."
-                  />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Área
+                    </label>
+                    <input
+                      type="text"
+                      {...register('area')}
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                      placeholder="Ej: Operaciones"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Sede
+                    </label>
+                    <input
+                      type="text"
+                      {...register('sede')}
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                      placeholder="Ej: Lima Centro"
+                    />
+                  </div>
                 </div>
 
                 <div>
@@ -826,6 +857,7 @@ export default function CompanyParticipantsManagement() {
                                     <th className="px-4 py-2 text-left">Apellido</th>
                                     <th className="px-4 py-2 text-left">Email</th>
                                     <th className="px-4 py-2 text-left">DNI</th>
+                                    <th className="px-4 py-2 text-left">Sede</th>
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -835,6 +867,7 @@ export default function CompanyParticipantsManagement() {
                                       <td className="px-4 py-2">{p.last_name}</td>
                                       <td className="px-4 py-2">{p.email}</td>
                                       <td className="px-4 py-2">{p.dni}</td>
+                                      <td className="px-4 py-2">{p.sede || '-'}</td>
                                     </tr>
                                   ))}
                                 </tbody>
