@@ -141,7 +141,7 @@ export default function AttendanceManagement() {
         .from('users')
         .select('id')
         .eq('company_id', selectedCompanyId)
-        .eq('role', 'participant')
+        .in('role', ['participant', 'company_manager'])
 
       if (!participantsData || participantsData.length === 0) {
         setCourses([])

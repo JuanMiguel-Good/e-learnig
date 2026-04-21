@@ -97,7 +97,7 @@ export default function CompanyReportsManagement() {
       const { data: participants } = await supabase
         .from('users')
         .select('id')
-        .eq('role', 'participant')
+        .in('role', ['participant', 'company_manager'])
         .eq('company_id', user.company_id)
 
       if (!participants || participants.length === 0) {
@@ -154,7 +154,7 @@ export default function CompanyReportsManagement() {
       const { data: participants } = await supabase
         .from('users')
         .select('id, first_name, last_name, email, dni, area')
-        .eq('role', 'participant')
+        .in('role', ['participant', 'company_manager'])
         .eq('company_id', user.company_id)
 
       if (!participants || participants.length === 0) {

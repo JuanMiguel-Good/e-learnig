@@ -181,7 +181,7 @@ export default function ReportsManagement() {
           .from('users')
           .select('id')
           .eq('company_id', company.id)
-          .eq('role', 'participant')
+          .in('role', ['participant', 'company_manager'])
 
         const participantIds = companyParticipants?.map(p => p.id) || []
 
@@ -274,7 +274,7 @@ export default function ReportsManagement() {
       let participantsQuery = supabase
         .from('users')
         .select('id, first_name, last_name, email, dni, area, company_id')
-        .eq('role', 'participant')
+        .in('role', ['participant', 'company_manager'])
         .order('first_name')
         .limit(10000)
 

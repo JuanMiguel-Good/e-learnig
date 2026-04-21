@@ -250,7 +250,7 @@ export default function CompanyAttendanceManagement() {
           users!inner(id, company_id, role)
         `)
         .eq('users.company_id', user.company_id)
-        .eq('users.role', 'participant')
+        .in('users.role', ['participant', 'company_manager'])
         .eq('courses.is_active', true)
 
       if (assignmentsError) throw assignmentsError

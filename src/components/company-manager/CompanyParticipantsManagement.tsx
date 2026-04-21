@@ -80,7 +80,7 @@ export default function CompanyParticipantsManagement() {
       const { data, error } = await supabase
         .from('users')
         .select('*, company:companies(razon_social)')
-        .eq('role', 'participant')
+        .in('role', ['participant', 'company_manager'])
         .eq('company_id', user.company_id)
         .order('created_at', { ascending: false })
 

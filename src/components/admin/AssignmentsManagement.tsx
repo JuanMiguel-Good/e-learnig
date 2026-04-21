@@ -134,7 +134,7 @@ export default function AssignmentsManagement() {
       const { data: participantsData, error: participantsError } = await supabase
         .from('users')
         .select('id, first_name, last_name, email, company_id')
-        .eq('role', 'participant')
+        .in('role', ['participant', 'company_manager'])
         .order('first_name')
 
       if (participantsError) throw participantsError
