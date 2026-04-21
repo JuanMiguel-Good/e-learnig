@@ -10,6 +10,8 @@ interface Participant {
   email: string
   company_id: string | null
   company_name: string | null
+  area: string | null
+  sede: string | null
 }
 
 interface Company {
@@ -33,6 +35,8 @@ interface Assignment {
     last_name: string
     email: string
     company_id: string | null
+    area: string | null
+    sede: string | null
   }
   course: {
     title: string
@@ -60,11 +64,14 @@ export default function AssignmentsManagement() {
   const [bulkSearchTerm, setBulkSearchTerm] = useState('')
   const tableScrollRef = React.useRef<HTMLDivElement>(null)
 
-  // New states for filtering and bulk unassign
   const [filterCourse, setFilterCourse] = useState<string>('all')
   const [filterCompany, setFilterCompany] = useState<string>('all')
+  const [filterArea, setFilterArea] = useState<string>('all')
+  const [filterSede, setFilterSede] = useState<string>('all')
   const [selectedAssignments, setSelectedAssignments] = useState<string[]>([])
   const [showFilters, setShowFilters] = useState(false)
+  const [bulkArea, setBulkArea] = useState<string>('all')
+  const [bulkSede, setBulkSede] = useState<string>('all')
 
   useEffect(() => {
     loadData()
@@ -112,7 +119,7 @@ export default function AssignmentsManagement() {
         .from('course_assignments')
         .select(`
           *,
-          user:users!inner(first_name, last_name, email, company_id),
+          user:users!inner(first_name, last_name, email, company_id, area, sede),
           course:courses!inner(title, image_url)
         `)
         .order('assigned_at', { ascending: false })
@@ -133,7 +140,7 @@ export default function AssignmentsManagement() {
       // Load participants
       const { data: participantsData, error: participantsError } = await supabase
         .from('users')
-        .select('id, first_name, last_name, email, company_id')
+        .select('id, first_name, last_name, email, company_id, area, sede')
         .in('role', ['participant', 'company_manager'])
         .order('first_name')
 
@@ -155,7 +162,9 @@ export default function AssignmentsManagement() {
         last_name: p.last_name,
         email: p.email,
         company_id: p.company_id,
-        company_name: p.company_id ? companiesMap.get(p.company_id) || null : null
+        company_name: p.company_id ? companiesMap.get(p.company_id) || null : null,
+        area: p.area || null,
+        sede: p.sede || null
       })) || [])
       setCourses(coursesData || [])
       setCompanies(companiesData || [])
@@ -302,6 +311,8 @@ export default function AssignmentsManagement() {
       setBulkCourse('')
       setAssignToAll(false)
       setSelectedCompany('all')
+      setBulkArea('all')
+      setBulkSede('all')
       setBulkSearchTerm('')
     } catch (error) {
       console.error('Error in bulk assignment:', error)
@@ -328,9 +339,17 @@ export default function AssignmentsManagement() {
     return participants.filter(p => {
       const matchesSearch = `${p.first_name} ${p.last_name} ${p.email}`.toLowerCase().includes(bulkSearchTerm.toLowerCase())
       const matchesCompany = selectedCompany === 'all' || p.company_id === selectedCompany
-      return matchesSearch && matchesCompany
+      const matchesArea = bulkArea === 'all' || (p.area || '') === bulkArea
+      const matchesSede = bulkSede === 'all' || (p.sede || '') === bulkSede
+      return matchesSearch && matchesCompany && matchesArea && matchesSede
     })
   }
+
+  const uniqueAreas = [...new Set(participants.map(p => p.area).filter(Boolean))].sort() as string[]
+  const uniqueSedes = [...new Set(participants.map(p => p.sede).filter(Boolean))].sort() as string[]
+
+  const uniqueAssignmentAreas = [...new Set(assignments.map(a => a.user.area).filter(Boolean))].sort() as string[]
+  const uniqueAssignmentSedes = [...new Set(assignments.map(a => a.user.sede).filter(Boolean))].sort() as string[]
 
   const filteredAssignments = assignments.filter(assignment => {
     const matchesSearch =
@@ -341,8 +360,10 @@ export default function AssignmentsManagement() {
 
     const matchesCourse = filterCourse === 'all' || assignment.course_id === filterCourse
     const matchesCompany = filterCompany === 'all' || assignment.user.company_id === filterCompany
+    const matchesArea = filterArea === 'all' || (assignment.user.area || '') === filterArea
+    const matchesSede = filterSede === 'all' || (assignment.user.sede || '') === filterSede
 
-    return matchesSearch && matchesCourse && matchesCompany
+    return matchesSearch && matchesCourse && matchesCompany && matchesArea && matchesSede
   })
 
   const toggleAssignmentSelection = (assignmentId: string) => {
@@ -437,7 +458,7 @@ export default function AssignmentsManagement() {
           >
             <Filter className="w-5 h-5 mr-2" />
             Filtros
-            {(filterCourse !== 'all' || filterCompany !== 'all') && (
+            {(filterCourse !== 'all' || filterCompany !== 'all' || filterArea !== 'all' || filterSede !== 'all') && (
               <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded-full">
                 Activos
               </span>
@@ -446,7 +467,7 @@ export default function AssignmentsManagement() {
         </div>
 
         {showFilters && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-3 border-t">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">
                 Filtrar por Curso
@@ -489,11 +510,55 @@ export default function AssignmentsManagement() {
               </select>
             </div>
 
-            <div className="sm:col-span-2 flex justify-end">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Filtrar por Área
+              </label>
+              <select
+                value={filterArea}
+                onChange={(e) => {
+                  setFilterArea(e.target.value)
+                  setSelectedAssignments([])
+                }}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+              >
+                <option value="all">Todas las áreas</option>
+                {uniqueAssignmentAreas.map((area) => (
+                  <option key={area} value={area}>
+                    {area}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Filtrar por Sede
+              </label>
+              <select
+                value={filterSede}
+                onChange={(e) => {
+                  setFilterSede(e.target.value)
+                  setSelectedAssignments([])
+                }}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+              >
+                <option value="all">Todas las sedes</option>
+                {uniqueAssignmentSedes.map((sede) => (
+                  <option key={sede} value={sede}>
+                    {sede}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="sm:col-span-2 lg:col-span-4 flex justify-end">
               <button
                 onClick={() => {
                   setFilterCourse('all')
                   setFilterCompany('all')
+                  setFilterArea('all')
+                  setFilterSede('all')
                   setSelectedAssignments([])
                 }}
                 className="text-sm text-slate-600 hover:text-slate-800"
@@ -693,26 +758,70 @@ export default function AssignmentsManagement() {
                 </select>
               </div>
 
-              {/* Company Filter */}
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Filtrar por Empresa
-                </label>
-                <select
-                  value={selectedCompany}
-                  onChange={(e) => {
-                    setSelectedCompany(e.target.value)
-                    setSelectedParticipants([])
-                  }}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
-                >
-                  <option value="all">Todas las empresas</option>
-                  {companies.map((company) => (
-                    <option key={company.id} value={company.id}>
-                      {company.razon_social}
-                    </option>
-                  ))}
-                </select>
+              {/* Filters */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Filtrar por Empresa
+                  </label>
+                  <select
+                    value={selectedCompany}
+                    onChange={(e) => {
+                      setSelectedCompany(e.target.value)
+                      setSelectedParticipants([])
+                    }}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                  >
+                    <option value="all">Todas las empresas</option>
+                    {companies.map((company) => (
+                      <option key={company.id} value={company.id}>
+                        {company.razon_social}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Filtrar por Área
+                  </label>
+                  <select
+                    value={bulkArea}
+                    onChange={(e) => {
+                      setBulkArea(e.target.value)
+                      setSelectedParticipants([])
+                    }}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                  >
+                    <option value="all">Todas las áreas</option>
+                    {uniqueAreas.map((area) => (
+                      <option key={area} value={area}>
+                        {area}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Filtrar por Sede
+                  </label>
+                  <select
+                    value={bulkSede}
+                    onChange={(e) => {
+                      setBulkSede(e.target.value)
+                      setSelectedParticipants([])
+                    }}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                  >
+                    <option value="all">Todas las sedes</option>
+                    {uniqueSedes.map((sede) => (
+                      <option key={sede} value={sede}>
+                        {sede}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               {/* Assign to All Option */}
@@ -788,6 +897,16 @@ export default function AssignmentsManagement() {
                                   {participant.company_name}
                                 </span>
                               )}
+                              {participant.area && (
+                                <span className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-full">
+                                  {participant.area}
+                                </span>
+                              )}
+                              {participant.sede && (
+                                <span className="text-xs bg-teal-50 text-teal-700 px-2 py-1 rounded-full">
+                                  {participant.sede}
+                                </span>
+                              )}
                               {participantsWithCourses.get(participant.id) ? (
                                 <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full font-medium">
                                   {participantsWithCourses.get(participant.id)} curso{participantsWithCourses.get(participant.id) !== 1 ? 's' : ''}
@@ -816,6 +935,8 @@ export default function AssignmentsManagement() {
                   setBulkCourse('')
                   setAssignToAll(false)
                   setSelectedCompany('all')
+                  setBulkArea('all')
+                  setBulkSede('all')
                   setBulkSearchTerm('')
                 }}
                 className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-medium transition-colors"
