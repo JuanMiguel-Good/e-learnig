@@ -629,8 +629,8 @@ export default function ParticipantsManagement() {
 
       {/* Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-0 md:p-4 z-50">
-          <div className="bg-white md:rounded-xl shadow-xl max-w-md w-full h-full md:h-auto p-6 mobile-scroll-container md:mobile-no-overflow no-scrollbar">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-0 md:p-4 z-50 overflow-y-auto no-scrollbar">
+          <div className="bg-white md:rounded-xl shadow-xl max-w-md w-full md:my-auto h-full md:h-auto md:max-h-[90vh] overflow-y-auto no-scrollbar p-6">
             <h2 className="text-xl font-bold text-slate-800 mb-6">
               {editingParticipant ? 'Editar Participante' : 'Agregar Participante'}
             </h2>
