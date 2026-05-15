@@ -83,7 +83,7 @@ export class CertificateGenerator {
         <!-- Student name -->
         <div style="
           position: absolute;
-          top: 440px;
+          top: 430px;
           left: 50%;
           transform: translateX(-50%);
           color: #0f172a;
@@ -91,30 +91,31 @@ export class CertificateGenerator {
           font-weight: bold;
           text-transform: uppercase;
           letter-spacing: 2px;
-          border-bottom: 2px solid #94a3b8;
           padding-bottom: 10px;
-          min-width: 400px;
+          max-width: 700px;
+          text-align: center;
+          white-space: nowrap;
         ">
           ${data.userName}
         </div>
-        
+
         <!-- Course completion text -->
         <div style="
           position: absolute;
-          top: 520px;
+          top: 510px;
           left: 50%;
           transform: translateX(-50%);
           color: #1e293b;
           font-size: 16px;
-          margin-bottom: 20px;
+          white-space: nowrap;
         ">
           ha completado satisfactoriamente el curso
         </div>
-        
+
         <!-- Course name -->
         <div style="
           position: absolute;
-          top: 560px;
+          top: 555px;
           left: 50%;
           transform: translateX(-50%);
           color: #0f172a;
@@ -122,19 +123,21 @@ export class CertificateGenerator {
           font-weight: bold;
           font-style: italic;
           max-width: 600px;
+          text-align: center;
           line-height: 1.3;
         ">
           "${data.courseName}"
         </div>
-        
+
         <!-- Completion date -->
         <div style="
           position: absolute;
-          top: 630px;
+          top: 640px;
           left: 50%;
           transform: translateX(-50%);
           color: #64748b;
           font-size: 14px;
+          white-space: nowrap;
         ">
           Fecha de finalización: ${new Date(data.completionDate).toLocaleDateString('es-ES', {
             year: 'numeric',
@@ -142,37 +145,40 @@ export class CertificateGenerator {
             day: 'numeric'
           })}
         </div>
-        
+
         <!-- Instructor section -->
         <div style="
           position: absolute;
-          bottom: 120px;
+          bottom: 80px;
           left: 200px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
           text-align: center;
           color: #475569;
         ">
-          <div style="font-size: 12px; margin-bottom: 8px;">
-            Instructor
-          </div>
-          <div style="
-            color: #1e293b;
-            font-size: 16px;
-            font-weight: bold;
-            margin-bottom: 15px;
-          ">
-            ${data.instructorName}
-          </div>
           ${data.instructorSignature ? `
-            <img src="${data.instructorSignature}" 
-                 style="height: 50px; width: auto; margin-bottom: 10px;" 
+            <img src="${data.instructorSignature}"
+                 style="height: 60px; width: auto; margin-bottom: 4px; mix-blend-mode: multiply;"
                  alt="Firma del instructor" />
-          ` : ''}
+          ` : '<div style="height: 64px;"></div>'}
           <div style="
             width: 180px;
             height: 1px;
             background-color: #94a3b8;
-            margin: 0 auto;
+            margin-bottom: 6px;
           "></div>
+          <div style="
+            color: #1e293b;
+            font-size: 15px;
+            font-weight: bold;
+            margin-bottom: 4px;
+          ">
+            ${data.instructorName}
+          </div>
+          <div style="font-size: 12px;">
+            Instructor
+          </div>
         </div>
       </div>
     `
