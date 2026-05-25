@@ -754,11 +754,16 @@ export default function CompanyReportsManagement() {
                       )}
                     </td>
                     <td className="px-4 py-4">
-                      {item.certificate_status === 'generated' ? (
-                        <span className="inline-flex items-center text-xs text-green-600 font-medium">
-                          <CheckCircle className="w-3 h-3 mr-1" />
-                          Generado
-                        </span>
+                      {item.certificate_status === 'generated' && item.certificate_url ? (
+                        <a
+                          href={item.certificate_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center text-green-600 hover:text-green-800"
+                        >
+                          <Award className="w-4 h-4 mr-1" />
+                          <span className="text-xs">Ver</span>
+                        </a>
                       ) : (
                         <span className="text-xs text-slate-400">Pendiente</span>
                       )}
