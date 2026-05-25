@@ -18,6 +18,7 @@ import {
 import toast from 'react-hot-toast'
 import { useAuth } from '../../contexts/AuthContext'
 import { exportReportsToExcel } from '../../lib/reportsExporter'
+import { CertificateBulkGenerator } from '../../lib/certificateBulkGenerator'
 
 interface ParticipantCourseProgress {
   participant_id: string
@@ -46,7 +47,7 @@ interface ParticipantCourseProgress {
   evaluation_attempts: number
   max_attempts: number
   signature_status: 'signed' | 'pending' | 'not_required'
-  certificate_status: 'generated' | 'pending'
+  certificate_status: 'generated' | 'ready_to_generate' | 'pending'
   certificate_url: string | null
   certificate_date: string | null
   last_activity: string | null
@@ -65,6 +66,42 @@ export default function CompanyReportsManagement() {
   const [hasLoadedData, setHasLoadedData] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
   const [courses, setCourses] = useState<any[]>([])
+  const [generatingCertificate, setGeneratingCertificate] = useState<string | null>(null)
+
+  const isEligibleForCertificate = (item: ParticipantCourseProgress): boolean => {
+    if (item.certificate_status === 'generated') return false
+    if (item.activity_type === 'attendance_only') {
+      return item.signature_status === 'signed'
+    }
+    if (item.activity_type === 'topic') {
+      return item.requires_evaluation ? item.evaluation_status === 'passed' : true
+    }
+    // full_course
+    const lessonsDone = item.total_lessons === 0 || item.progress === 100
+    const evalDone = !item.requires_evaluation || item.evaluation_status === 'passed'
+    return lessonsDone && evalDone
+  }
+
+  const handleGenerateSingleCertificate = async (participantId: string, courseId: string) => {
+    const key = `${participantId}-${courseId}`
+    setGeneratingCertificate(key)
+    try {
+      const url = await CertificateBulkGenerator.generateSingleCertificate(participantId, courseId)
+      setParticipantCourses(prev =>
+        prev.map(item =>
+          item.participant_id === participantId && item.course_id === courseId
+            ? { ...item, certificate_status: 'generated', certificate_url: url }
+            : item
+        )
+      )
+      toast.success('Certificado generado exitosamente')
+    } catch (error) {
+      console.error('Error generating certificate:', error)
+      toast.error('Error al generar el certificado')
+    } finally {
+      setGeneratingCertificate(null)
+    }
+  }
 
   useEffect(() => {
     if (user?.company_id) {
@@ -311,7 +348,9 @@ export default function CompanyReportsManagement() {
         }
 
         const certificate = certificatesMap.get(`${assignment.user_id}-${course.id}`)
-        const certificateStatus = certificate ? 'generated' : 'pending'
+        const certificateStatus = certificate
+          ? (certificate.certificate_url ? 'generated' : 'ready_to_generate')
+          : 'pending'
 
         progressData.push({
           participant_id: participant.id,
@@ -764,6 +803,24 @@ export default function CompanyReportsManagement() {
                           <Award className="w-4 h-4 mr-1" />
                           <span className="text-xs">Ver</span>
                         </a>
+                      ) : item.certificate_status === 'ready_to_generate' || isEligibleForCertificate(item) ? (
+                        <button
+                          onClick={() => handleGenerateSingleCertificate(item.participant_id, item.course_id)}
+                          disabled={generatingCertificate === `${item.participant_id}-${item.course_id}`}
+                          className="inline-flex items-center text-xs text-amber-600 hover:text-amber-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {generatingCertificate === `${item.participant_id}-${item.course_id}` ? (
+                            <>
+                              <Clock className="w-3 h-3 mr-1 animate-spin" />
+                              Generando...
+                            </>
+                          ) : (
+                            <>
+                              <Award className="w-4 h-4 mr-1" />
+                              Generar
+                            </>
+                          )}
+                        </button>
                       ) : (
                         <span className="text-xs text-slate-400">Pendiente</span>
                       )}

@@ -109,6 +109,7 @@ export default function ReportsManagement() {
   const [isGeneratingCertificates, setIsGeneratingCertificates] = useState(false)
   const [generationProgress, setGenerationProgress] = useState({ current: 0, total: 0, userName: '', courseName: '' })
   const [showGenerationModal, setShowGenerationModal] = useState(false)
+  const [generatingSingleCertificate, setGeneratingSingleCertificate] = useState<string | null>(null)
 
   useEffect(() => {
     loadInitialData()
@@ -739,6 +740,40 @@ export default function ReportsManagement() {
     }
   }
 
+  const isAdminEligibleForCertificate = (item: ParticipantCourseProgress): boolean => {
+    if (item.certificate_status === 'generated') return false
+    if (item.activity_type === 'attendance_only') {
+      return item.signature_status === 'signed'
+    }
+    if (item.activity_type === 'topic') {
+      return item.requires_evaluation ? item.evaluation_status === 'passed' : true
+    }
+    const lessonsDone = item.total_lessons === 0 || item.progress === 100
+    const evalDone = !item.requires_evaluation || item.evaluation_status === 'passed'
+    return lessonsDone && evalDone
+  }
+
+  const handleGenerateSingleCertificate = async (participantId: string, courseId: string) => {
+    const key = `${participantId}-${courseId}`
+    setGeneratingSingleCertificate(key)
+    try {
+      const url = await CertificateBulkGenerator.generateSingleCertificate(participantId, courseId)
+      setParticipantCourses(prev =>
+        prev.map(item =>
+          item.participant_id === participantId && item.course_id === courseId
+            ? { ...item, certificate_status: 'generated', certificate_url: url }
+            : item
+        )
+      )
+      toast.success('Certificado generado exitosamente')
+    } catch (error) {
+      console.error('Error generating certificate:', error)
+      toast.error('Error al generar el certificado')
+    } finally {
+      setGeneratingSingleCertificate(null)
+    }
+  }
+
   const getProgressColor = (progress: number) => {
     if (progress === 100) return 'text-green-600 bg-green-100'
     if (progress > 0) return 'text-blue-600 bg-blue-100'
@@ -1157,16 +1192,24 @@ export default function ReportsManagement() {
                               <Award className="w-4 h-4 mr-1" />
                               <span className="text-xs">Ver</span>
                             </a>
-                          ) : item.certificate_status === 'ready_to_generate' ? (
-                            <div className="group relative inline-flex items-center">
-                              <span className="inline-flex items-center text-amber-600">
-                                <Award className="w-4 h-4 mr-1" />
-                                <span className="text-xs font-medium">Listo</span>
-                              </span>
-                              <div className="invisible group-hover:visible absolute z-10 w-48 p-2 text-xs bg-slate-800 text-white rounded shadow-lg -top-2 left-full ml-2 whitespace-normal">
-                                Certificado disponible. El participante debe generarlo desde "Mis Cursos"
-                              </div>
-                            </div>
+                          ) : (item.certificate_status === 'ready_to_generate' || isAdminEligibleForCertificate(item)) ? (
+                            <button
+                              onClick={() => handleGenerateSingleCertificate(item.participant_id, item.course_id)}
+                              disabled={generatingSingleCertificate === `${item.participant_id}-${item.course_id}`}
+                              className="inline-flex items-center text-xs text-amber-600 hover:text-amber-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {generatingSingleCertificate === `${item.participant_id}-${item.course_id}` ? (
+                                <>
+                                  <Clock className="w-3 h-3 mr-1 animate-spin" />
+                                  Generando...
+                                </>
+                              ) : (
+                                <>
+                                  <Award className="w-4 h-4 mr-1" />
+                                  Generar
+                                </>
+                              )}
+                            </button>
                           ) : (
                             <span className="text-xs text-slate-400">Pendiente</span>
                           )}
