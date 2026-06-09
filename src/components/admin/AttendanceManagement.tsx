@@ -52,6 +52,7 @@ interface AttendanceList {
   course: {
     title: string
     hours: number
+    activity_type?: string
   }
   company: {
     razon_social: string
@@ -196,7 +197,6 @@ export default function AttendanceManagement() {
     try {
       setIsLoadingPreview(true)
 
-      // Get course to check activity_type
       const selectedCourse = courses.find(c => c.id === selectedCourseId)
       if (!selectedCourse) {
         setPreviewParticipants([])
@@ -207,7 +207,6 @@ export default function AttendanceManagement() {
       let participantsWithSignatures: any[] = []
 
       if (selectedCourse.activity_type === 'attendance_only') {
-        // For attendance_only: get participants who signed directly (no evaluation)
         const { data: signaturesData, error: signaturesError } = await supabase
           .from('attendance_signatures')
           .select(`
@@ -215,14 +214,7 @@ export default function AttendanceManagement() {
             user_id,
             signature_data,
             signed_at,
-            users!inner(
-              id,
-              first_name,
-              last_name,
-              dni,
-              area,
-              company_id
-            )
+            users!inner(id, first_name, last_name, dni, area, company_id)
           `)
           .eq('course_id', selectedCourseId)
           .eq('users.company_id', selectedCompanyId)
@@ -245,7 +237,6 @@ export default function AttendanceManagement() {
           }
         }))
       } else {
-        // For courses with evaluation: get participants who passed evaluation in the date range
         const { data: participantsData, error: participantsError } = await supabase
           .from('evaluation_attempts')
           .select(`
@@ -253,14 +244,7 @@ export default function AttendanceManagement() {
             user_id,
             completed_at,
             passed,
-            users!inner(
-              id,
-              first_name,
-              last_name,
-              dni,
-              area,
-              company_id
-            ),
+            users!inner(id, first_name, last_name, dni, area, company_id),
             evaluation:evaluations!inner(course_id)
           `)
           .eq('passed', true)
@@ -271,22 +255,29 @@ export default function AttendanceManagement() {
 
         if (participantsError) throw participantsError
 
-        // For each participant, check if they have a signature
-        participantsWithSignatures = await Promise.all(
-          (participantsData || []).map(async (participant: any) => {
-            const { data: signatureData } = await supabase
-              .from('attendance_signatures')
-              .select('id, signature_data, signed_at')
-              .eq('evaluation_attempt_id', participant.id)
-              .maybeSingle()
+        // Batch fetch all signatures in a single query instead of N queries
+        const attemptIds = (participantsData || []).map((p: any) => p.id)
+        let signaturesMap = new Map<string, any>()
 
-            return {
-              ...participant,
-              has_signature: !!signatureData,
-              signature: signatureData
-            }
+        if (attemptIds.length > 0) {
+          const { data: signaturesData } = await supabase
+            .from('attendance_signatures')
+            .select('id, signature_data, signed_at, evaluation_attempt_id')
+            .in('evaluation_attempt_id', attemptIds)
+
+          signaturesData?.forEach((s: any) => {
+            signaturesMap.set(s.evaluation_attempt_id, s)
           })
-        )
+        }
+
+        participantsWithSignatures = (participantsData || []).map((participant: any) => {
+          const sig = signaturesMap.get(participant.id) ?? null
+          return {
+            ...participant,
+            has_signature: !!sig,
+            signature: sig
+          }
+        })
       }
 
       setPreviewParticipants(participantsWithSignatures)
@@ -301,54 +292,62 @@ export default function AttendanceManagement() {
 
   const loadData = async () => {
     try {
-      // Load attendance lists
-      const { data: attendanceData, error: attendanceError } = await supabase
-        .from('attendance_lists')
-        .select(`
-          *,
-          course:courses!inner(title, hours),
-          company:companies!inner(razon_social)
-        `)
-        .order('created_at', { ascending: false })
+      // Run all 3 queries in parallel
+      const [
+        { data: attendanceData, error: attendanceError },
+        { data: coursesData, error: coursesError },
+        { data: companiesData, error: companiesError }
+      ] = await Promise.all([
+        supabase
+          .from('attendance_lists')
+          .select(`
+            *,
+            course:courses!inner(title, hours, activity_type),
+            company:companies!inner(razon_social)
+          `)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('courses')
+          .select(`
+            id,
+            title,
+            hours,
+            activity_type,
+            instructor:instructors!inner(id, name, signature_url)
+          `)
+          .eq('is_active', true)
+          .order('title'),
+        supabase
+          .from('companies')
+          .select(`
+            id,
+            razon_social,
+            ruc,
+            direccion,
+            distrito,
+            departamento,
+            provincia,
+            actividad_economica,
+            num_trabajadores,
+            logo_url,
+            codigo,
+            version,
+            responsibles:company_responsibles(id, nombre, cargo, signature_url)
+          `)
+          .order('razon_social')
+      ])
 
       if (attendanceError) throw attendanceError
+      if (coursesError) throw coursesError
+      if (companiesError) throw companiesError
 
-      // For each list, count the signatures separately to get accurate counts
+      // Count participants per list in parallel using lightweight count queries
       const listsWithCounts = await Promise.all(
         (attendanceData || []).map(async (list: any) => {
-          const signatures = await getFilteredSignatures(list)
-          return {
-            ...list,
-            participantCount: signatures.length
-          }
+          const count = await getParticipantCount(list)
+          return { ...list, participantCount: count }
         })
       )
-
-      // Load courses with instructor
-      const { data: coursesData, error: coursesError } = await supabase
-        .from('courses')
-        .select(`
-          id,
-          title,
-          hours,
-          activity_type,
-          instructor:instructors!inner(id, name, signature_url)
-        `)
-        .eq('is_active', true)
-        .order('title')
-
-      if (coursesError) throw coursesError
-
-      // Load companies with responsibles
-      const { data: companiesData, error: companiesError } = await supabase
-        .from('companies')
-        .select(`
-          *,
-          responsibles:company_responsibles(id, nombre, cargo, signature_url)
-        `)
-        .order('razon_social')
-
-      if (companiesError) throw companiesError
 
       setAttendanceLists(listsWithCounts)
       setAllCourses(coursesData || [])
@@ -359,6 +358,40 @@ export default function AttendanceManagement() {
       toast.error('Error al cargar datos')
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const getParticipantCount = async (attendanceList: any): Promise<number> => {
+    if (!attendanceList.date_range_start || !attendanceList.date_range_end) return 0
+
+    const startDate = attendanceList.date_range_start.split('T')[0]
+    const endDate = `${attendanceList.date_range_end.split('T')[0]}T23:59:59.999Z`
+    const activityType = attendanceList.course?.activity_type
+
+    try {
+      if (activityType === 'attendance_only') {
+        const { count } = await supabase
+          .from('attendance_signatures')
+          .select('*, users!inner(company_id)', { count: 'exact', head: true })
+          .eq('course_id', attendanceList.course_id)
+          .eq('users.company_id', attendanceList.company_id)
+          .gte('signed_at', startDate)
+          .lte('signed_at', endDate)
+          .is('evaluation_attempt_id', null)
+        return count ?? 0
+      } else {
+        const { count } = await supabase
+          .from('evaluation_attempts')
+          .select('*, users!inner(company_id), evaluations!inner(course_id)', { count: 'exact', head: true })
+          .eq('passed', true)
+          .eq('users.company_id', attendanceList.company_id)
+          .eq('evaluations.course_id', attendanceList.course_id)
+          .gte('completed_at', startDate)
+          .lte('completed_at', endDate)
+        return count ?? 0
+      }
+    } catch {
+      return 0
     }
   }
 
@@ -433,92 +466,91 @@ export default function AttendanceManagement() {
   }
 
   const getFilteredSignatures = async (attendanceList: any) => {
-    if (attendanceList.date_range_start && attendanceList.date_range_end) {
-      // Extract date from ISO string to get YYYY-MM-DD format
-      const startDate = attendanceList.date_range_start.split('T')[0]
-      const endDateOnly = attendanceList.date_range_end.split('T')[0]
-      const endDate = `${endDateOnly}T23:59:59.999Z`
+    if (!attendanceList.date_range_start || !attendanceList.date_range_end) {
+      throw new Error('Lista de asistencia sin rango de fechas. Por favor, crea una nueva lista.')
+    }
 
-      // Get course to check activity_type
+    const startDate = attendanceList.date_range_start.split('T')[0]
+    const endDateOnly = attendanceList.date_range_end.split('T')[0]
+    const endDate = `${endDateOnly}T23:59:59.999Z`
+
+    // Use activity_type from joined course data if available, otherwise fetch it
+    let activityType = attendanceList.course?.activity_type
+    if (!activityType) {
       const { data: courseData } = await supabase
         .from('courses')
         .select('activity_type')
         .eq('id', attendanceList.course_id)
         .single()
+      activityType = courseData?.activity_type
+    }
 
-      if (courseData && courseData.activity_type === 'attendance_only') {
-        // For attendance_only: get signatures directly without evaluation
-        const { data: signaturesData, error: signaturesError } = await supabase
-          .from('attendance_signatures')
-          .select(`
-            id,
-            signature_data,
-            signed_at,
-            evaluation_attempt_id,
-            user:users!inner(first_name, last_name, dni, area, company_id)
-          `)
-          .eq('course_id', attendanceList.course_id)
-          .eq('users.company_id', attendanceList.company_id)
-          .gte('signed_at', startDate)
-          .lte('signed_at', endDate)
-          .is('evaluation_attempt_id', null)
-          .order('signed_at')
+    if (activityType === 'attendance_only') {
+      const { data: signaturesData, error: signaturesError } = await supabase
+        .from('attendance_signatures')
+        .select(`
+          id,
+          signature_data,
+          signed_at,
+          evaluation_attempt_id,
+          user:users!inner(first_name, last_name, dni, area, company_id)
+        `)
+        .eq('course_id', attendanceList.course_id)
+        .eq('users.company_id', attendanceList.company_id)
+        .gte('signed_at', startDate)
+        .lte('signed_at', endDate)
+        .is('evaluation_attempt_id', null)
+        .order('signed_at')
 
-        if (signaturesError) {
-          console.error('Error fetching signatures:', signaturesError)
-          throw signaturesError
-        }
-
-        return signaturesData || []
-      } else {
-        // For courses with evaluation: get based on passed evaluation attempts
-        const { data: attempts, error: attemptsError } = await supabase
-          .from('evaluation_attempts')
-          .select(`
-            id,
-            user_id,
-            completed_at,
-            users!inner(first_name, last_name, dni, area, company_id),
-            evaluations!inner(course_id)
-          `)
-          .eq('passed', true)
-          .eq('users.company_id', attendanceList.company_id)
-          .eq('evaluations.course_id', attendanceList.course_id)
-          .gte('completed_at', startDate)
-          .lte('completed_at', endDate)
-
-        if (attemptsError) {
-          console.error('Error fetching attempts:', attemptsError)
-          throw attemptsError
-        }
-
-        if (!attempts || attempts.length === 0) {
-          return []
-        }
-
-        const attemptIds = attempts.map((a: any) => a.id)
-
-        const { data: signaturesData, error: signaturesError } = await supabase
-          .from('attendance_signatures')
-          .select(`
-            id,
-            signature_data,
-            signed_at,
-            evaluation_attempt_id,
-            user:users!inner(first_name, last_name, dni, area)
-          `)
-          .in('evaluation_attempt_id', attemptIds)
-          .order('signed_at')
-
-        if (signaturesError) {
-          console.error('Error fetching signatures:', signaturesError)
-          throw signaturesError
-        }
-
-        return signaturesData || []
+      if (signaturesError) {
+        console.error('Error fetching signatures:', signaturesError)
+        throw signaturesError
       }
+
+      return signaturesData || []
     } else {
-      throw new Error('Lista de asistencia sin rango de fechas. Por favor, crea una nueva lista.')
+      const { data: attempts, error: attemptsError } = await supabase
+        .from('evaluation_attempts')
+        .select(`
+          id,
+          user_id,
+          completed_at,
+          users!inner(first_name, last_name, dni, area, company_id),
+          evaluations!inner(course_id)
+        `)
+        .eq('passed', true)
+        .eq('users.company_id', attendanceList.company_id)
+        .eq('evaluations.course_id', attendanceList.course_id)
+        .gte('completed_at', startDate)
+        .lte('completed_at', endDate)
+
+      if (attemptsError) {
+        console.error('Error fetching attempts:', attemptsError)
+        throw attemptsError
+      }
+
+      if (!attempts || attempts.length === 0) return []
+
+      const attemptIds = attempts.map((a: any) => a.id)
+
+      const { data: signaturesData, error: signaturesError } = await supabase
+        .from('attendance_signatures')
+        .select(`
+          id,
+          signature_data,
+          signed_at,
+          evaluation_attempt_id,
+          user:users!inner(first_name, last_name, dni, area)
+        `)
+        .in('evaluation_attempt_id', attemptIds)
+        .order('signed_at')
+
+      if (signaturesError) {
+        console.error('Error fetching signatures:', signaturesError)
+        throw signaturesError
+      }
+
+      return signaturesData || []
     }
   }
 
