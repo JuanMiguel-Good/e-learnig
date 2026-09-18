@@ -203,23 +203,39 @@ export default function SignAttendance({ courseId, evaluationAttemptId, onComple
       // evaluation_attempt_id can be null for attendance_only activities
       const { error } = await supabase
         .from('attendance_signatures')
-        .insert([
-          {
-            user_id: user.id,
-            course_id: courseId,
-            signature_data: signatureData,
-            evaluation_attempt_id: evaluationAttemptId || null,
-            attendance_list_id: null
-          }
-        ])
+        .insert({
+          user_id: user.id,
+          course_id: courseId,
+          signature_data: signatureData,
+          evaluation_attempt_id: evaluationAttemptId || null,
+          attendance_list_id: null
+        })
 
-      if (error) throw error
+      if (error) {
+        console.error('Error saving signature:', {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint
+        })
+
+        if (error.code === '23505') {
+          toast.error('Ya existe una firma registrada para este curso')
+        } else if (error.code === '23503') {
+          toast.error('La evaluación o el curso ya no están disponibles. Actualiza la página e inténtalo nuevamente')
+        } else if (error.code === '42501' || error.message.toLowerCase().includes('row-level security')) {
+          toast.error('No tienes permisos para guardar esta firma')
+        } else {
+          toast.error(`No se pudo guardar la firma: ${error.message}`)
+        }
+        return
+      }
 
       toast.success('¡Firma guardada exitosamente!')
       onComplete()
     } catch (error) {
       console.error('Error saving signature:', error)
-      toast.error('Error al guardar la firma')
+      toast.error('No se pudo conectar con el sistema. Inténtalo nuevamente')
     } finally {
       setIsSigning(false)
     }
