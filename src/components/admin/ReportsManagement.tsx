@@ -93,6 +93,7 @@ export default function ReportsManagement() {
   const [filteredParticipantCourses, setFilteredParticipantCourses] = useState<ParticipantCourseProgress[]>([])
   const [companies, setCompanies] = useState<CompanyStats[]>([])
   const [courses, setCourses] = useState<any[]>([])
+  const [isLoadingCourses, setIsLoadingCourses] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'completed' | 'in_progress' | 'not_started'>('all')
   const [companyFilter, setCompanyFilter] = useState<string>('all')
@@ -158,7 +159,7 @@ export default function ReportsManagement() {
       setIsLoading(true)
       await Promise.all([
         loadCompaniesList(),
-        loadCoursesList()
+        loadCoursesList('all')
       ])
     } catch (error) {
       console.error('Error loading initial data:', error)
@@ -214,31 +215,56 @@ export default function ReportsManagement() {
     }
   }
 
-  const loadCoursesList = async () => {
+  const loadCoursesList = async (selectedCompanyId: string = 'all') => {
     try {
-      const { data: allCoursesData } = await supabase
-        .from('courses')
-        .select('id, title, requires_evaluation, image_url, activity_type')
-        .order('title')
+      const [{ data: allCoursesData, error: coursesError }, { data: assignmentsData, error: assignmentsError }] = await Promise.all([
+        supabase
+          .from('courses')
+          .select('id, title, requires_evaluation, image_url, activity_type')
+          .order('title'),
+        supabase
+          .from('course_assignments')
+          .select('course_id, user_id')
+      ])
 
-      const { data: assignmentsData } = await supabase
-        .from('course_assignments')
-        .select('course_id')
+      if (coursesError) throw coursesError
+      if (assignmentsError) throw assignmentsError
 
-      const assignedCourseIds = new Set(assignmentsData?.map(a => a.course_id) || [])
-      const coursesWithAssignments = (allCoursesData || [])
-        .filter(course => assignedCourseIds.has(course.id))
+      let relevantAssignments = assignmentsData || []
+      if (selectedCompanyId !== 'all') {
+        const { data: companyParticipants, error: participantsError } = await supabase
+          .from('users')
+          .select('id')
+          .eq('company_id', selectedCompanyId)
+          .in('role', ['participant', 'company_manager'])
 
-      console.log('[DEBUG] Courses loaded for dropdown:', coursesWithAssignments.length)
-      const konecranesCourses = coursesWithAssignments.filter(c => c.title.includes('Konecranes'))
-      if (konecranesCourses.length > 0) {
-        console.log('[DEBUG] Konecranes courses found:', konecranesCourses.map(c => ({ id: c.id, title: c.title })))
+        if (participantsError) throw participantsError
+
+        const participantIds = new Set((companyParticipants || []).map(participant => participant.id))
+        relevantAssignments = relevantAssignments.filter(assignment => participantIds.has(assignment.user_id))
       }
+
+      const assignedCourseIds = new Set(relevantAssignments.map(assignment => assignment.course_id))
+      const coursesWithAssignments = (allCoursesData || []).filter(course => assignedCourseIds.has(course.id))
 
       setCourses(coursesWithAssignments)
     } catch (error) {
       console.error('Error loading courses:', error)
       throw error
+    }
+  }
+
+  const handleCompanyChange = async (selectedCompanyId: string) => {
+    setCompanyFilter(selectedCompanyId)
+    setCourseFilter('all')
+    setIsLoadingCourses(true)
+
+    try {
+      await loadCoursesList(selectedCompanyId)
+    } catch (error) {
+      toast.error('Error al cargar los cursos de la empresa')
+    } finally {
+      setIsLoadingCourses(false)
     }
   }
 
@@ -959,8 +985,8 @@ export default function ReportsManagement() {
               </label>
               <select
                 value={companyFilter}
-                onChange={(e) => setCompanyFilter(e.target.value)}
-                disabled={hasLoadedData}
+                onChange={(e) => void handleCompanyChange(e.target.value)}
+                disabled={hasLoadedData || isLoadingCourses}
                 className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm truncate ${
                   companyFilter === 'all' && courseFilter === 'all' ? 'border-red-300' : 'border-slate-300'
                 } disabled:opacity-50 disabled:cursor-not-allowed`}
@@ -989,12 +1015,12 @@ export default function ReportsManagement() {
                   }
                   setCourseFilter(selectedCourseId)
                 }}
-                disabled={hasLoadedData}
+                disabled={hasLoadedData || isLoadingCourses}
                 className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm truncate ${
                   companyFilter === 'all' && courseFilter === 'all' ? 'border-red-300' : 'border-slate-300'
                 } disabled:opacity-50 disabled:cursor-not-allowed`}
               >
-                <option value="all">Todos los cursos</option>
+                <option value="all">{isLoadingCourses ? 'Cargando cursos...' : 'Todos los cursos'}</option>
                 {courses.map((course) => (
                   <option key={course.id} value={course.id}>
                     {course.title}
@@ -1242,8 +1268,14 @@ export default function ReportsManagement() {
               <h3 className="mt-2 text-sm font-medium text-slate-900">No hay asignaciones</h3>
               <p className="mt-1 text-sm text-slate-500">
                 {searchTerm || statusFilter !== 'all'
-                  ? 'No hay resultados para los filtros aplicados.'
-                  : 'No hay cursos asignados a participantes para los filtros seleccionados.'}
+                  ? 'No hay resultados para la búsqueda o el estado seleccionado.'
+                  : companyFilter !== 'all' && courseFilter !== 'all'
+                    ? 'La empresa seleccionada no tiene participantes asignados a este curso.'
+                    : companyFilter !== 'all'
+                      ? 'La empresa seleccionada no tiene asignaciones disponibles.'
+                      : courseFilter !== 'all'
+                        ? 'Ningún participante tiene asignado este curso.'
+                        : 'No hay cursos asignados a participantes para los filtros seleccionados.'}
               </p>
             </div>
           )}
