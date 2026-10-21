@@ -12,6 +12,7 @@ interface Course {
   title: string
   description: string | null
   image_url: string | null
+  assigned_at: string
   progress: number
   activity_type: 'full_course' | 'topic' | 'attendance_only'
   requires_evaluation: boolean
@@ -37,6 +38,54 @@ interface Lesson {
   can_access: boolean
 }
 
+const COURSE_PAGE_SIZE = 1000
+
+const loadAllCourseAssignments = async (userId: string): Promise<any[]> => {
+  const assignments: any[] = []
+  let from = 0
+
+  while (true) {
+    const { data, error } = await supabase
+      .from('course_assignments')
+      .select(`
+        course_id,
+        assigned_at,
+        courses!inner (
+          id,
+          title,
+          description,
+          image_url,
+          activity_type,
+          requires_evaluation,
+          modules (
+            id,
+            title,
+            description,
+            order_index,
+            lessons (
+              id,
+              title,
+              content,
+              video_url,
+              order_index,
+              duration_minutes
+            )
+          )
+        )
+      `)
+      .eq('user_id', userId)
+      .order('assigned_at', { ascending: false })
+      .range(from, from + COURSE_PAGE_SIZE - 1)
+
+    if (error) throw error
+
+    const page = data || []
+    assignments.push(...page)
+    if (page.length < COURSE_PAGE_SIZE) return assignments
+    from += COURSE_PAGE_SIZE
+  }
+}
+
 export default function MyCourses() {
   const { user } = useAuth()
   const [courses, setCourses] = useState<Course[]>([])
@@ -53,6 +102,7 @@ export default function MyCourses() {
   const [evaluationStatuses, setEvaluationStatuses] = useState<{ [key: string]: { canTake: boolean, hasPassed: boolean, required: boolean } }>({})
   const [signatureStatuses, setSignatureStatuses] = useState<{ [key: string]: boolean }>({})
   const [activityFilter, setActivityFilter] = useState<'all' | 'full_course' | 'topic' | 'attendance_only'>('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'in_progress' | 'completed'>('all')
   const [modalImageUrl, setModalImageUrl] = useState<string | null>(null)
   const [imageZoom, setImageZoom] = useState(1)
   const [imageRotation, setImageRotation] = useState(0)
@@ -109,35 +159,7 @@ export default function MyCourses() {
         attemptsResult,
         signaturesResult
       ] = await Promise.all([
-        // Get course assignments with full course data
-        supabase
-          .from('course_assignments')
-          .select(`
-            course_id,
-            courses!inner (
-              id,
-              title,
-              description,
-              image_url,
-              activity_type,
-              requires_evaluation,
-              modules (
-                id,
-                title,
-                description,
-                order_index,
-                lessons (
-                  id,
-                  title,
-                  content,
-                  video_url,
-                  order_index,
-                  duration_minutes
-                )
-              )
-            )
-          `)
-          .eq('user_id', user?.id),
+        loadAllCourseAssignments(user!.id),
 
         // Get ALL lesson progress for this user in ONE query
         supabase
@@ -167,8 +189,6 @@ export default function MyCourses() {
           .is('evaluation_attempt_id', null)
       ])
 
-      if (coursesResult.error) throw coursesResult.error
-
       // Build lookup maps for fast access
       const completedLessons = new Set(
         (progressResult.data || []).map(p => p.lesson_id)
@@ -192,7 +212,15 @@ export default function MyCourses() {
       )
 
       // Process courses with progress calculation
-      const processedCourses = (coursesResult.data || []).map((assignment: any) => {
+      const latestAssignmentByCourse = new Map<string, any>()
+      coursesResult.forEach((assignment: any) => {
+        const current = latestAssignmentByCourse.get(assignment.course_id)
+        if (!current || new Date(assignment.assigned_at).getTime() > new Date(current.assigned_at).getTime()) {
+          latestAssignmentByCourse.set(assignment.course_id, assignment)
+        }
+      })
+
+      const processedCourses = Array.from(latestAssignmentByCourse.values()).map((assignment: any) => {
         const course = assignment.courses
 
         // Calculate progress and determine accessibility
@@ -231,12 +259,11 @@ export default function MyCourses() {
 
         return {
           ...course,
+          assigned_at: assignment.assigned_at,
           progress,
           modules: sortedModules
         }
       })
-
-      setCourses(processedCourses)
 
       // Process evaluation statuses using pre-fetched data
       const statuses: { [key: string]: { canTake: boolean, hasPassed: boolean, required: boolean } } = {}
@@ -292,6 +319,24 @@ export default function MyCourses() {
         }
       })
       setSignatureStatuses(sigStatuses)
+
+      const sortedCourses = [...processedCourses].sort((a, b) => {
+        const aCompleted = a.activity_type === 'attendance_only'
+          ? signedCourses.has(a.id)
+          : a.activity_type === 'topic'
+            ? (!a.requires_evaluation || statuses[a.id]?.hasPassed)
+            : a.progress === 100 && (!a.requires_evaluation || statuses[a.id]?.hasPassed)
+        const bCompleted = b.activity_type === 'attendance_only'
+          ? signedCourses.has(b.id)
+          : b.activity_type === 'topic'
+            ? (!b.requires_evaluation || statuses[b.id]?.hasPassed)
+            : b.progress === 100 && (!b.requires_evaluation || statuses[b.id]?.hasPassed)
+
+        if (aCompleted !== bCompleted) return aCompleted ? 1 : -1
+        return new Date(b.assigned_at).getTime() - new Date(a.assigned_at).getTime()
+      })
+
+      setCourses(sortedCourses)
     } catch (error) {
       console.error('Error loading courses:', error)
       toast.error('Error al cargar cursos')
@@ -659,6 +704,18 @@ export default function MyCourses() {
     }
   }
 
+  const getCourseStatus = (course: Course): 'pending' | 'in_progress' | 'completed' => {
+    const completed = course.activity_type === 'attendance_only'
+      ? signatureStatuses[course.id] === true
+      : course.activity_type === 'topic'
+        ? (!course.requires_evaluation || evaluationStatuses[course.id]?.hasPassed === true)
+        : course.progress === 100 && (!course.requires_evaluation || evaluationStatuses[course.id]?.hasPassed === true)
+
+    if (completed) return 'completed'
+    if (course.progress > 0) return 'in_progress'
+    return 'pending'
+  }
+
   const toggleModule = (moduleId: string) => {
     setExpandedModules(prev => {
       const newSet = new Set(prev)
@@ -733,11 +790,56 @@ export default function MyCourses() {
       />
     )
   }
+  const visibleCourses = courses.filter(course => {
+    const matchesActivity = activityFilter === 'all' || course.activity_type === activityFilter
+    const matchesStatus = statusFilter === 'all' || getCourseStatus(course) === statusFilter
+    return matchesActivity && matchesStatus
+  })
+  const pendingCourses = courses.filter(course => getCourseStatus(course) === 'pending')
+  const inProgressCourses = courses.filter(course => getCourseStatus(course) === 'in_progress')
+  const completedCourses = courses.filter(course => getCourseStatus(course) === 'completed')
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-xl md:text-2xl font-bold text-slate-800">Mis Cursos</h1>
         <p className="text-sm md:text-base text-slate-600">Continúa con tu aprendizaje</p>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2 md:gap-4">
+        <div className="bg-white rounded-xl border border-slate-200 p-3 md:p-4">
+          <p className="text-xs md:text-sm text-slate-500">Asignados</p>
+          <p className="text-xl md:text-2xl font-bold text-slate-800">{courses.length}</p>
+        </div>
+        <div className="bg-amber-50 rounded-xl border border-amber-200 p-3 md:p-4">
+          <p className="text-xs md:text-sm text-amber-700">Pendientes</p>
+          <p className="text-xl md:text-2xl font-bold text-amber-900">{pendingCourses.length}</p>
+        </div>
+        <div className="bg-green-50 rounded-xl border border-green-200 p-3 md:p-4">
+          <p className="text-xs md:text-sm text-green-700">Completados</p>
+          <p className="text-xl md:text-2xl font-bold text-green-900">{completedCourses.length}</p>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {[
+          { value: 'all' as const, label: 'Todos', count: courses.length },
+          { value: 'pending' as const, label: 'Pendientes', count: pendingCourses.length },
+          { value: 'in_progress' as const, label: 'En progreso', count: inProgressCourses.length },
+          { value: 'completed' as const, label: 'Completados', count: completedCourses.length }
+        ].map(filter => (
+          <button
+            key={filter.value}
+            onClick={() => setStatusFilter(filter.value)}
+            className={`px-3 md:px-4 py-2 rounded-lg font-medium text-xs md:text-sm transition-colors ${
+              statusFilter === filter.value
+                ? 'bg-slate-800 text-white'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            }`}
+          >
+            {filter.label} <span className="ml-1 opacity-75">({filter.count})</span>
+          </button>
+        ))}
       </div>
 
       {/* Activity Type Filters */}
@@ -789,7 +891,7 @@ export default function MyCourses() {
 
       {/* Courses Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 cards-grid">
-        {courses.filter(course => activityFilter === 'all' || course.activity_type === activityFilter).map((course) => {
+        {visibleCourses.map((course) => {
           const activityTypeConfig = {
             full_course: { label: 'Curso', color: 'blue', icon: BookOpen },
             topic: { label: 'Evaluación', color: 'green', icon: FileText },
@@ -974,11 +1076,11 @@ export default function MyCourses() {
         </div>
       )}
 
-      {courses.length > 0 && courses.filter(course => activityFilter === 'all' || course.activity_type === activityFilter).length === 0 && (
+      {courses.length > 0 && visibleCourses.length === 0 && (
         <div className="text-center py-8 md:py-12">
           <BookOpen className="mx-auto h-12 w-12 text-slate-400" />
           <h3 className="mt-2 text-sm md:text-base font-medium text-slate-900">
-            No hay {activityFilter === 'full_course' ? 'cursos' : activityFilter === 'topic' ? 'evaluaciones' : activityFilter === 'attendance_only' ? 'listas de asistencia' : 'actividades'} disponibles
+            No hay {statusFilter === 'pending' ? 'actividades pendientes' : statusFilter === 'in_progress' ? 'cursos en progreso' : statusFilter === 'completed' ? 'cursos completados' : activityFilter === 'full_course' ? 'cursos' : activityFilter === 'topic' ? 'evaluaciones' : activityFilter === 'attendance_only' ? 'listas de asistencia' : 'actividades'} disponibles
           </h3>
           <p className="mt-1 text-xs md:text-sm text-slate-500">Intenta con otro filtro.</p>
         </div>
