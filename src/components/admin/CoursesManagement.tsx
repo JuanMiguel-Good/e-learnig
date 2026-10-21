@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { StorageService } from '../../lib/storage'
-import { Plus, CreditCard as Edit2, Trash2, Upload, BookOpen, User, Video, FileText, CheckCircle, AlertCircle, ExternalLink, Check, HelpCircle, ChevronDown, X, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react'
+import { Plus, CreditCard as Edit2, Trash2, Upload, BookOpen, User, Video, FileText, CheckCircle, AlertCircle, ExternalLink, Check, HelpCircle, ChevronDown, X, ZoomIn, ZoomOut, Maximize2, Search } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useForm, useFieldArray } from 'react-hook-form'
 
@@ -73,6 +73,7 @@ export default function CoursesManagement() {
   const [uploadProgress, setUploadProgress] = useState<{ [key: string]: number }>({})
   const [loadingCourseData, setLoadingCourseData] = useState(false)
   const [activityFilter, setActivityFilter] = useState<'all' | 'full_course' | 'topic' | 'attendance_only'>('all')
+  const [courseSearch, setCourseSearch] = useState('')
   const [evaluationStatuses, setEvaluationStatuses] = useState<{ [courseId: string]: EvaluationStatus }>({})
   const [showQuickEvaluationModal, setShowQuickEvaluationModal] = useState(false)
   const [selectedCourseForEvaluation, setSelectedCourseForEvaluation] = useState<Course | null>(null)
@@ -103,6 +104,12 @@ export default function CoursesManagement() {
   })
 
   const watchActivityType = watch('activity_type')
+  const normalizedSearch = courseSearch.trim().toLocaleLowerCase()
+  const filteredCourses = courses.filter(course => {
+    const matchesActivity = activityFilter === 'all' || course.activity_type === activityFilter
+    const matchesSearch = course.title.toLocaleLowerCase().includes(normalizedSearch)
+    return matchesActivity && matchesSearch
+  })
 
   const { fields: moduleFields, append: appendModule, remove: removeModule } = useFieldArray({
     control,
@@ -807,9 +814,32 @@ export default function CoursesManagement() {
         </button>
       </div>
 
+      {/* Course Search */}
+      <div className="relative max-w-xl">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+        <input
+          type="search"
+          value={courseSearch}
+          onChange={(event) => setCourseSearch(event.target.value)}
+          placeholder="Buscar curso por nombre..."
+          aria-label="Buscar curso por nombre"
+          className="w-full pl-10 pr-10 py-3 bg-white border border-slate-300 rounded-xl text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+        />
+        {courseSearch && (
+          <button
+            type="button"
+            onClick={() => setCourseSearch('')}
+            aria-label="Limpiar búsqueda"
+            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-700 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+
       {/* Courses Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {courses.filter(course => activityFilter === 'all' || course.activity_type === activityFilter).map((course) => (
+        {filteredCourses.map((course) => (
           <div
             key={course.id}
             id={`course-${course.id}`}
@@ -982,13 +1012,17 @@ export default function CoursesManagement() {
         </div>
       )}
 
-      {courses.length > 0 && courses.filter(course => activityFilter === 'all' || course.activity_type === activityFilter).length === 0 && (
+      {courses.length > 0 && filteredCourses.length === 0 && (
         <div className="text-center py-12">
           <BookOpen className="mx-auto h-12 w-12 text-slate-400" />
           <h3 className="mt-2 text-sm font-medium text-slate-900">
-            No hay {activityFilter === 'full_course' ? 'cursos' : activityFilter === 'topic' ? 'evaluaciones' : activityFilter === 'attendance_only' ? 'listas de asistencia' : 'actividades'} disponibles
+            {courseSearch.trim()
+              ? 'No se encontraron cursos'
+              : `No hay ${activityFilter === 'full_course' ? 'cursos' : activityFilter === 'topic' ? 'evaluaciones' : activityFilter === 'attendance_only' ? 'listas de asistencia' : 'actividades'} disponibles`}
           </h3>
-          <p className="mt-1 text-sm text-slate-500">Intenta con otro filtro.</p>
+          <p className="mt-1 text-sm text-slate-500">
+            {courseSearch.trim() ? 'Prueba con otro nombre o limpia la búsqueda.' : 'Intenta con otro filtro.'}
+          </p>
         </div>
       )}
 
