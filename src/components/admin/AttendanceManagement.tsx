@@ -80,6 +80,7 @@ export default function AttendanceManagement() {
   const [courses, setCourses] = useState<Course[]>([])
   const [allCourses, setAllCourses] = useState<Course[]>([])
   const [companies, setCompanies] = useState<Company[]>([])
+  const [isFilteringCourses, setIsFilteringCourses] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
@@ -133,16 +134,20 @@ export default function AttendanceManagement() {
 
   const filterCoursesByCompany = async () => {
     if (!selectedCompanyId) {
-      setCourses(allCourses)
+      setCourses([])
       return
     }
 
     try {
-      const { data: participantsData } = await supabase
+      setIsFilteringCourses(true)
+
+      const { data: participantsData, error: participantsError } = await supabase
         .from('users')
         .select('id')
         .eq('company_id', selectedCompanyId)
         .in('role', ['participant', 'company_manager'])
+
+      if (participantsError) throw participantsError
 
       if (!participantsData || participantsData.length === 0) {
         setCourses([])
@@ -151,7 +156,7 @@ export default function AttendanceManagement() {
 
       const participantIds = participantsData.map(p => p.id)
 
-      const { data: assignmentsData } = await supabase
+      const { data: assignmentsData, error: assignmentsError } = await supabase
         .from('course_assignments')
         .select(`
           course_id,
@@ -167,6 +172,8 @@ export default function AttendanceManagement() {
         .in('user_id', participantIds)
         .eq('courses.is_active', true)
 
+      if (assignmentsError) throw assignmentsError
+
       const uniqueCoursesMap = new Map<string, Course>()
       assignmentsData?.forEach((assignment: any) => {
         const course = assignment.courses
@@ -181,13 +188,15 @@ export default function AttendanceManagement() {
         }
       })
 
-      const filteredCourses = Array.from(uniqueCoursesMap.values()).sort((a, b) =>
+      setCourses(Array.from(uniqueCoursesMap.values()).sort((a, b) =>
         a.title.localeCompare(b.title)
-      )
-      setCourses(filteredCourses)
+      ))
     } catch (error) {
       console.error('Error filtering courses:', error)
-      setCourses(allCourses)
+      setCourses([])
+      toast.error('No se pudieron cargar los cursos de la empresa')
+    } finally {
+      setIsFilteringCourses(false)
     }
   }
 
@@ -842,34 +851,24 @@ export default function AttendanceManagement() {
               </h2>
 
               <form onSubmit={handleSubmit(handleCreate)} className="space-y-4">
-                {/* Course and Company */}
+                {/* Company and course */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                      Curso *
-                    </label>
-                    <select
-                      {...register('course_id', { required: 'Selecciona un curso' })}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm"
-                    >
-                      <option value="">Seleccionar curso</option>
-                      {courses.map((course) => (
-                        <option key={course.id} value={course.id}>
-                          {course.title} ({course.hours}h)
-                        </option>
-                      ))}
-                    </select>
-                    {errors.course_id && (
-                      <p className="text-red-500 text-xs mt-1">{errors.course_id.message}</p>
-                    )}
-                  </div>
-
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">
                       Empresa *
                     </label>
                     <select
-                      {...register('company_id', { required: 'Selecciona una empresa' })}
+                      {...register('company_id', {
+                        required: 'Selecciona una empresa',
+                        onChange: () => {
+                          setValue('course_id', '')
+                          setValue('responsible_id', '')
+                          setValue('responsible_name', '')
+                          setValue('responsible_position', '')
+                          setPreviewParticipants([])
+                          setShowPreview(false)
+                        }
+                      })}
                       className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm"
                     >
                       <option value="">Seleccionar empresa</option>
@@ -881,6 +880,40 @@ export default function AttendanceManagement() {
                     </select>
                     {errors.company_id && (
                       <p className="text-red-500 text-xs mt-1">{errors.company_id.message}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Curso *
+                    </label>
+                    <select
+                      {...register('course_id', { required: 'Selecciona un curso' })}
+                      disabled={!selectedCompanyId || isFilteringCourses}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm disabled:bg-slate-100 disabled:cursor-not-allowed"
+                    >
+                      <option value="">
+                        {!selectedCompanyId
+                          ? 'Selecciona primero una empresa'
+                          : isFilteringCourses
+                            ? 'Cargando cursos...'
+                            : courses.length === 0
+                              ? 'No hay cursos asignados'
+                              : 'Seleccionar curso'}
+                      </option>
+                      {courses.map((course) => (
+                        <option key={course.id} value={course.id}>
+                          {course.title} ({course.hours}h)
+                        </option>
+                      ))}
+                    </select>
+                    {errors.course_id && (
+                      <p className="text-red-500 text-xs mt-1">{errors.course_id.message}</p>
+                    )}
+                    {selectedCompanyId && !isFilteringCourses && courses.length === 0 && (
+                      <p className="text-slate-500 text-xs mt-1">
+                        Esta empresa no tiene cursos asignados a sus participantes.
+                      </p>
                     )}
                   </div>
                 </div>
