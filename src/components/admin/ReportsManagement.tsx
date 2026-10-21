@@ -88,6 +88,26 @@ interface CourseDetail {
   completed_date: string | null
 }
 
+const REPORT_PAGE_SIZE = 1000
+
+const fetchAllPages = async <T,>(
+  fetchPage: (from: number, to: number) => Promise<{ data: T[] | null; error: { message: string } | null }>
+): Promise<T[]> => {
+  const rows: T[] = []
+  let from = 0
+
+  while (true) {
+    const { data, error } = await fetchPage(from, from + REPORT_PAGE_SIZE - 1)
+    if (error) throw error
+
+    const page = data || []
+    rows.push(...page)
+
+    if (page.length < REPORT_PAGE_SIZE) return rows
+    from += REPORT_PAGE_SIZE
+  }
+}
+
 export default function ReportsManagement() {
   const [participantCourses, setParticipantCourses] = useState<ParticipantCourseProgress[]>([])
   const [filteredParticipantCourses, setFilteredParticipantCourses] = useState<ParticipantCourseProgress[]>([])
@@ -179,18 +199,26 @@ export default function ReportsManagement() {
       if (error) throw error
 
       const statsPromises = (companiesData || []).map(async (company) => {
-        const { data: companyParticipants } = await supabase
-          .from('users')
-          .select('id')
-          .eq('company_id', company.id)
-          .in('role', ['participant', 'company_manager'])
+        const companyParticipants = await fetchAllPages((from, to) =>
+          supabase
+            .from('users')
+            .select('id')
+            .eq('company_id', company.id)
+            .in('role', ['participant', 'company_manager'])
+            .range(from, to)
+        )
 
-        const participantIds = companyParticipants?.map(p => p.id) || []
+        const participantIds = companyParticipants.map(p => p.id)
 
-        const { data: assignments } = await supabase
-          .from('course_assignments')
-          .select('course_id, user_id')
-          .in('user_id', participantIds)
+        const assignments = participantIds.length > 0
+          ? await fetchAllPages((from, to) =>
+              supabase
+                .from('course_assignments')
+                .select('course_id, user_id')
+                .in('user_id', participantIds)
+                .range(from, to)
+            )
+          : []
 
         const { count: certificatesCount } = await supabase
           .from('certificates')
@@ -203,7 +231,7 @@ export default function ReportsManagement() {
           total_participants: participantIds.length,
           avg_progress: 0,
           total_certificates: certificatesCount || 0,
-          total_courses_assigned: assignments?.length || 0
+          total_courses_assigned: assignments.length
         }
       })
 
@@ -217,30 +245,34 @@ export default function ReportsManagement() {
 
   const loadCoursesList = async (selectedCompanyId: string = 'all') => {
     try {
-      const [{ data: allCoursesData, error: coursesError }, { data: assignmentsData, error: assignmentsError }] = await Promise.all([
-        supabase
-          .from('courses')
-          .select('id, title, requires_evaluation, image_url, activity_type')
-          .order('title'),
-        supabase
-          .from('course_assignments')
-          .select('course_id, user_id')
+      const [allCoursesData, assignmentsData] = await Promise.all([
+        fetchAllPages((from, to) =>
+          supabase
+            .from('courses')
+            .select('id, title, requires_evaluation, image_url, activity_type')
+            .order('title')
+            .range(from, to)
+        ),
+        fetchAllPages((from, to) =>
+          supabase
+            .from('course_assignments')
+            .select('course_id, user_id')
+            .range(from, to)
+        )
       ])
-
-      if (coursesError) throw coursesError
-      if (assignmentsError) throw assignmentsError
 
       let relevantAssignments = assignmentsData || []
       if (selectedCompanyId !== 'all') {
-        const { data: companyParticipants, error: participantsError } = await supabase
-          .from('users')
-          .select('id')
-          .eq('company_id', selectedCompanyId)
-          .in('role', ['participant', 'company_manager'])
+        const companyParticipants = await fetchAllPages((from, to) =>
+          supabase
+            .from('users')
+            .select('id')
+            .eq('company_id', selectedCompanyId)
+            .in('role', ['participant', 'company_manager'])
+            .range(from, to)
+        )
 
-        if (participantsError) throw participantsError
-
-        const participantIds = new Set((companyParticipants || []).map(participant => participant.id))
+        const participantIds = new Set(companyParticipants.map(participant => participant.id))
         relevantAssignments = relevantAssignments.filter(assignment => participantIds.has(assignment.user_id))
       }
 
@@ -298,21 +330,22 @@ export default function ReportsManagement() {
 
   const loadParticipantsProgress = async () => {
     try {
-      let participantsQuery = supabase
-        .from('users')
-        .select('id, first_name, last_name, email, dni, area, company_id')
-        .in('role', ['participant', 'company_manager'])
-        .order('first_name')
-        .limit(10000)
+      const participants = await fetchAllPages((from, to) => {
+        let query = supabase
+          .from('users')
+          .select('id, first_name, last_name, email, dni, area, company_id')
+          .in('role', ['participant', 'company_manager'])
+          .order('first_name')
+          .range(from, to)
 
-      if (companyFilter !== 'all') {
-        participantsQuery = participantsQuery.eq('company_id', companyFilter)
-      }
+        if (companyFilter !== 'all') {
+          query = query.eq('company_id', companyFilter)
+        }
 
-      const { data: participants, error: participantsError } = await participantsQuery
+        return query
+      })
 
-      if (participantsError) throw participantsError
-      if (!participants || participants.length === 0) {
+      if (participants.length === 0) {
         setParticipantCourses([])
         return
       }
@@ -322,44 +355,44 @@ export default function ReportsManagement() {
       console.log('[DEBUG] Loading data for', participantIds.length, 'participants')
       console.log('[DEBUG] filtering by course:', courseFilter)
 
-      let assignmentsQuery = supabase
-        .from('course_assignments')
-        .select('user_id, course_id, assigned_at')
-        .in('user_id', participantIds)
-        .limit(10000)
+      const assignmentsQuery = (from: number, to: number) => {
+        let query = supabase
+          .from('course_assignments')
+          .select('user_id, course_id, assigned_at')
+          .in('user_id', participantIds)
+          .range(from, to)
 
-      if (courseFilter !== 'all') {
-        console.log('[DEBUG] Applying course filter to query:', courseFilter)
-        assignmentsQuery = assignmentsQuery.eq('course_id', courseFilter)
+        if (courseFilter !== 'all') {
+          console.log('[DEBUG] Applying course filter to query:', courseFilter)
+          query = query.eq('course_id', courseFilter)
+        }
+
+        return query
       }
 
       const [
-        { data: companiesData },
-        { data: allAssignmentsData, error: assignmentsError },
-        { data: allModules },
-        { data: allLessons },
-        { data: allLessonProgress },
-        { data: allEvaluations },
-        { data: allAttempts },
-        { data: allSignatures },
-        { data: allCertificates },
-        { data: allCoursesData }
+        companiesData,
+        allAssignmentsData,
+        allModules,
+        allLessons,
+        allLessonProgress,
+        allEvaluations,
+        allAttempts,
+        allSignatures,
+        allCertificates,
+        allCoursesData
       ] = await Promise.all([
-        supabase.from('companies').select('id, razon_social'),
-        assignmentsQuery,
-        supabase.from('modules').select('id, course_id').limit(5000),
-        supabase.from('lessons').select('id, module_id').limit(10000),
-        supabase.from('lesson_progress').select('user_id, lesson_id, completed, completed_at').in('user_id', participantIds).limit(50000),
-        supabase.from('evaluations').select('id, course_id, max_attempts, is_active').eq('is_active', true).limit(500),
-        supabase.from('evaluation_attempts').select('id, user_id, evaluation_id, passed, score, completed_at').in('user_id', participantIds).order('completed_at', { ascending: false }).limit(20000),
-        supabase.from('attendance_signatures').select('user_id, evaluation_attempt_id').in('user_id', participantIds).limit(10000),
-        supabase.from('certificates').select('user_id, course_id, certificate_url, completion_date').in('user_id', participantIds).limit(10000),
-        supabase.from('courses').select('id, title, requires_evaluation, image_url, activity_type').limit(500)
+        fetchAllPages((from, to) => supabase.from('companies').select('id, razon_social').order('razon_social').range(from, to)),
+        fetchAllPages(assignmentsQuery),
+        fetchAllPages((from, to) => supabase.from('modules').select('id, course_id').range(from, to)),
+        fetchAllPages((from, to) => supabase.from('lessons').select('id, module_id').range(from, to)),
+        fetchAllPages((from, to) => supabase.from('lesson_progress').select('user_id, lesson_id, completed, completed_at').in('user_id', participantIds).range(from, to)),
+        fetchAllPages((from, to) => supabase.from('evaluations').select('id, course_id, max_attempts, is_active').eq('is_active', true).range(from, to)),
+        fetchAllPages((from, to) => supabase.from('evaluation_attempts').select('id, user_id, evaluation_id, passed, score, completed_at').in('user_id', participantIds).order('completed_at', { ascending: false }).range(from, to)),
+        fetchAllPages((from, to) => supabase.from('attendance_signatures').select('user_id, evaluation_attempt_id').in('user_id', participantIds).range(from, to)),
+        fetchAllPages((from, to) => supabase.from('certificates').select('user_id, course_id, certificate_url, completion_date').in('user_id', participantIds).order('completion_date', { ascending: false }).range(from, to)),
+        fetchAllPages((from, to) => supabase.from('courses').select('id, title, requires_evaluation, image_url, activity_type').range(from, to))
       ])
-
-      if (assignmentsError) {
-        console.error('[DEBUG] Error loading assignments:', assignmentsError)
-      }
 
       console.log('[DEBUG] Raw allAssignmentsData length:', allAssignmentsData?.length || 0)
       console.log('[DEBUG] Raw allCoursesData length:', allCoursesData?.length || 0)
@@ -542,6 +575,16 @@ export default function ReportsManagement() {
           }
         }
 
+        const isEligibleForCertificate = activityType === 'attendance_only'
+          ? signatureStatus === 'signed'
+          : activityType === 'topic'
+            ? (course.requires_evaluation ? evaluationStatus === 'passed' : true)
+            : (totalLessons === 0 || progress === 100) && (!course.requires_evaluation || evaluationStatus === 'passed')
+
+        const certificateStatus: ParticipantCourseProgress['certificate_status'] = certificate?.certificate_url
+          ? 'generated'
+          : (isEligibleForCertificate ? 'ready_to_generate' : 'pending')
+
         return {
           participant_id: participant.id,
           first_name: participant.first_name,
@@ -569,9 +612,7 @@ export default function ReportsManagement() {
           evaluation_attempts: evaluationAttempts,
           max_attempts: maxAttempts,
           signature_status: signatureStatus,
-          certificate_status: certificate
-            ? (certificate.certificate_url ? 'generated' : 'ready_to_generate')
-            : 'pending',
+          certificate_status: certificateStatus,
           certificate_url: certificate?.certificate_url || null,
           certificate_date: certificate?.completion_date || null,
           last_activity: latestActivity
@@ -718,7 +759,8 @@ export default function ReportsManagement() {
   }
 
   const handleGeneratePendingCertificates = async () => {
-    const pendingCount = participantCourses.filter(p => p.certificate_status === 'ready_to_generate').length
+    const pendingCertificates = participantCourses.filter(p => p.certificate_status === 'ready_to_generate')
+    const pendingCount = pendingCertificates.length
 
     if (pendingCount === 0) {
       toast.error('No hay certificados pendientes de generar')
@@ -736,23 +778,38 @@ export default function ReportsManagement() {
       setShowGenerationModal(true)
       setGenerationProgress({ current: 0, total: pendingCount, userName: '', courseName: '' })
 
-      const result = await CertificateBulkGenerator.generatePendingCertificates(
-        (current, total, userName, courseName) => {
-          setGenerationProgress({ current, total, userName, courseName })
-        },
-        (error, userName, courseName) => {
-          console.error(`Error generando certificado para ${userName} - ${courseName}:`, error)
+      let success = 0
+      let failed = 0
+
+      for (let index = 0; index < pendingCertificates.length; index++) {
+        const item = pendingCertificates[index]
+        setGenerationProgress({
+          current: index + 1,
+          total: pendingCount,
+          userName: `${item.first_name} ${item.last_name}`,
+          courseName: item.course_title
+        })
+
+        try {
+          const url = await CertificateBulkGenerator.generateSingleCertificate(item.participant_id, item.course_id)
+          success++
+          setParticipantCourses(previous => previous.map(course =>
+            course.participant_id === item.participant_id && course.course_id === item.course_id
+              ? { ...course, certificate_status: 'generated', certificate_url: url }
+              : course
+          ))
+        } catch (error) {
+          failed++
+          console.error(`Error generando certificado para ${item.first_name} ${item.last_name} - ${item.course_title}:`, error)
         }
-      )
+      }
 
       setShowGenerationModal(false)
 
-      if (result.failed > 0) {
-        toast.success(
-          `${result.success} certificados generados correctamente, ${result.failed} fallaron`
-        )
+      if (failed > 0) {
+        toast.success(`${success} certificados generados correctamente, ${failed} fallaron`)
       } else {
-        toast.success(`Todos los ${result.success} certificados se generaron correctamente`)
+        toast.success(`Todos los ${success} certificados se generaron correctamente`)
       }
 
       await loadReportData()
